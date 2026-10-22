@@ -84,8 +84,7 @@ export function SearchBox({ categories, initialQuery = "" }: Props) {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Plumbers, dentists, biryani..."
             autoComplete="off"
-            className="w-full rounded-lg border border-neutral-300 px-3 py-2.5 text-base outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
-          />
+className="w-full rounded-lg border border-neutral-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-500 caret-slate-900 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100"          />
           <datalist id={listId}>
             {suggestions.map((value) => (
               <option key={value} value={value} />
