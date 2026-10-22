@@ -48,20 +48,32 @@ export async function SiteHeader() {
       </div>
 
       <div className="relative mx-auto flex min-h-[68px] max-w-[1600px] items-center justify-between gap-4 px-5 lg:min-h-[76px] lg:px-10">
-       <Link
+      ```tsx
+<Link
   href="/"
   aria-label="Hyderabad Links home"
-  className="order-1 flex shrink-0 items-center"
+  className="order-1 flex shrink-0 items-center gap-3"
 >
   <Image
     src="/hyderabad-links-logo.png"
+    alt="Hyderabad Links emblem"
+    width={64}
+    height={64}
+    priority
+    className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
+  />
+
+  <Image
+    src="/hyderabad-links-name.png"
     alt="Hyderabad Links"
     width={220}
-    height={80}
+    height={70}
     priority
-    className="h-12 w-auto object-contain sm:h-14"
+    className="h-8 w-auto max-w-[150px] object-contain sm:h-10 sm:max-w-[220px]"
   />
 </Link>
+```
+
 
         <CategoryNav tree={tree} />
 
