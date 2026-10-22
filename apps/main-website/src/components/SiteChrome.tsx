@@ -54,13 +54,13 @@ export async function SiteHeader() {
           />
 
           <Image
-            src="/hyderabad-links-name.png"
-            alt="Hyderabad Links"
-            width={220}
-            height={70}
-            priority
-            className="h-7 w-auto max-w-[200px] object-contain sm:h-10 sm:max-w-[300px]"
-          />
+  src="/hyderabad-links-name.png"
+  alt="Hyderabad Links"
+  width={400}
+  height={100}
+  priority
+  className="h-12 w-auto max-w-[240px] object-contain sm:h-16 sm:max-w-[360px]"
+/>
         </Link>
 
         {/* Existing category navigation */}
