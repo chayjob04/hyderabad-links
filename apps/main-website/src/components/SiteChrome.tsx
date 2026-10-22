@@ -1,39 +1,25 @@
+```tsx
 import Image from "next/image";
 import Link from "next/link";
 import { CategoryNav } from "@/components/CategoryNav";
 import { getCategories } from "@/lib/api";
 import { BRAND_NAME } from "@/lib/brand";
 
-/** The site's wordmark. There is no logo file yet, so the name is drawn in type. */
-function BrandMark({ className = "" }: { className?: string }) {
-  return (
-    <span className={`font-black tracking-tight text-brand-800 ${className}`}>
-      Hyderabad <b className="text-brand-500">Links</b>
-    </span>
-  );
-}
-
-/**
- * The teal utility bar and the white main navigation, as in the reference build.
- *
- * Only links to pages that exist are shown. The reference also carries About, Membership, Contact,
- * Terms and Privacy; those routes are not built here yet, and a header full of 404s would be worse
- * than a shorter one.
- *
- * The category tree is fetched here, on the server, and handed to the client nav component.
- */
 export async function SiteHeader() {
   const tree = await getCategories();
 
   return (
     <header className="sticky top-0 z-40 bg-white shadow-[0_3px_18px_#002a3410]">
+      {/* Top navigation */}
       <div className="flex h-[50px] items-center justify-center gap-6 bg-brand-700 px-4 text-white sm:gap-10 lg:gap-14">
         <Link href="/" className="text-sm font-bold hover:opacity-70">
           Home
         </Link>
+
         <Link href="/search" className="text-sm font-bold hover:opacity-70">
           Search
         </Link>
+
         <a
           href="https://hyderabadlinks.com/blog"
           target="_blank"
@@ -42,44 +28,51 @@ export async function SiteHeader() {
         >
           Blog
         </a>
-        <Link href="/account/listings" className="hidden text-sm font-bold hover:opacity-70 sm:block">
+
+        <Link
+          href="/account/listings"
+          className="hidden text-sm font-bold hover:opacity-70 sm:block"
+        >
           List your business
         </Link>
       </div>
 
-      <div className="relative mx-auto flex min-h-[68px] max-w-[1600px] items-center justify-between gap-4 px-5 lg:min-h-[76px] lg:px-10">
-      ```tsx
-<Link
-  href="/"
-  aria-label="Hyderabad Links home"
-  className="order-1 flex shrink-0 items-center gap-3"
->
-  <Image
-    src="/hyderabad-links-logo.png"
-    alt="Hyderabad Links emblem"
-    width={64}
-    height={64}
-    priority
-    className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
-  />
+      {/* Main header */}
+      <div className="mx-auto flex min-h-[68px] max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:min-h-[76px] lg:px-10">
+        {/* Logo and company name */}
+        <Link
+          href="/"
+          aria-label="Hyderabad Links home"
+          className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3"
+        >
+          <Image
+            src="/hyderabad-links-logo.png"
+            alt="Hyderabad Links emblem"
+            width={64}
+            height={64}
+            priority
+            className="h-10 w-10 shrink-0 object-contain sm:h-14 sm:w-14"
+          />
 
-  <Image
-    src="/hyderabad-links-name.png"
-    alt="Hyderabad Links"
-    width={220}
-    height={70}
-    priority
-    className="h-8 w-auto max-w-[150px] object-contain sm:h-10 sm:max-w-[220px]"
-  />
-</Link>
-```
+          <Image
+            src="/hyderabad-links-name.png"
+            alt="Hyderabad Links"
+            width={220}
+            height={70}
+            priority
+            className="h-7 w-auto max-w-[125px] object-contain sm:h-10 sm:max-w-[220px]"
+          />
+        </Link>
 
+        {/* Existing category navigation */}
+        <div className="hidden min-w-0 flex-1 justify-center md:flex">
+          <CategoryNav tree={tree} />
+        </div>
 
-        <CategoryNav tree={tree} />
-
+        {/* Login */}
         <Link
           href="/login"
-          className="order-2 ml-auto shrink-0 bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-brand-800 xl:ml-0 xl:px-6 xl:py-3"
+          className="shrink-0 bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-brand-800 sm:px-6 sm:py-3"
         >
           LogIn
         </Link>
@@ -96,15 +89,19 @@ export function SiteFooter() {
           <Link href="/" className="hover:opacity-70">
             Home
           </Link>
+
           <Link href="/search" className="hover:opacity-70">
             Search
           </Link>
+
           <Link href="/account/listings" className="hover:opacity-70">
             List your business
           </Link>
+
           <Link href="/login" className="hover:opacity-70">
             Owner sign in
           </Link>
+
           <a
             href="https://hyderabadlinks.com/blog"
             target="_blank"
@@ -116,13 +113,31 @@ export function SiteFooter() {
         </nav>
       </div>
 
-      <div className="px-5 pt-8 pb-6 text-center">
-        <BrandMark className="text-lg text-white" />
+      <div className="px-5 pb-6 pt-8 text-center">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2"
+          aria-label="Hyderabad Links home"
+        >
+          <Image
+            src="/hyderabad-links-logo.png"
+            alt=""
+            width={32}
+            height={32}
+            className="h-8 w-8 object-contain"
+          />
+          <span className="font-bold text-white">{BRAND_NAME}</span>
+        </Link>
+
         <p className="mt-2.5 text-sm text-neutral-400">
           &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
         </p>
-        <small className="text-neutral-500">Hyderabad&apos;s local business directory.</small>
+
+        <small className="text-neutral-500">
+          Hyderabad&apos;s local business directory.
+        </small>
       </div>
     </footer>
   );
 }
+```
