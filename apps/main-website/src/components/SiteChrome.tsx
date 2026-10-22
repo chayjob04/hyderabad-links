@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { CategoryNav } from "@/components/CategoryNav";
 import { getCategories } from "@/lib/api";
@@ -47,16 +48,20 @@ export async function SiteHeader() {
       </div>
 
       <div className="relative mx-auto flex min-h-[68px] max-w-[1600px] items-center justify-between gap-4 px-5 lg:min-h-[76px] lg:px-10">
-        <Link href="/" className="order-1 flex shrink-0 items-center gap-2.5">
-          <span
-            aria-hidden="true"
-            className="grid h-10 w-10 place-items-center rounded-full bg-brand-700 text-lg font-black text-white"
-          >
-            HL
-          </span>
-          <BrandMark className="hidden text-[17px] sm:block" />
-          <span className="sr-only">{BRAND_NAME}</span>
-        </Link>
+       <Link
+  href="/"
+  aria-label="Hyderabad Links home"
+  className="order-1 flex shrink-0 items-center"
+>
+  <Image
+    src="/hyderabad-links-logo.png"
+    alt="Hyderabad Links"
+    width={220}
+    height={80}
+    priority
+    className="h-12 w-auto object-contain sm:h-14"
+  />
+</Link>
 
         <CategoryNav tree={tree} />
 
