@@ -1,4 +1,4 @@
-﻿import Image from "next/image";
+import Image from "next/image";
 import Link from "next/link";
 import { CategoryNav } from "@/components/CategoryNav";
 import { getCategories } from "@/lib/api";
@@ -59,7 +59,7 @@ export async function SiteHeader() {
   width={400}
   height={100}
   priority
-  className="h-12 w-auto max-w-[100px] object-contain sm:h-16 sm:max-w-[200px]"
+  className="h-12 w-auto max-w-[60px] object-contain sm:h-16 sm:max-w-[140px]"
 />
         </Link>
 
