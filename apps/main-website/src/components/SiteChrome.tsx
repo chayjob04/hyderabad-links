@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import Link from "next/link";
 import { CategoryNav } from "@/components/CategoryNav";
 import { getCategories } from "@/lib/api";
@@ -139,3 +139,4 @@ export function SiteFooter() {
     </footer>
   );
 }
+
