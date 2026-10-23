@@ -59,7 +59,7 @@ export async function SiteHeader() {
   width={400}
   height={100}
   priority
-  className="h-12 w-auto max-w-[180px] object-contain sm:h-16 sm:max-w-[280px]"
+  className="h-12 w-auto max-w-[100px] object-contain sm:h-16 sm:max-w-[200px]"
 />
         </Link>
 
