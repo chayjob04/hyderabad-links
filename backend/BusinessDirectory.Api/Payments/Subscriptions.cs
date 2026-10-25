@@ -116,25 +116,35 @@ public static class Subscriptions
             find.Parameters.AddWithValue("user", ownerUserId.Value);
         }
 
-        long attemptId;
-        long listingId;
-        long orderAmountPaise;
-        string status;
-        long? subscriptionId;
+        long attemptId = 0;
+        long listingId = 0;
+        long orderAmountPaise = 0;
+        string status = "";
+        long? subscriptionId = null;
+        bool found;
 
+        /* The reader is closed before anything else touches this connection. Rolling back from
+           inside the `await using` block throws "There is already an open DataReader associated
+           with this Connection" -- which is how this was written first, and it turned an unknown
+           order into a 500 instead of a 404. One connection serves one reader at a time, and a
+           transaction's own Rollback is a command on it like any other. */
         await using (var reader = await find.ExecuteReaderAsync(ct))
         {
-            if (!await reader.ReadAsync(ct))
+            found = await reader.ReadAsync(ct);
+            if (found)
             {
-                await tx.RollbackAsync(ct);
-                return new PaymentResult(PaymentOutcome.UnknownOrder);
+                attemptId = reader.GetInt64(0);
+                listingId = reader.GetInt64(1);
+                orderAmountPaise = reader.GetInt64(2);
+                status = reader.GetString(3);
+                subscriptionId = await reader.IsDBNullAsync(4, ct) ? null : reader.GetInt64(4);
             }
+        }
 
-            attemptId = reader.GetInt64(0);
-            listingId = reader.GetInt64(1);
-            orderAmountPaise = reader.GetInt64(2);
-            status = reader.GetString(3);
-            subscriptionId = await reader.IsDBNullAsync(4, ct) ? null : reader.GetInt64(4);
+        if (!found)
+        {
+            await tx.RollbackAsync(ct);
+            return new PaymentResult(PaymentOutcome.UnknownOrder);
         }
 
         if (status == "paid")

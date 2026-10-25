@@ -37,6 +37,16 @@
     "ContainerName": "listing-media"
   },
 
+  "Payments": {
+    "//": "Unset means there is no checkout at all: the subscription endpoints answer 503 and write nothing, which is the honest state while no provider account exists.",
+    "// razorpay": "Set Provider to 'razorpay' to switch payments on. It then needs KeyId and KeySecret, and a WebhookSecret for the delivery that does not depend on the customer's browser. Put the two secrets in user-secrets or Key Vault, never in this file: dotnet user-secrets set \"Payments:KeySecret\" \"...\"",
+    "// test mode": "Razorpay's test keys (rzp_test_...) take no real money and are the right thing to develop against. The price and the plan come from the plans table, not from here.",
+    "// untested": "No payment has ever been taken by this project. Until one is, and the subscription it bought has been seen in the database, treat payments as unverified.",
+    "Provider": "",
+    "PlanSlug": "verified",
+    "PeriodMonths": 12
+  },
+
   "Email": {
     "//": "'console' prints the message instead of sending it, so local work never emails a real person.",
     "// resend": "Set Provider to 'resend' to use the real provider (decision D14). It then also needs ApiKey and a FromAddress on a domain verified with Resend. Put ApiKey in user-secrets or Key Vault, never in this file: dotnet user-secrets set \"Email:ApiKey\" \"re_...\"",

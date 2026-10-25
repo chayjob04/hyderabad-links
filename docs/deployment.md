@@ -26,4 +26,21 @@
   the browser rather than through the API (decision D33). Settings on the API: `Media__BlobConnectionString` (a secret, so a
   Key Vault reference), `Media__ContainerName`, and optionally `Media__PublicBaseUrl` when a CDN or custom domain fronts it.
   With no connection string the API refuses uploads with 503 and never records a row for a file it did not store.
+- **Payments for the Verified plan** (needed the moment the ₹399 plan goes on sale). Settings on the
+  API: `Payments__Provider=razorpay`, `Payments__KeyId`, `Payments__KeySecret` and
+  `Payments__WebhookSecret` — the last two are secrets, so Key Vault references. `Payments__PlanSlug`
+  and `Payments__PeriodMonths` default to `verified` and `12`; the price itself is read from the
+  `plans` table on every request and is never configuration.
+  - With no provider set the subscription endpoints answer **503** and write nothing. A key id
+    without its secret counts as unconfigured, deliberately: a checkout that opens and cannot then
+    be verified ends with a customer charged and no subscription.
+  - The **webhook** must be registered in Razorpay's dashboard against
+    `POST https://<api-host>/api/v1/webhooks/razorpay` for the `payment.captured` event, with the
+    same secret as `Payments__WebhookSecret`. Without it, a customer who closes the tab mid-payment
+    is charged and their listing stays Free — the browser's return trip is not a reliable messenger.
+  - Use Razorpay's **test keys** (`rzp_test_…`) in staging. Staging and production must not share one
+    Razorpay account: a webhook from either would reach whichever endpoint is registered, and the
+    other environment's database has no record of that order.
+  - Nothing in this repository has taken a real payment. The first one to go through should be
+    checked against `subscriptions` and `subscription_payments` before the plan is advertised.
 - No paid resource is created without an itemised cost estimate and explicit approval.
