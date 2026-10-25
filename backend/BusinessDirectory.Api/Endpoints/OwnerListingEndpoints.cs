@@ -61,6 +61,7 @@ public static class OwnerListingEndpoints
         group.MapPost("/{id:long}/submit", Submit);
         group.MapOwnerMediaEndpoints();   // photos, logo and video, with the plan allowance enforced
         group.MapOwnerLinkEndpoints();    // website and social links, capped by the plan's allowance
+        group.MapOwnerSubscriptionEndpoints();   // buying and renewing the Verified plan
         return group;
     }
 

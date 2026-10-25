@@ -365,6 +365,73 @@ export const addListingLink = (
 export const deleteListingLink = (id: number, linkId: number) =>
   authed<void>(`/api/v1/me/listings/${id}/links/${linkId}`, { method: "DELETE" });
 
+/** The paid plan as the database has it. The price is in paise, so Rs 399 arrives as 39900. */
+export type PaidPlan = {
+  slug: string;
+  name: string;
+  pricePaise: number;
+  photoLimit: number;
+  videoLimit: number;
+  linkLimit: number;
+  periodMonths: number;
+};
+
+/**
+ * What this listing has, and what it could buy.
+ *
+ * `planSlug` is what is in force right now — it reads `free` the moment a period lapses, with no
+ * job having run — while `subscribedPlanSlug` remembers what was last bought, which is what lets
+ * the screen say "your Verified plan ended on the 3rd" instead of silently showing less.
+ *
+ * `paymentsAvailable` is false when no payment provider is configured. The plan and its price are
+ * still shown; only the pay button is not, so nobody is sent into a checkout that cannot finish.
+ */
+export type ListingSubscription = {
+  planSlug: string;
+  planName: string;
+  verified: boolean;
+  paidUntil: string | null;
+  subscribedPlanSlug: string;
+  paidPlan: PaidPlan | null;
+  paymentsAvailable: boolean;
+};
+
+export const getListingSubscription = (id: number) =>
+  authed<ListingSubscription>(`/api/v1/me/listings/${id}/subscription`);
+
+/** What the checkout needs. `keyId` is Razorpay's publishable key and authorises nothing on its own. */
+export type PaymentOrder = {
+  orderId: string;
+  amountPaise: number;
+  currency: string;
+  keyId: string;
+  planName: string;
+  businessName: string;
+};
+
+export const startSubscriptionPayment = (id: number) =>
+  authed<PaymentOrder>(`/api/v1/me/listings/${id}/subscription/order`, { method: "POST" });
+
+export type PaymentConfirmation = {
+  planSlug: string;
+  paidUntil: string | null;
+  /** True when this payment had already been applied — a refreshed page, or the webhook got here first. */
+  alreadyApplied: boolean;
+};
+
+/**
+ * Hands the checkout's signed result to the API, which is the only side that can verify it: the key
+ * secret never leaves the server, so nothing here can decide a payment was real.
+ */
+export const confirmSubscriptionPayment = (
+  id: number,
+  result: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string },
+) =>
+  authed<PaymentConfirmation>(`/api/v1/me/listings/${id}/subscription/verify`, {
+    method: "POST",
+    body: json(result),
+  });
+
 /**
  * Sends the file to the API. Written out rather than going through `send`, because that sets a JSON
  * content type: a multipart body must keep the boundary fetch generates for it.

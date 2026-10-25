@@ -64,6 +64,9 @@ export default async function ListingLinksPage({ params }: Props) {
         <Link href={`/account/listings/${id}/photos`} className="text-brand-700 hover:underline">
           Photos and video
         </Link>
+        <Link href={`/account/listings/${id}/subscription`} className="text-brand-700 hover:underline">
+          Plan and payment
+        </Link>
         <Link href="/account/listings" className="text-muted hover:underline">
           All listings
         </Link>
@@ -78,7 +81,11 @@ export default async function ListingLinksPage({ params }: Props) {
             Website and social links are part of the Verified plan.{" "}
             {allowance.planSlug === "free" && allowance.paidUntil
               ? `This listing's Verified plan ended on ${formatDate(allowance.paidUntil)}. Renewing restores the links already saved.`
-              : "Upgrading adds up to five links to this listing."}
+              : "Upgrading adds up to five links to this listing."}{" "}
+            <Link href={`/account/listings/${id}/subscription`} className="font-bold text-brand-700 hover:underline">
+              See the plan
+            </Link>
+            .
           </p>
         ) : allowance.paidUntil ? (
           <p className="mt-1 text-sm text-muted">

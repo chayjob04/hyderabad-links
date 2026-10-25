@@ -5,6 +5,7 @@ using BusinessDirectory.Api.Data;
 using BusinessDirectory.Api.Endpoints;
 using BusinessDirectory.Api.Media;
 using BusinessDirectory.Api.Notifications;
+using BusinessDirectory.Api.Payments;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Data.SqlClient;
@@ -125,8 +126,15 @@ if (builder.Environment.IsDevelopment())
 }
 else
 {
-    // Production: send OTP through MSG91.
-    builder.Services.AddHttpClient<ISmsSender, Msg91SmsSender>();
+    /* Production: send OTP through MSG91.
+
+       RemoveAllLoggers because MSG91's v5 OTP API takes the code as a query parameter, and
+       HttpClientFactory's own logging writes the request URI. The runtime redacts query strings in
+       that line -- checked, in Msg91SmsSenderTests, because the opposite was assumed first -- so
+       there is no leak today; this removes the dependency on a framework behaviour the project does
+       not control. The sender does its own logging instead, with the code never in it and the number
+       masked, which is what CLAUDE.md's rule about OTPs in logs asks for. */
+    builder.Services.AddHttpClient<ISmsSender, Msg91SmsSender>().RemoveAllLoggers();
 
     /* Msg91SmsSender reads its credentials when it sends, not when it is constructed, so without
        them the API starts perfectly and then throws on the first owner who tries to sign in. That
@@ -179,6 +187,40 @@ else
     // No provider chosen. Sending throws and the Notifier records a failed notification, which is
     // honest: nothing reports that an owner was told something when nobody was.
     builder.Services.AddSingleton<IEmailSender, UnconfiguredEmailSender>();
+}
+
+// ---- Payments (the Rs 399 Verified plan) ----------------------------------------------
+// Configured under `Payments:` only. With no provider set there is no checkout at all: the
+// subscription endpoints answer 503 and write nothing, rather than opening a payment that could not
+// then be verified. Razorpay is the only adapter written, and nothing in this project has taken a
+// real payment yet.
+var paymentSettings = PaymentSettings.Load(builder.Configuration);
+builder.Services.AddSingleton(paymentSettings);
+if (string.Equals(paymentSettings.Provider, "razorpay", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<IPaymentGateway, RazorpayGateway>();
+
+    /* Half a configuration is the one case worth warning about loudly: a key id with no secret
+       opens a checkout whose result nothing can verify, which ends with a customer charged and no
+       subscription. PaymentSettings.IsConfigured already refuses that at request time -- this line
+       is so it is visible at deploy time instead of to the first paying customer. */
+    if (!paymentSettings.IsConfigured)
+    {
+        Console.Error.WriteLine(
+            "WARNING: Payments:Provider is 'razorpay' but Payments:KeyId and/or Payments:KeySecret are "
+            + "not configured. The Verified plan cannot be bought until both are set.");
+    }
+    else if (!paymentSettings.WebhooksConfigured)
+    {
+        Console.Error.WriteLine(
+            "WARNING: Payments:WebhookSecret is not configured. Payments will still complete when the "
+            + "customer's browser returns, but a customer who closes the tab will be charged without "
+            + "their listing being verified.");
+    }
+}
+else
+{
+    builder.Services.AddSingleton<IPaymentGateway, UnconfiguredPaymentGateway>();
 }
 
 // ---- Media storage (Azure Blob Storage) -----------------------------------------------
@@ -335,6 +377,8 @@ publicApi.MapPublicEnquiryEndpoints();   // customers contacting a business thro
 publicApi.MapPublicReviewEndpoints();     // approved reviews and the rating average
 publicApi.MapPublicSitemapEndpoints();    // every page the public site should list for search engines
 publicApi.MapPublicReportEndpoints();     // anyone reporting a listing or a review
+
+app.MapPaymentWebhookEndpoints();   // /api/v1/webhooks/razorpay: the path that does not need a browser
 
 app.MapOwnerAuthEndpoints();   // /api/v1/auth/owner: request code, verify code, refresh, logout
 app.MapMeEndpoints();          // /api/v1/me: signed-in owner

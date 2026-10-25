@@ -100,6 +100,13 @@ public sealed class Msg91SmsSender(
 
         logger.LogInformation(
             "MSG91 accepted an OTP request for {Phone}.",
-            phoneE164);
+            Mask(phoneE164));
     }
+
+    /// <summary>
+    /// Enough of the number to recognise it in a log, not enough to be a record of who signed in.
+    /// The same shape the admin site uses for a reviewer's number: +91******0123.
+    /// </summary>
+    public static string Mask(string phoneE164) =>
+        phoneE164.Length <= 7 ? "+91******" : phoneE164[..3] + new string('*', phoneE164.Length - 7) + phoneE164[^4..];
 }

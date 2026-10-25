@@ -61,6 +61,9 @@ export default async function EditListingPage({ params, searchParams }: Props) {
           <Link href={`/account/listings/${listing.id}/links`} className="text-sm font-black text-brand-700 hover:underline">
             Website and social links <span aria-hidden="true">&rarr;</span>
           </Link>
+          <Link href={`/account/listings/${listing.id}/subscription`} className="text-sm font-black text-brand-700 hover:underline">
+            Plan and payment <span aria-hidden="true">&rarr;</span>
+          </Link>
           {listing.status === "active" ? (
             <Link href={listing.url} className="text-sm font-black text-brand-700 hover:underline">
               View public page <span aria-hidden="true">&rarr;</span>
