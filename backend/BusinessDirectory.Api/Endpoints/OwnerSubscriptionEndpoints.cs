@@ -51,6 +51,20 @@ public static class OwnerSubscriptionEndpoints
 
     public sealed record VerifyResultDto(string PlanSlug, DateTimeOffset? PaidUntil, bool AlreadyApplied);
 
+    /// <summary>One row per listing, for the dashboard's own plans screen.</summary>
+    public sealed record SubscriptionSummaryDto(
+        long ListingId,
+        string ListingName,
+        string ListingStatus,
+        string PlanSlug,
+        string PlanName,
+        bool Verified,
+        DateTimeOffset? PaidUntil,
+        string SubscribedPlanSlug);
+
+    public sealed record SubscriptionsDto(
+        List<SubscriptionSummaryDto> Items, PaidPlanDto? PaidPlan, bool PaymentsAvailable);
+
     public static RouteGroupBuilder MapOwnerSubscriptionEndpoints(this RouteGroupBuilder listings)
     {
         var group = listings.MapGroup("/{id:long}/subscription");
@@ -58,6 +72,61 @@ public static class OwnerSubscriptionEndpoints
         group.MapPost("/order", CreateOrder);
         group.MapPost("/verify", Verify);
         return listings;
+    }
+
+    /// <summary>
+    /// Every listing's plan in one request, so the dashboard's plans screen is one round trip rather
+    /// than one per listing.
+    /// </summary>
+    public static RouteGroupBuilder MapOwnerSubscriptionOverview(this RouteGroupBuilder me)
+    {
+        me.MapGet("/subscriptions", GetAll);
+        return me;
+    }
+
+    private static async Task<IResult> GetAll(
+        ClaimsPrincipal principal,
+        SqlDatabase db,
+        PaymentSettings payments,
+        IPaymentGateway gateway,
+        CancellationToken ct)
+    {
+        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+
+        var items = new List<SubscriptionSummaryDto>();
+        await using (var command = new SqlCommand(
+            @"SELECT li.id, li.name, li.status, e.effective_plan_slug, e.effective_plan_name,
+                     e.is_verified, e.paid_until, e.subscribed_plan_slug
+              FROM dbo.listings li
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              JOIN dbo.listing_entitlements e ON e.listing_id = li.id
+              WHERE li.status <> 'archived'
+              ORDER BY e.is_verified DESC, li.name", conn))
+        {
+            command.Parameters.AddWithValue("user", userId);
+
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                items.Add(new SubscriptionSummaryDto(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.GetString(3),
+                    reader.GetString(4),
+                    reader.GetBoolean(5),
+                    await reader.IsDBNullAsync(6, ct) ? null : reader.GetDateTimeOffset(6),
+                    reader.GetString(7)));
+            }
+        }
+
+        var paidPlan = await ReadPaidPlan(conn, null, payments.PlanSlug, payments.PeriodMonths, ct);
+        return Results.Ok(new SubscriptionsDto(items, paidPlan, gateway.IsConfigured));
     }
 
     private static async Task<IResult> Get(

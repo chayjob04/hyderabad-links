@@ -58,6 +58,14 @@ public class SubscriptionAccessTests(WebApplicationFactory<Program> factory) : I
             (await _client.GetAsync("/api/v1/me/listings/1/subscription")).StatusCode);
 
     [Fact]
+    public async Task The_plans_overview_requires_sign_in() =>
+        // One request covering every listing this owner has, so it must be scoped to the token and
+        // not to anything in the URL — there is nothing in the URL to scope it by.
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.GetAsync("/api/v1/me/subscriptions")).StatusCode);
+
+    [Fact]
     public async Task Starting_a_payment_requires_sign_in() =>
         Assert.Equal(
             HttpStatusCode.Unauthorized,

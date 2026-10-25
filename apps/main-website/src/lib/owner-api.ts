@@ -399,6 +399,27 @@ export type ListingSubscription = {
 export const getListingSubscription = (id: number) =>
   authed<ListingSubscription>(`/api/v1/me/listings/${id}/subscription`);
 
+/** One row per listing on the dashboard's plans screen. */
+export type SubscriptionSummary = {
+  listingId: number;
+  listingName: string;
+  listingStatus: string;
+  planSlug: string;
+  planName: string;
+  verified: boolean;
+  paidUntil: string | null;
+  subscribedPlanSlug: string;
+};
+
+export type Subscriptions = {
+  items: SubscriptionSummary[];
+  paidPlan: PaidPlan | null;
+  paymentsAvailable: boolean;
+};
+
+/** Every listing's plan in one request, rather than one request per listing. */
+export const getSubscriptions = () => authed<Subscriptions>("/api/v1/me/subscriptions");
+
 /** What the checkout needs. `keyId` is Razorpay's publishable key and authorises nothing on its own. */
 export type PaymentOrder = {
   orderId: string;
