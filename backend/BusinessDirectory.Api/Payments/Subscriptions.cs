@@ -271,9 +271,17 @@ public static class Subscriptions
         else
         {
             await using var insert = new SqlCommand(
+                /* starts_at is backed off by a millisecond, which is not fussiness. The column is
+                   datetimeoffset(3) and SYSDATETIMEOFFSET() has sub-millisecond precision, so the
+                   value is rounded to the nearest millisecond on the way in — measured at 111
+                   microseconds *into the future* on this server. listing_entitlements requires
+                   `starts_at <= SYSDATETIMEOFFSET()`, so for up to half a millisecond after a
+                   payment the listing would read as not yet verified. One millisecond earlier makes
+                   the period active the instant it is paid for, and costs nothing: expires_at is
+                   twelve months away. */
                 @"INSERT INTO dbo.subscriptions (listing_id, plan_slug, status, starts_at, expires_at)
                   OUTPUT INSERTED.id, INSERTED.expires_at
-                  VALUES (@listing, @plan, 'active', SYSDATETIMEOFFSET(),
+                  VALUES (@listing, @plan, 'active', DATEADD(millisecond, -1, SYSDATETIMEOFFSET()),
                           DATEADD(month, @months, SYSDATETIMEOFFSET()))", conn, tx);
             insert.Parameters.AddWithValue("listing", listingId);
             insert.Parameters.AddWithValue("plan", planSlug);

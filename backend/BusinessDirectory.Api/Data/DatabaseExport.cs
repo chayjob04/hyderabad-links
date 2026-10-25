@@ -367,7 +367,8 @@ public static class DatabaseExport
 
             if (columns.Count == 0) continue;
 
-            // geography has no literal form, so it is read as well-known text and rebuilt on insert.
+            // geography has no literal form; Literal() reads it as its native bytes and rebuilds it
+            // with CONVERT on insert.
             var selectList = string.Join(", ", columns.Select(c => $"[{c}]"));
             var rows = new List<string>();
 
@@ -421,6 +422,26 @@ public static class DatabaseExport
     {
         if (reader.IsDBNull(i)) return "NULL";
 
+        /* Spatial columns are handled first, by their type *name*, because reading one at all is
+           what breaks. GetValue on a CLR UDT tries to load Microsoft.SqlServer.Types, which this
+           project deliberately does not reference, and throws FileNotFoundException before any of
+           the switch below can run — so the `geography` arm that used to sit in that switch was
+           unreachable, and the whole export died on the first listing with a location. (It only
+           surfaced once a real row existed: an empty `listings` table never reaches this.)
+
+           GetSqlBytes stays in metadata and hands back the native serialization. CONVERT rebuilds
+           it exactly, SRID included, which a well-known-text round trip would have had to restate
+           and would have rounded to the text's precision. */
+        var typeName = reader.GetDataTypeName(i);
+        var spatial = typeName.EndsWith("geography", StringComparison.OrdinalIgnoreCase) ? "geography"
+            : typeName.EndsWith("geometry", StringComparison.OrdinalIgnoreCase) ? "geometry"
+            : null;
+        if (spatial is not null)
+        {
+            var bytes = reader.GetSqlBytes(i);
+            return bytes.IsNull ? "NULL" : $"CONVERT({spatial}, 0x{Convert.ToHexString(bytes.Value)})";
+        }
+
         var value = reader.GetValue(i);
         return value switch
         {
@@ -431,10 +452,6 @@ public static class DatabaseExport
             DateTimeOffset o => $"'{o:yyyy-MM-ddTHH:mm:ss.fffzzz}'",
             Guid g => $"'{g}'",
             byte[] bytes => "0x" + Convert.ToHexString(bytes),
-            // Microsoft.SqlServer.Types is not referenced, so geography arrives as its own type and
-            // ToString() gives the well-known text. 4326 is the SRID every spatial column here uses.
-            _ when reader.GetDataTypeName(i).EndsWith("geography", StringComparison.OrdinalIgnoreCase) =>
-                $"geography::STGeomFromText('{value.ToString()?.Replace("'", "''")}', 4326)",
             _ => $"N'{value.ToString()?.Replace("'", "''")}'",
         };
     }

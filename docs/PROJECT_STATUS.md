@@ -905,8 +905,10 @@ migration chain into a brand-new database, not only by altering the dev one.
 - **D22 — public URL scheme.** The locality-first `/{city}/{locality}/{category}/{slug}` scheme stays.
   The live site's category-first URLs are served by 301 redirects rather than adopted, so no
   three-level taxonomy migration is needed and the city segment survives for a second city.
-- **D23 — subscription tiers.** Free ₹0 / Basic ₹699 / Advanced ₹6999 / Premium ₹36999, from the
-  owner's prototype. This supersedes D9's Basic/Gold/Premium media-count model.
+- **D23 — subscription tiers.** ~~Free ₹0 / Basic ₹699 / Advanced ₹6999 / Premium ₹36999~~
+  **Superseded.** The owner confirmed on 2026-10-25 that the structure is **Free and Verified
+  (₹399) only**, with no Gold or Premium. `S0009` deactivated the three old tiers and `S0011`
+  deleted their rows; `plans` now holds exactly two.
 - **D24 — onboarding shape.** Registration collects name, business name, email, locality and primary
   category, and creates the profile, business, ownership row and first draft listing in one
   transaction.

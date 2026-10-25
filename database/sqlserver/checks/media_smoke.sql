@@ -77,9 +77,25 @@ BEGIN
 END
 ELSE PRINT 'ok: Verified plan allowances and badge configuration are correct';
 
--- Active plans only. S0009 deactivates the old tiers instead of deleting them and leaves their
--- sort_order alone, so the retired 'basic' still sits at 1 alongside 'verified'. Only the plans
--- the UI actually offers need an unambiguous order.
+-- Free and Verified are the *whole* table, not just the active part of it. S0009 deactivated the
+-- three old tiers and S0011 removed them, so a Basic, Advanced or Premium row reappearing means
+-- something re-seeded or re-inserted them and it should fail here rather than show up in a plan
+-- dropdown.
+SET @n = (SELECT COUNT(*) FROM plans);
+IF @n <> 2
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: expected exactly two plans, found ' + CAST(@n AS varchar(10));
+END
+ELSE PRINT 'ok: Free and Verified are the only plans in the table';
+
+IF EXISTS (SELECT 1 FROM plans WHERE slug IN ('basic', 'advanced', 'premium'))
+BEGIN
+    SET @failed = @failed + 1; PRINT 'FAIL: a retired plan tier is back in the plans table';
+END
+ELSE PRINT 'ok: no retired tier is present';
+
+-- Active plans need an unambiguous display order.
 IF (SELECT COUNT(DISTINCT sort_order) FROM plans WHERE is_active = 1)
    <> (SELECT COUNT(*) FROM plans WHERE is_active = 1)
 BEGIN

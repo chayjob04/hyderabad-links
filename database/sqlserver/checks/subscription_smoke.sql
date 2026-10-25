@@ -159,8 +159,17 @@ ELSE PRINT 'ok: several attempts can sit unpaid at once, because the unique inde
 -- ------------------------------------------------------------------ 8-12. periods
 -- 8. A period that is paid for: this is what the API grants, and the only way a listing becomes
 --    Verified.
+--
+--    The `DATEADD(millisecond, -1, ...)` is copied from the API deliberately, so this assertion is
+--    also the regression test for why it is there. starts_at is datetimeoffset(3) and
+--    SYSDATETIMEOFFSET() carries more precision than that, so a plain SYSDATETIMEOFFSET() is
+--    rounded to the nearest millisecond on the way in — measured at 111 microseconds into the
+--    *future* — while the view requires starts_at <= SYSDATETIMEOFFSET(). Two clock reads inside one
+--    batch return the same value, so a period written that way reads as not-yet-started for the rest
+--    of the batch. Written the first way, this check passed twice and then failed: it is a coin flip
+--    on whether the sub-millisecond part rounds up or down.
 INSERT INTO dbo.subscriptions (listing_id, plan_slug, status, starts_at, expires_at)
-VALUES (@listing, 'verified', 'active', SYSDATETIMEOFFSET(), DATEADD(month, 12, SYSDATETIMEOFFSET()));
+VALUES (@listing, 'verified', 'active', DATEADD(millisecond, -1, SYSDATETIMEOFFSET()), DATEADD(month, 12, SYSDATETIMEOFFSET()));
 SET @sub = SCOPE_IDENTITY();
 
 IF NOT EXISTS (SELECT 1 FROM dbo.listing_entitlements
@@ -208,7 +217,7 @@ SET status = 'expired'
 WHERE listing_id = @listing AND status = 'active' AND expires_at <= SYSDATETIMEOFFSET();
 
 INSERT INTO dbo.subscriptions (listing_id, plan_slug, status, starts_at, expires_at)
-VALUES (@listing, 'verified', 'active', SYSDATETIMEOFFSET(), DATEADD(month, 12, SYSDATETIMEOFFSET()));
+VALUES (@listing, 'verified', 'active', DATEADD(millisecond, -1, SYSDATETIMEOFFSET()), DATEADD(month, 12, SYSDATETIMEOFFSET()));
 SET @renewal = SCOPE_IDENTITY();
 
 SET @n = (SELECT COUNT(*) FROM dbo.subscriptions WHERE listing_id = @listing AND status = 'active');
@@ -261,7 +270,30 @@ BEGIN
 END
 ELSE PRINT 'ok: subscriptions are removed with their listing';
 
--- 16. The paid plan is still what S0009 set it to. If the price or the allowance in the database
+-- 16. A retired tier cannot be sold again. S0011 deleted the Basic, Advanced and Premium rows, so
+--     the foreign key now refuses those slugs outright — which is the backstop behind "no obsolete
+--     plan can be chosen through the API". Nothing in the API accepts a plan slug from a caller in
+--     the first place, but this is the line that would hold even if something one day did.
+BEGIN TRY
+    INSERT INTO dbo.subscriptions (listing_id, plan_slug, status, starts_at, expires_at)
+    VALUES (@other, 'premium', 'active', SYSDATETIMEOFFSET(), DATEADD(month, 12, SYSDATETIMEOFFSET()));
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: a subscription was sold on the retired Premium tier';
+END TRY
+BEGIN CATCH
+    PRINT 'ok: a retired tier cannot be subscribed to';
+END CATCH
+
+-- 17. And only two plans exist at all, so nothing can offer a third.
+SET @n = (SELECT COUNT(*) FROM dbo.plans);
+IF @n <> 2 OR EXISTS (SELECT 1 FROM dbo.plans WHERE slug NOT IN ('free', 'verified'))
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: expected exactly Free and Verified, found ' + CAST(@n AS varchar(10)) + ' plan(s)';
+END
+ELSE PRINT 'ok: Free and Verified are the only plans that exist';
+
+-- 18. The paid plan is still what S0009 set it to. If the price or the allowance in the database
 --     ever drifts from Rs 399 / 10 photos / 3 videos, the API would charge or grant the new figure
 --     silently, because it reads both from here.
 IF NOT EXISTS (SELECT 1 FROM dbo.plans
