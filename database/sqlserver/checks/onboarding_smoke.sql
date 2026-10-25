@@ -8,7 +8,7 @@
 -- bit and so has to be compared to 1 rather than used as a condition on its own.
 --
 -- Run:
---   Get-Content database/sqlserver/checks/onboarding_smoke.sql | docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<password>" -C -d hyderabad_links -b -I
+--   npm run db:check -- onboarding_smoke
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;

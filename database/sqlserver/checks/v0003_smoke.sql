@@ -7,7 +7,7 @@
 -- is now INSTEAD OF triggers that accept the statement and change nothing, rather than a rule.
 --
 -- Run:
---   Get-Content database/sqlserver/checks/v0003_smoke.sql | docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<password>" -C -d hyderabad_links -b -I
+--   npm run db:check -- v0003_smoke
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;

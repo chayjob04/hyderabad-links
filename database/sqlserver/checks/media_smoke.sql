@@ -9,7 +9,7 @@
 -- accepts), so it is asserted here as well as in constraints_smoke.
 --
 -- Run:
---   Get-Content database/sqlserver/checks/media_smoke.sql | docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<password>" -C -d hyderabad_links -b -I
+--   npm run db:check -- media_smoke
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
@@ -55,38 +55,56 @@ BEGIN
 END
 ELSE PRINT 'ok: the free plan includes no media';
 
--- 2. The four plans exist and are ordered for display.
-SET @n = (SELECT COUNT(*) FROM plans WHERE slug IN ('free', 'basic', 'advanced', 'premium'));
-IF @n <> 4
+-- 2. Free and Verified plans exist with the approved configuration.
+SET @n = (SELECT COUNT(*) FROM plans WHERE slug IN ('free', 'verified'));
+IF @n <> 2
 BEGIN
-    SET @failed = @failed + 1; PRINT 'FAIL: expected four plans, found ' + CAST(@n AS varchar(10));
+    SET @failed = @failed + 1; PRINT 'FAIL: expected Free and Verified plans, found ' + CAST(@n AS varchar(10));
 END
-ELSE PRINT 'ok: the four plans exist';
+ELSE PRINT 'ok: Free and Verified plans exist';
 
-IF (SELECT COUNT(DISTINCT sort_order) FROM plans) <> (SELECT COUNT(*) FROM plans)
+IF (SELECT price_paise FROM plans WHERE slug = 'verified') <> 39900
 BEGIN
-    SET @failed = @failed + 1; PRINT 'FAIL: two plans share a sort order';
+    SET @failed = @failed + 1; PRINT 'FAIL: Verified plan should cost 39900 paise per year';
 END
-ELSE PRINT 'ok: every plan has its own sort order';
+ELSE PRINT 'ok: Verified plan price is 39900 paise';
 
--- 3. No plan grants verification. requirements.md says a paid plan must never do so automatically,
---    so this is a rule about the data, not only about the code that reads it.
-SET @n = (SELECT COUNT(*) FROM plans WHERE grants_verified_badge = 1);
-IF @n <> 0
+IF (SELECT photo_limit FROM plans WHERE slug = 'verified') <> 10
+   OR (SELECT video_limit FROM plans WHERE slug = 'verified') <> 3
+   OR (SELECT grants_verified_badge FROM plans WHERE slug = 'verified') <> 1
+BEGIN
+    SET @failed = @failed + 1; PRINT 'FAIL: Verified plan allowances or badge configuration are incorrect';
+END
+ELSE PRINT 'ok: Verified plan allowances and badge configuration are correct';
+
+-- Active plans only. S0009 deactivates the old tiers instead of deleting them and leaves their
+-- sort_order alone, so the retired 'basic' still sits at 1 alongside 'verified'. Only the plans
+-- the UI actually offers need an unambiguous order.
+IF (SELECT COUNT(DISTINCT sort_order) FROM plans WHERE is_active = 1)
+   <> (SELECT COUNT(*) FROM plans WHERE is_active = 1)
+BEGIN
+    SET @failed = @failed + 1; PRINT 'FAIL: two active plans share a sort order';
+END
+ELSE PRINT 'ok: every active plan has its own sort order';
+
+IF (SELECT grants_verified_badge FROM plans WHERE slug = 'free') <> 0
+BEGIN
+    SET @failed = @failed + 1; PRINT 'FAIL: Free plan must not grant a badge';
+END
+ELSE PRINT 'ok: Free plan does not grant a badge';
+IF (SELECT grants_verified_badge FROM plans WHERE slug = 'verified') <> 1
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: ' + CAST(@n AS varchar(10)) + ' plan(s) grant a verified badge';
+    PRINT 'FAIL: Verified plan must grant the paid-plan badge';
 END
-ELSE PRINT 'ok: no plan grants a verified badge';
+ELSE PRINT 'ok: Verified plan grants the paid-plan badge';
 
--- 4. The media allowances are still marked provisional, so the UI can say so.
-SET @n = (SELECT COUNT(*) FROM plans WHERE media_limits_confirmed = 1);
-IF @n <> 0
+-- Again active plans only: the retired tiers were never confirmed and never will be.
+IF (SELECT COUNT(*) FROM plans WHERE is_active = 1 AND media_limits_confirmed = 0) <> 0
 BEGIN
-    SET @failed = @failed + 1;
-    PRINT 'FAIL: ' + CAST(@n AS varchar(10)) + ' plan(s) claim allowances the owner has not approved';
+    SET @failed = @failed + 1; PRINT 'FAIL: an active plan has unconfirmed media limits';
 END
-ELSE PRINT 'ok: the media allowances are still marked provisional';
+ELSE PRINT 'ok: every active plan has confirmed media limits';
 
 -- 5. A listing cannot be put on a plan that does not exist.
 BEGIN TRY
@@ -94,7 +112,7 @@ BEGIN TRY
     SET @failed = @failed + 1; PRINT 'FAIL: a made-up plan was accepted';
 END TRY BEGIN CATCH PRINT 'ok: unknown plan rejected'; END CATCH;
 
-UPDATE listings SET plan_slug = 'advanced' WHERE id = @listing;
+UPDATE listings SET plan_slug = 'verified' WHERE id = @listing;
 
 -- 6. Media rows record what was stored, and the storage key is unique across the whole table:
 --    two listings can never end up pointing at the same blob.

@@ -4,7 +4,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { CategoryCard } from "@/components/ui/CategoryCard";
 import { CategoryIcon } from "@/components/ui/CategoryIcon";
 import { SectionHeading } from "@/components/ui/SectionHeading";
-import { getCategories, searchListings } from "@/lib/api";
+import { getCategories, getHighlights } from "@/lib/api";
 import { DEFAULT_CITY } from "@/lib/brand";
 import { toSearchCategories } from "@/lib/categories";
 
@@ -14,14 +14,30 @@ export const dynamic = "force-dynamic";
 /** How many of each thing the homepage shows. Enough to fill the grids, not enough to be a listing page. */
 const CATEGORY_CARDS = 8;
 const ITEMS_PER_CARD = 4;
-const BUSINESS_CARDS = 8;
+
+/*
+ * The shared measurements, in one place, because the sections used to set their own: one grid was
+ * capped at 1600px and the next at 1500px, so their left edges did not line up down the page. Every
+ * section below uses SECTION for its padding and SHELL for its width, which is what makes the page
+ * read as one column rather than several.
+ */
+const SECTION = "px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-28 xl:px-16";
+const SHELL = "mx-auto w-full max-w-[1480px]";
+
+/** The card grid. Two up on a phone, four on a desktop, with room to breathe at both ends. */
+const CARD_GRID = "grid grid-cols-2 gap-x-5 gap-y-10 sm:gap-x-8 sm:gap-y-12 lg:grid-cols-4 lg:gap-x-10 lg:gap-y-14";
 
 export default async function HomePage() {
   const tree = await getCategories();
 
-  // Real listings, not a curated set: there is no "featured" or "trending" flag in the database
-  // yet, so the homepage shows published businesses by name rather than inventing a ranking.
-  const businesses = await searchListings({ city: DEFAULT_CITY, sort: "name", pageSize: BUSINESS_CARDS });
+  /*
+   * Both shelves come from the database. Featured is "has a paid Verified period running now", and
+   * Trending is "most enquiries, favourites and approved reviews in the last 30 days" — measured
+   * events, not a score this site made up. Either can legitimately come back empty (a new city has
+   * no paid listings and no activity yet), and a shelf with nothing in it is skipped rather than
+   * padded out with whatever else was to hand.
+   */
+  const highlights = await getHighlights(DEFAULT_CITY);
 
   const quickLinks = tree.slice(0, 7);
 
@@ -36,7 +52,9 @@ export default async function HomePage() {
       </section>
 
       {/* Hero. The illustration is drawn in CSS - gradients and a faint grid - so it costs no image. */}
-      <section className="relative isolate overflow-hidden bg-[linear-gradient(110deg,#00242c_0%,#003a47_55%,#062a34_100%)] px-5 py-14 text-white sm:py-16">
+      {/* The hero shares the page gutter so its text starts on the same line as every section
+          below it; without that it sat 44px further left than the rest of the page at desktop width. */}
+      <section className="relative isolate overflow-hidden bg-[linear-gradient(110deg,#00242c_0%,#003a47_55%,#062a34_100%)] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-12 lg:py-24 xl:px-16">
         <div
           aria-hidden="true"
           className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_35%,#0d7b8c55,transparent_30%),radial-gradient(ellipse_at_80%_30%,#12647755,transparent_33%)]"
@@ -88,64 +106,116 @@ export default async function HomePage() {
         getCategories), so this section is skipped rather than left as a heading over an empty grid.
       */}
       {tree.length > 0 ? (
-        <section id="most-searched" className="px-5 py-14 sm:px-8 lg:px-16 lg:py-[68px]">
-          <SectionHeading
-            mark="&#8981;"
-            kicker="FIND WHAT YOU NEED"
-            title={
-              <>
-                Most Searched Businesses &amp; Services <span className="text-[#294d56]">in Hyderabad</span>
-              </>
-            }
-          />
-          <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-7">
-            {tree.slice(0, CATEGORY_CARDS).map((parent) => (
-              <CategoryCard key={parent.slug} title={parent.name} items={parent.children.slice(0, ITEMS_PER_CARD)} />
-            ))}
+        <section id="most-searched" className={SECTION}>
+          <div className={SHELL}>
+            <SectionHeading
+              mark="&#8981;"
+              kicker="FIND WHAT YOU NEED"
+              title={
+                <>
+                  Most Searched Businesses &amp; Services <span className="text-[#294d56]">in Hyderabad</span>
+                </>
+              }
+            />
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+              {tree.slice(0, CATEGORY_CARDS).map((parent) => (
+                <CategoryCard key={parent.slug} title={parent.name} items={parent.children.slice(0, ITEMS_PER_CARD)} />
+              ))}
+            </div>
           </div>
         </section>
       ) : null}
 
-      {businesses.items.length > 0 ? (
-        <section className="bg-night px-5 py-14 text-white sm:px-8 lg:px-16 lg:py-[68px]">
-          <SectionHeading
-            onDark
-            mark="&#9832;"
-            kicker="LOCAL BUSINESSES, BIG POSSIBILITIES"
-            title={
-              <>
-                Businesses <span className="text-brand-200">on Hyderabad Links</span>
-              </>
-            }
-          />
-          <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-x-3 gap-y-6 lg:grid-cols-4 lg:gap-8">
-            {businesses.items.map((listing) => (
-              <BusinessCard
-                key={listing.url}
-                tone="dark"
-                name={listing.name}
-                categoryName={listing.categoryName}
-                href={listing.url}
-                imageUrl={listing.logoUrl ?? listing.photoUrl}
-              />
-            ))}
+      {/*
+        Featured. These are the listings on a paid Verified period, so the heading says plainly that
+        they are paying for the position rather than implying the site picked them on merit.
+      */}
+      {highlights.featured.length > 0 ? (
+        <section className={`border-t border-brand-100 bg-brand-50/60 ${SECTION}`}>
+          <div className={SHELL}>
+            <SectionHeading
+              mark="&#10026;"
+              kicker="VERIFIED BUSINESSES"
+              title={
+                <>
+                  Featured <span className="text-[#294d56]">on Hyderabad Links</span>
+                </>
+              }
+            />
+            <p className="mx-auto -mt-2 mb-10 max-w-2xl text-center text-[15px] leading-relaxed text-muted lg:mb-14">
+              Businesses on a Verified plan. Each one has confirmed its details and keeps a verified
+              badge for as long as its plan is active.
+            </p>
+            <div className={CARD_GRID}>
+              {highlights.featured.map((listing) => (
+                <BusinessCard
+                  key={listing.url}
+                  name={listing.name}
+                  categoryName={listing.categoryName}
+                  href={listing.url}
+                  imageUrl={listing.logoUrl ?? listing.photoUrl}
+                  verified={listing.verified}
+                />
+              ))}
+            </div>
           </div>
         </section>
       ) : null}
 
-      <section className="flex flex-col items-start justify-between gap-6 border-t border-brand-200 bg-brand-50 px-6 py-10 sm:flex-row sm:items-center sm:px-10 lg:px-24">
-        <div>
-          <p className="text-[11px] font-black tracking-[0.22em] text-muted">ARE YOU A BUSINESS OWNER?</p>
-          <h2 className="mt-2 text-2xl font-black text-brand-800 sm:text-3xl">
-            Make your business easier to discover.
-          </h2>
-          <p className="mt-2 text-muted">
-            Bring your business details and digital profiles together on Hyderabad Links.
-          </p>
+      {/*
+        Trending. Replaces the old "Businesses on Hyderabad Links" shelf, which existed only because
+        there was nothing real to rank by; there is now. The subtitle states the measure, so the
+        ordering is something a visitor can judge rather than take on trust.
+      */}
+      {highlights.trending.length > 0 ? (
+        <section className={`bg-night text-white ${SECTION}`}>
+          <div className={SHELL}>
+            <SectionHeading
+              onDark
+              mark="&#9832;"
+              kicker="BUSY RIGHT NOW"
+              title={
+                <>
+                  Trending <span className="text-brand-200">in Hyderabad</span>
+                </>
+              }
+            />
+            <p className="mx-auto -mt-2 mb-10 max-w-2xl text-center text-[15px] leading-relaxed text-brand-100 lg:mb-14">
+              The businesses people have contacted, saved and reviewed most in the last{" "}
+              {highlights.trendingWindowDays} days.
+            </p>
+            <div className={CARD_GRID}>
+              {highlights.trending.map((listing) => (
+                <BusinessCard
+                  key={listing.url}
+                  tone="dark"
+                  name={listing.name}
+                  categoryName={listing.categoryName}
+                  href={listing.url}
+                  imageUrl={listing.logoUrl ?? listing.photoUrl}
+                  verified={listing.verified}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="border-t border-brand-200 bg-brand-50 px-5 py-14 sm:px-8 sm:py-16 lg:px-12 xl:px-16">
+        <div className={`flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center ${SHELL}`}>
+          <div className="max-w-xl">
+            <p className="text-[11px] font-black tracking-[0.22em] text-muted">ARE YOU A BUSINESS OWNER?</p>
+            <h2 className="mt-3 text-2xl leading-tight font-black text-brand-800 sm:text-3xl">
+              Make your business easier to discover.
+            </h2>
+            <p className="mt-3 leading-relaxed text-muted">
+              Bring your business details and digital profiles together on Hyderabad Links.
+            </p>
+          </div>
+          <ButtonLink tone="cta" href="/login" className="shrink-0">
+            List your business <span aria-hidden="true">&rarr;</span>
+          </ButtonLink>
         </div>
-        <ButtonLink tone="cta" href="/login" className="shrink-0">
-          List your business <span aria-hidden="true">&rarr;</span>
-        </ButtonLink>
       </section>
     </main>
   );

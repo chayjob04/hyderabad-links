@@ -30,3 +30,11 @@ TestResults/
 playwright-report/
 test-results/
 coverage/
+
+.vercel
+
+# Local API settings. Copy from appsettings.Development.json.example; secrets go in user-secrets.
+backend/BusinessDirectory.Api/appsettings.Development.json
+
+# Database exports taken by `npm run db:export`. Real rows; never commit them.
+database/backups/

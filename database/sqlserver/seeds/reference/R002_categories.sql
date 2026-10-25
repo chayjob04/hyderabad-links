@@ -11,7 +11,7 @@ SET QUOTED_IDENTIFIER ON;
 GO
 
 -- PARENTS
-INSERT INTO categories (level, parent_id, parent_level, slug, name, sort_order)
+INSERT INTO dbo.categories (level, parent_id, parent_level, slug, name, sort_order)
 SELECT 1, NULL, NULL, v.slug, v.name, v.sort_order
 FROM (VALUES
 ('home-services', 'Home Services', 10),
@@ -32,11 +32,11 @@ FROM (VALUES
   ('fitness-and-sports', 'Fitness and Sports', 160),
   ('movers-and-transport', 'Movers and Transport', 170)
 ) AS v(slug, name, sort_order)
-WHERE NOT EXISTS (SELECT 1 FROM categories c WHERE c.slug = v.slug);
+WHERE NOT EXISTS (SELECT 1 FROM dbo.categories c WHERE c.slug = v.slug);
 GO
 
 -- CHILDREN
-INSERT INTO categories (level, parent_id, parent_level, slug, name, sort_order)
+INSERT INTO dbo.categories (level, parent_id, parent_level, slug, name, sort_order)
 SELECT 2, p.id, 1, v.slug, v.name, v.sort_order
 FROM (VALUES
   ('home-services', 'plumbers', 'Plumbers', 10),
@@ -174,14 +174,14 @@ FROM (VALUES
   ('movers-and-transport', 'tempo-and-mini-trucks', 'Tempo and Mini Trucks', 50),
   ('movers-and-transport', 'bus-hire', 'Bus Hire', 60)
 ) AS v(parent_slug, slug, name, sort_order)
-JOIN categories p ON p.slug = v.parent_slug AND p.level = 1
-WHERE NOT EXISTS (SELECT 1 FROM categories c WHERE c.slug = v.slug);
+JOIN dbo.categories p ON p.slug = v.parent_slug AND p.level = 1
+WHERE NOT EXISTS (SELECT 1 FROM dbo.categories c WHERE c.slug = v.slug);
 GO
 
 -- SEARCH TERMS
 -- The other words people type for a category. PostgreSQL kept these in a text[] column on the row
 -- itself; here they are their own rows, which indexes and joins properly.
-INSERT INTO category_search_terms (category_id, term)
+INSERT INTO dbo.category_search_terms (category_id, term)
 SELECT c.id, v.term
 FROM (VALUES
   ('plumbers', 'plumber'),
@@ -310,8 +310,8 @@ FROM (VALUES
   ('bus-hire', 'tempo traveller'),
   ('bus-hire', 'mini bus')
 ) AS v(slug, term)
-JOIN categories c ON c.slug = v.slug
+JOIN dbo.categories c ON c.slug = v.slug
 WHERE NOT EXISTS (
-    SELECT 1 FROM category_search_terms t WHERE t.category_id = c.id AND t.term = v.term
+    SELECT 1 FROM dbo.category_search_terms t WHERE t.category_id = c.id AND t.term = v.term
 );
 GO

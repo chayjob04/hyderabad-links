@@ -47,7 +47,14 @@ public static class OwnerMediaEndpoints
         int VideosUsed,
         int LogosUsed,
         bool LimitsConfirmed,
-        bool UploadsAvailable);
+        bool UploadsAvailable,
+        /// <summary>
+        /// When the paid period runs out, or null on the free plan. The owner screen shows this so a
+        /// listing that is about to lapse says so before the allowance drops.
+        /// </summary>
+        DateTimeOffset? PaidUntil = null,
+        /// <summary>True while a paid period is running, which is also what puts the badge on the listing.</summary>
+        bool Verified = false);
 
     public sealed record MediaDto(MediaAllowanceDto Allowance, List<MediaItemDto> Items);
 
@@ -387,13 +394,18 @@ public static class OwnerMediaEndpoints
         SqlConnection conn, SqlTransaction? tx, long userId, long listingId, bool uploadsAvailable, CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            @"SELECT p.slug, p.name, p.photo_limit, p.video_limit, p.logo_limit, p.media_limits_confirmed,
+            // The allowance comes from listing_entitlements, never from li.plan_slug directly: that
+            // column says what was bought, while the view says what is still paid for. Reading the
+            // column here is how an expired listing would keep its ten photo slots.
+            @"SELECT e.effective_plan_slug, e.effective_plan_name, e.photo_limit, e.video_limit, e.logo_limit,
+                     e.media_limits_confirmed,
                      (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'photo' AND m.is_hidden = 0),
                      (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'video' AND m.is_hidden = 0),
-                     (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0)
+                     (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0),
+                     e.paid_until, e.is_verified
               FROM listings li" + (tx is null ? "" : " WITH (UPDLOCK, ROWLOCK)") + @"
               JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
-              JOIN plans p ON p.slug = li.plan_slug
+              JOIN listing_entitlements e ON e.listing_id = li.id
               WHERE li.id = @listing AND li.status <> 'archived'",
             conn, tx);
         command.Parameters.AddWithValue("user", userId);
@@ -415,7 +427,9 @@ public static class OwnerMediaEndpoints
             VideosUsed: (int)reader.GetInt64(7),
             LogosUsed: (int)reader.GetInt64(8),
             LimitsConfirmed: reader.GetBoolean(5),
-            UploadsAvailable: uploadsAvailable);
+            UploadsAvailable: uploadsAvailable,
+            PaidUntil: reader.IsDBNull(9) ? null : reader.GetDateTimeOffset(9),
+            Verified: reader.GetBoolean(10));
     }
 
     private static async Task<List<MediaItemDto>> ReadItems(

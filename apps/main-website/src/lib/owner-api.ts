@@ -4,10 +4,7 @@ import type { SessionTokens } from "./session-cookies";
 
 // Server-side only. The browser never calls the API: server components and server actions do,
 // attaching the owner's token from the httpOnly cookie.
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  process.env.API_BASE_URL ??
-  "http://localhost:5080";
+import { API_BASE_URL } from "./api-base";
 export type OwnerListing = {
   id: number;
   slug: string;

@@ -23,6 +23,43 @@ if (args.Contains("seed-dev"))
     Environment.Exit(MigrationRunner.SeedDev(builder.Configuration, builder.Environment.ContentRootPath, builder.Environment.IsDevelopment()));
 }
 
+// `-- db-export [--out <folder>]` writes the live schema and every row to local files, using only
+// SELECT. BACKUP DATABASE needs permissions a shared-hosting login usually lacks; this does not.
+if (args.Contains("db-export"))
+{
+    Environment.Exit(DatabaseExport.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
+// `-- db-baseline [--apply]` adopts a database whose schema was created outside DbUp, by recording
+// the scripts whose tables are already present. Reports only, unless --apply is given.
+if (args.Contains("db-baseline"))
+{
+    Environment.Exit(DatabaseBaseline.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
+// `-- db-repair [--apply]` runs the additive one-off scripts in database/sqlserver/repair, which
+// complete a partly-applied migration so db-baseline can then adopt the database. Refuses any
+// script that is not purely additive.
+if (args.Contains("db-repair"))
+{
+    Environment.Exit(DatabaseRepair.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
+// `-- db-reset [--apply]` drops *this project's* tables in a database shared with another
+// application, so migrate can rebuild them. Scope comes from the migration scripts, never from a
+// pattern, and it refuses on unexpected rows or on anything outside the scope depending on it.
+if (args.Contains("db-reset"))
+{
+    Environment.Exit(DatabaseReset.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
+// `-- db-check [name]` runs the transactional checks in database/sqlserver/checks. They insert,
+// assert and roll back, so they leave no data behind.
+if (args.Contains("db-check"))
+{
+    Environment.Exit(DatabaseChecks.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
 // `-- create-admin --email ... --name ... [--role admin|super_admin]` creates the first admin account.
 // There is deliberately no HTTP endpoint for this (docs/security.md).
 if (args.Contains("create-admin"))
@@ -80,13 +117,32 @@ var authSettings = AuthSettings.Load(builder.Configuration, builder.Environment.
 builder.Services.AddSingleton(authSettings);
 builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton(new TotpSecrets(authSettings.TotpKey));
+
 if (builder.Environment.IsDevelopment())
 {
-    builder.Services.AddSingleton<ISmsSender, ConsoleSmsSender>();   // prints the code in the API console
+    // Local development: print OTP to the API console.
+    builder.Services.AddSingleton<ISmsSender, ConsoleSmsSender>();
 }
 else
 {
-    builder.Services.AddSingleton<ISmsSender, UnconfiguredSmsSender>();   // replaced by the MSG91 sender before launch
+    // Production: send OTP through MSG91.
+    builder.Services.AddHttpClient<ISmsSender, Msg91SmsSender>();
+
+    /* Msg91SmsSender reads its credentials when it sends, not when it is constructed, so without
+       them the API starts perfectly and then throws on the first owner who tries to sign in. That
+       is the worst moment to find out, and nothing in a deployment log says it is coming.
+
+       A warning and not a throw, deliberately: OTP is only owner sign-in. Search, categories,
+       locality lookup and every listing page work without SMS, so refusing to start would take the
+       whole public directory down over a feature most visitors never touch. The line below is the
+       signal that belongs in Application Insights at deploy time. */
+    if (string.IsNullOrWhiteSpace(builder.Configuration["MSG91:AuthKey"])
+        || string.IsNullOrWhiteSpace(builder.Configuration["MSG91:TemplateId"]))
+    {
+        Console.Error.WriteLine(
+            "WARNING: MSG91:AuthKey and/or MSG91:TemplateId are not configured. The public API will "
+            + "work, but owner OTP sign-in will fail on every attempt until both are set.");
+    }
 }
 
 // ---- Notifications (email) -------------------------------------------------------------
@@ -97,16 +153,35 @@ else
 var emailSettings = EmailSettings.Load(builder.Configuration);
 builder.Services.AddSingleton(emailSettings);
 builder.Services.AddSingleton<Notifier>();
-if (builder.Environment.IsDevelopment())
+if (builder.Environment.IsDevelopment() && !string.Equals(emailSettings.Provider, "resend", StringComparison.OrdinalIgnoreCase))
 {
-    builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();   // prints the whole message in the API console
+    // Development, unless it deliberately asks for the real provider: prints the whole message in
+    // the API console so templates can be checked without an email leaving the machine.
+    builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+}
+else if (string.Equals(emailSettings.Provider, "resend", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>();
+
+    /* The same late-failure problem MSG91 had: with Email:Provider set to resend but no key, every
+       notification would fail one at a time with nothing said at deploy time. A warning, not a
+       throw -- an email that does not send is recorded as a failed notification and loses nothing,
+       so it is not worth refusing to start the API over. */
+    if (string.IsNullOrWhiteSpace(emailSettings.ApiKey) || string.IsNullOrWhiteSpace(emailSettings.FromAddress))
+    {
+        Console.Error.WriteLine(
+            "WARNING: Email:Provider is 'resend' but Email:ApiKey and/or Email:FromAddress are not "
+            + "configured. Every notification will be recorded as failed until both are set.");
+    }
 }
 else
 {
-    builder.Services.AddSingleton<IEmailSender, UnconfiguredEmailSender>();   // replaced by a real provider once D14 is settled
+    // No provider chosen. Sending throws and the Notifier records a failed notification, which is
+    // honest: nothing reports that an owner was told something when nobody was.
+    builder.Services.AddSingleton<IEmailSender, UnconfiguredEmailSender>();
 }
 
-// ---- Media storage (Azure Blob Storage; Azurite locally) --------------------------------
+// ---- Media storage (Azure Blob Storage) -----------------------------------------------
 // Configured by connection string only. With none set, uploads are refused rather than accepted
 // and silently dropped (see UnconfiguredMediaStorage).
 var mediaSettings = MediaSettings.Load(builder.Configuration);
@@ -208,7 +283,7 @@ if (app.Services.GetService<BlobMediaStorage>() is { } blobStorage)
     catch (Exception ex)
     {
         // Storage being unreachable must not stop the site serving listings; uploads will fail
-        // and say so. (Locally this means Azurite is not running.)
+        // and say so. (This usually means Media:BlobConnectionString is unset or wrong.)
         app.Logger.LogError(ex, "Media storage container could not be prepared. Uploads will fail until it is reachable.");
     }
 }
@@ -255,6 +330,7 @@ publicApi.MapGet("/meta", () => Results.Ok(new
 }));
 publicApi.MapPublicDirectoryEndpoints();
 publicApi.MapPublicSearchEndpoints();
+publicApi.MapPublicHighlightsEndpoints();  // the homepage's Featured and Trending shelves
 publicApi.MapPublicEnquiryEndpoints();   // customers contacting a business through its listing
 publicApi.MapPublicReviewEndpoints();     // approved reviews and the rating average
 publicApi.MapPublicSitemapEndpoints();    // every page the public site should list for search engines

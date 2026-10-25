@@ -30,11 +30,11 @@ main-website        admin-website        super-admin-website
 
 ## Local ports
 
-Main 3000 · Admin 3001 · Super-admin 3002 · API 5080 · SQL Server 1433 · Azurite (Blob) 10000.
+Main 3000 · Admin 3001 · Super-admin 3002 · API 5080. The database and blob storage are Azure services; nothing runs locally for them.
 
 ## Database and migrations
 
-- **Local database:** Microsoft SQL Server running through Docker Compose.
+- **Local database:** none. Development connects to an Azure SQL database, so the engine and feature set match production.
 - **Production database:** Azure SQL Database.
 - **Driver:** `Microsoft.Data.SqlClient`, using raw parameterized SQL; no ORM.
 - **Current migrations:** `database/sqlserver/migrations/`, applied by DbUp.
@@ -46,4 +46,4 @@ Main 3000 · Admin 3001 · Super-admin 3002 · API 5080 · SQL Server 1433 · Az
   environment banner; super-admin banner is a different colour on purpose).
 - API: `/health/live`, `/api/v1/public/meta`, security headers, deny-by-default CORS, per-IP rate limit, generic error responses,
   startup refusal of wildcard CORS outside Development.
-- Migration safety checker, CI skeletons, Docker Compose for local SQL Server and Azurite.
+- Migration safety checker and CI skeletons.

@@ -221,9 +221,16 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
         await using var command = db.CreateCommand(
             /* search_terms was a text[] column; it is the category_search_terms table now, so the
                words come back as one comma-separated string and are split here. A search term with a
-               comma in it would be split wrongly, which is why the seed does not use any. */
+               comma in it would be split wrongly, which is why the seed does not use any.
+
+               dbo. is spelled out on this one table because an empty copy of it exists in the
+               production login's own schema, left behind by a repair script that said CREATE TABLE
+               without a schema. The login's default schema is not dbo, and SQL Server resolves an
+               unqualified name against the login's schema before dbo -- so the stray empty table
+               would win here and every category would come back with no search terms, silently,
+               with no error anywhere. Qualifying it is proof against that. */
             @"SELECT c.id, c.parent_id, c.slug, c.name,
-                     (SELECT STRING_AGG(t.term, ',') FROM category_search_terms t WHERE t.category_id = c.id)
+                     (SELECT STRING_AGG(t.term, ',') FROM dbo.category_search_terms t WHERE t.category_id = c.id)
               FROM categories c
               WHERE c.is_active = 1
               ORDER BY c.level, c.sort_order, c.name");

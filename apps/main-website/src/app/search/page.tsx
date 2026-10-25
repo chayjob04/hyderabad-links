@@ -6,7 +6,7 @@ import { SearchFilters } from "@/components/SearchFilters";
 import { ActiveFilters, type ActiveFilter } from "@/components/ui/ActiveFilters";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getCategories, getLocalities, searchListings } from "@/lib/api";
+import { ApiResponseError, getCategories, getLocalities, searchListings } from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { findCategory } from "@/lib/categories";
 import type { SearchCriteria, SearchResults } from "@/lib/types";
@@ -81,12 +81,20 @@ export default async function SearchPage({ searchParams }: Props) {
   const areas = localities ?? [];
 
   let results: SearchResults | null = null;
-  let failed = false;
+  /*
+   * Two different failures, because they are two different things to tell a visitor. "serverError"
+   * is the API answering with a 5xx -- something is wrong at our end and retrying in a moment will
+   * not help. "unreachable" is the request never completing. Collapsing both into one message is
+   * how a backend outage spent its time telling people the directory was temporarily unreachable
+   * while the API was answering every request promptly, with a 500.
+   */
+  let failure: "serverError" | "unreachable" | null = null;
   try {
     results = await searchListings(criteria);
-  } catch {
-    // The API is down or rejected the request. Show the filters and a retry message rather than a crash page.
-    failed = true;
+  } catch (error) {
+    failure = error instanceof ApiResponseError && error.status >= 500 ? "serverError" : "unreachable";
+    // Server-side: this is the only place the real status is recorded, so log it before it is lost.
+    console.error("Search failed", error);
   }
 
   const categoryName = criteria.category ? findCategory(tree, criteria.category)?.name ?? null : null;
@@ -141,10 +149,17 @@ export default async function SearchPage({ searchParams }: Props) {
         </div>
       ) : null}
 
-      {failed ? (
+      {failure ? (
         <div className="mt-10">
           <EmptyState tone="error" mark="&#9888;" title="We could not load results just now">
-            <p>The directory is temporarily unreachable. Please try the search again in a moment.</p>
+            {failure === "serverError" ? (
+              <p>
+                Something went wrong at our end, and we are looking into it. Browsing by category or
+                area should still work.
+              </p>
+            ) : (
+              <p>The directory is temporarily unreachable. Please try the search again in a moment.</p>
+            )}
           </EmptyState>
         </div>
       ) : results && results.total === 0 ? (

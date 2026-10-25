@@ -5,9 +5,9 @@ using Azure.Storage.Blobs.Models;
 namespace BusinessDirectory.Api.Media;
 
 /// <summary>
-/// Where listing photos, logos and videos are kept. One interface so the API code never knows
-/// whether it is talking to Azurite on a laptop or to Azure Blob Storage in production: the
-/// difference is a connection string in configuration.
+/// Where listing photos, logos and videos are kept. One interface, so the API code never knows
+/// which storage account it is talking to: the difference is a connection string in configuration.
+/// Development points at a dev or test account; there is no local emulator any more.
 /// </summary>
 public interface IMediaStorage
 {
@@ -32,13 +32,14 @@ public interface IMediaStorage
 /// means storage is simply not configured, which is honest, rather than a half-working fallback.
 /// </summary>
 /// <param name="ConnectionString">
-/// Azurite locally ("UseDevelopmentStorage=true"); in Azure, the storage account connection string,
-/// which is a secret and therefore comes from Key Vault or an app setting, never from a committed file.
+/// An Azure Storage account connection string: a dev or test account in development, the real one in
+/// production. It is a secret, so it comes from user-secrets, Key Vault or an app setting, never from
+/// a committed file. Empty disables uploads rather than accepting files nothing can store.
 /// </param>
 /// <param name="ContainerName">The blob container. Created on startup if it does not exist.</param>
 /// <param name="PublicBaseUrl">
 /// Set this when the files are served through a CDN or custom domain. Left empty, the container's own
-/// URL is used, which is what Azurite needs and what a plain storage account serves.
+/// URL is used, which is what a plain storage account serves.
 /// </param>
 public sealed record MediaSettings(string? ConnectionString, string ContainerName, string? PublicBaseUrl)
 {
@@ -48,7 +49,7 @@ public sealed record MediaSettings(string? ConnectionString, string ContainerNam
         configuration["Media:PublicBaseUrl"]);
 }
 
-/// <summary>Azure Blob Storage, and Azurite in development — the same client library for both.</summary>
+/// <summary>Azure Blob Storage, through the Azure SDK.</summary>
 public sealed class BlobMediaStorage : IMediaStorage
 {
     private readonly BlobContainerClient container;

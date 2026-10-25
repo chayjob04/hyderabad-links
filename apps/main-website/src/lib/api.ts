@@ -1,5 +1,6 @@
 import type {
   Category,
+  Highlights,
   ListingDetail,
   Locality,
   LocalitySuggestion,
@@ -10,15 +11,29 @@ import type {
 } from "./types";
 
 // Server-side only: the browser never calls the API directly (architecture principle 1).
-// API_BASE_URL is read at runtime, so one build works in staging and production.
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  process.env.API_BASE_URL ??
-  "http://localhost:5080";
+// Read at runtime, so one build works in staging and production. See api-base.ts for why the
+// precedence between the two variables matters.
+import { API_BASE_URL } from "./api-base";
+/**
+ * Thrown when the API answered, but with an error status. The status is carried so a caller can tell
+ * "the directory is broken" from "we could not reach the directory" -- those read identically to a
+ * visitor otherwise, and the search page spent a production outage telling people the API was
+ * unreachable while it was in fact answering 500s promptly.
+ */
+export class ApiResponseError extends Error {
+  constructor(
+    readonly status: number,
+    readonly path: string,
+  ) {
+    super(`API request ${path} failed with status ${status}`);
+    this.name = "ApiResponseError";
+  }
+}
+
 async function getJson<T>(path: string, revalidateSeconds: number): Promise<T | null> {
   const response = await fetch(`${API_BASE_URL}${path}`, { next: { revalidate: revalidateSeconds } });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`API request ${path} failed with status ${response.status}`);
+  if (!response.ok) throw new ApiResponseError(response.status, path);
   return (await response.json()) as T;
 }
 
@@ -80,6 +95,23 @@ export async function searchListings(criteria: SearchCriteria): Promise<SearchRe
   const results = await getJson<SearchResults>(`/api/v1/public/listings/search?${query.toString()}`, 60);
   // The endpoint always answers 200, so null would mean a shape change rather than "not found".
   return results ?? { items: [], page: 1, pageSize: 0, total: 0, totalPages: 0 };
+}
+
+/**
+ * The homepage's Featured and Trending shelves, in one request.
+ *
+ * Failures degrade to empty shelves rather than taking the homepage down, the same reasoning as
+ * getCategories: the homepage is the page most likely to be hit while the API is restarting, and
+ * two missing shelves are better than a 500. The page skips a shelf that comes back empty.
+ */
+export async function getHighlights(city: string): Promise<Highlights> {
+  const empty: Highlights = { featured: [], trending: [], trendingWindowDays: 30 };
+  try {
+    const query = new URLSearchParams({ city });
+    return (await getJson<Highlights>(`/api/v1/public/listings/highlights?${query.toString()}`, 300)) ?? empty;
+  } catch {
+    return empty;
+  }
 }
 
 /** One approved review. The author is a first name only; nothing else is public. */

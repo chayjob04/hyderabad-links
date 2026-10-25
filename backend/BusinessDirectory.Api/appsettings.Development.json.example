@@ -1,0 +1,49 @@
+{
+  "//": [
+    "Copy to appsettings.Development.json, which is git-ignored.",
+    "",
+    "Secrets do NOT belong in that copy either, even though it is ignored: an ignored file is one",
+    "`git add -f` or one zip away from being shared. Put them in user-secrets, which live outside the",
+    "working tree entirely:",
+    "",
+    "  dotnet user-secrets set \"ConnectionStrings:Default\" \"<your Azure SQL connection string>\" --project backend/BusinessDirectory.Api",
+    "  dotnet user-secrets set \"Media:BlobConnectionString\" \"<dev storage connection string>\" --project backend/BusinessDirectory.Api",
+    "",
+    "In Azure none of this is read: App Service application settings supply the same keys.",
+    "",
+    "Point the database at a development or test database, never production. `npm run db:migrate`",
+    "changes whatever it is pointed at, and `npm run db:check` prints the server and database it is",
+    "about to use for exactly that reason."
+  ],
+
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Information"
+    }
+  },
+
+  "Cors": {
+    "AllowedOrigins": [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:3002"
+    ]
+  },
+
+  "Media": {
+    "//": "Empty refuses uploads with an explanation rather than accepting files nothing can store. Set it in user-secrets to work on photos, logos and video.",
+    "BlobConnectionString": "",
+    "ContainerName": "listing-media"
+  },
+
+  "Email": {
+    "//": "'console' prints the message instead of sending it, so local work never emails a real person.",
+    "// resend": "Set Provider to 'resend' to use the real provider (decision D14). It then also needs ApiKey and a FromAddress on a domain verified with Resend. Put ApiKey in user-secrets or Key Vault, never in this file: dotnet user-secrets set \"Email:ApiKey\" \"re_...\"",
+    "// untested": "The Resend adapter has never sent a real message. Until one goes out and arrives, treat email as unverified; every attempt is recorded in the notifications table either way.",
+    "Provider": "console",
+    "FromAddress": "no-reply@hyderabadlinks.local",
+    "ReplyTo": "hello@hyderabadlinks.local",
+    "SiteBaseUrl": "http://localhost:3000"
+  }
+}

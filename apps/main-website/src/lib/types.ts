@@ -100,3 +100,21 @@ export type SearchCriteria = {
 
 /** Re-exported from the API client so components can import review shapes from one place. */
 export type { PublicReview, ReviewSummary } from "./api";
+
+/**
+ * One card on a homepage shelf. The same fields as a search result minus the distance (a shelf is
+ * not a proximity search), plus whether a paid period is running.
+ */
+export type HighlightListing = Omit<SearchListing, "distanceMetres"> & {
+  /** True while the listing has a paid Verified period. Drives the badge. */
+  verified: boolean;
+};
+
+export type Highlights = {
+  /** Listings paying for prominence right now, newest first. */
+  featured: HighlightListing[];
+  /** Listings with the most real activity (enquiries, favourites, approved reviews) in the window. */
+  trending: HighlightListing[];
+  /** How many days back "trending" measured, so the heading can say it without hard-coding it. */
+  trendingWindowDays: number;
+};

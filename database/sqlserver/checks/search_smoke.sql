@@ -19,7 +19,7 @@
 --     exist in T-SQL, so the null ordering is spelled out as a CASE.
 --
 -- Run:
---   Get-Content database/sqlserver/checks/search_smoke.sql | docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<password>" -C -d hyderabad_links -b -I
+--   npm run db:check -- search_smoke
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
@@ -114,7 +114,7 @@ SET @n = (SELECT COUNT(*) FROM listings li
           WHERE li.status = 'active' AND li.slug LIKE 'searchsmoke-%'
             AND EXISTS (SELECT 1
                         FROM listing_categories kc
-                        JOIN category_search_terms cst ON cst.category_id = kc.category_id
+                        JOIN dbo.category_search_terms cst ON cst.category_id = kc.category_id
                         WHERE kc.listing_id = li.id AND 'tap repair' LIKE cst.term));
 IF @n <> 2
 BEGIN

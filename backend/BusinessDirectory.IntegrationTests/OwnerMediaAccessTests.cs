@@ -6,7 +6,7 @@ namespace BusinessDirectory.IntegrationTests;
 // A listing's media is a business's own property: nobody signed out may read it, add to it or
 // remove it. These run with no database, so the authorization boundary is what is testable here.
 // Ownership, the plan allowances and the magic-byte check were verified against the running API with
-// Azurite, and the storage rules are in database/sqlserver/checks/media_smoke.sql.
+// a storage account, and the storage rules are in database/sqlserver/checks/media_smoke.sql.
 public class OwnerMediaAccessTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly HttpClient _client = factory.CreateClient();
