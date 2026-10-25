@@ -61,6 +61,14 @@ if (args.Contains("db-check"))
     Environment.Exit(DatabaseChecks.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
 }
 
+// `-- sms-test --phone +91XXXXXXXXXX` sends one real login code through MSG91 and reports what MSG91
+// said. It answers "are the credentials and the DLT template right?" without deploying and asking a
+// real person to try signing in. It costs money, and it never prints the code.
+if (args.Contains("sms-test"))
+{
+    Environment.Exit(SmsTest.Run(builder.Configuration, args));
+}
+
 // `-- create-admin --email ... --name ... [--role admin|super_admin]` creates the first admin account.
 // There is deliberately no HTTP endpoint for this (docs/security.md).
 if (args.Contains("create-admin"))

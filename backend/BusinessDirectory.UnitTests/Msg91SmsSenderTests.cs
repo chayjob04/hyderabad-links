@@ -262,4 +262,82 @@ public class Msg91SmsSenderTests
     [InlineData("+9112", "+91******")]
     public void The_mask_keeps_the_prefix_and_the_last_four_digits(string phone, string expected) =>
         Assert.Equal(expected, Msg91SmsSender.Mask(phone));
+// ------------------------------------------------------------------ the provider's own reason
+    [Fact]
+    public async Task A_rejection_carries_what_MSG91_actually_said()
+    {
+        /* This is the test for the thing that made MSG91 hard to diagnose: the old sender threw
+           "MSG91 could not send the OTP." for every failure, so an unapproved template, a wrong
+           auth key and an empty balance were indistinguishable. The body below is the real shape
+           MSG91 returns for a bad key — a 200 with type "error". */
+        var (sender, _) = Build(
+            HttpStatusCode.OK, """{"request_id":"Invalid authkey or Token","type":"error"}""");
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sender.SendOtpAsync(Phone, Code, CancellationToken.None));
+
+        Assert.Contains("Invalid authkey or Token", failure.Message);
+    }
+
+    [Fact]
+    public async Task An_http_failure_carries_the_status_and_the_body()
+    {
+        var (sender, _) = Build(HttpStatusCode.Unauthorized, """{"message":"template not approved"}""");
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sender.SendOtpAsync(Phone, Code, CancellationToken.None));
+
+        Assert.Contains("401", failure.Message);
+        Assert.Contains("template not approved", failure.Message);
+    }
+
+    [Fact]
+    public async Task The_reason_never_includes_the_auth_key_or_the_code()
+    {
+        // The reason is MSG91's own body, so neither should ever appear — but this is the one
+        // message that now travels further than a log line, so it is worth pinning.
+        var (sender, _) = Build(HttpStatusCode.BadRequest, """{"message":"something went wrong"}""");
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sender.SendOtpAsync(Phone, Code, CancellationToken.None));
+
+        Assert.DoesNotContain(AuthKey, failure.Message);
+        Assert.DoesNotContain(Code, failure.Message);
+    }
+
+    [Fact]
+    public async Task A_huge_error_page_is_capped()
+    {
+        var (sender, _) = Build(HttpStatusCode.BadGateway, new string('x', 5_000));
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sender.SendOtpAsync(Phone, Code, CancellationToken.None));
+
+        Assert.True(failure.Message.Length < 500, $"The message was {failure.Message.Length} characters long.");
+    }
+
+    [Fact]
+    public async Task The_providers_request_id_is_logged_on_success_but_the_code_still_is_not()
+    {
+        // The request id is what MSG91's support asks for when a message was accepted and never
+        // arrived, so it is worth keeping. It is not a secret and is useless without the account.
+        var log = new CapturingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(logging =>
+        {
+            logging.SetMinimumLevel(LogLevel.Trace);
+            logging.AddProvider(log);
+        });
+
+        var handler = new CapturingHandler(
+            HttpStatusCode.OK, """{"type":"success","request_id":"3241abc-TESTONLY"}""");
+        var sender = new Msg91SmsSender(
+            new HttpClient(handler), Configuration(), loggerFactory.CreateLogger<Msg91SmsSender>());
+
+        await sender.SendOtpAsync(Phone, Code, CancellationToken.None);
+
+        var written = log.Written;
+        Assert.Contains("3241abc-TESTONLY", written);
+        Assert.DoesNotContain(Code, written);
+        Assert.DoesNotContain(AuthKey, written);
+    }
 }
