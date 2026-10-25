@@ -314,6 +314,57 @@ export const moveListingMedia = (id: number, mediaId: number, direction: "up" | 
 export const deleteListingMedia = (id: number, mediaId: number) =>
   authed<void>(`/api/v1/me/listings/${id}/media/${mediaId}`, { method: "DELETE" });
 
+/** One website or social link on a listing. */
+export type ListingLinkItem = {
+  id: number;
+  linkType: ListingLinkType;
+  label: string;
+  url: string;
+  sortOrder: number;
+};
+
+export type ListingLinkType =
+  | "website"
+  | "instagram"
+  | "facebook"
+  | "youtube"
+  | "linkedin"
+  | "x"
+  | "other";
+
+/**
+ * What this listing may do with links right now.
+ *
+ * `limit` is 5 on a paid listing and 0 otherwise, and the API works it out from the subscription
+ * period against the clock — so a lapsed listing reports 0 here without anything on this side
+ * having to reason about expiry. `paidUntil` is what lets the screen say when it runs out.
+ */
+export type ListingLinkAllowance = {
+  planSlug: string;
+  planName: string;
+  limit: number;
+  used: number;
+  verified: boolean;
+  paidUntil: string | null;
+};
+
+export type ListingLinks = { allowance: ListingLinkAllowance; items: ListingLinkItem[] };
+
+export const getListingLinks = (id: number) =>
+  authed<ListingLinks>(`/api/v1/me/listings/${id}/links`);
+
+export const addListingLink = (
+  id: number,
+  link: { linkType: string; label: string; url: string },
+) =>
+  authed<ListingLinkItem>(`/api/v1/me/listings/${id}/links`, {
+    method: "POST",
+    body: json(link),
+  });
+
+export const deleteListingLink = (id: number, linkId: number) =>
+  authed<void>(`/api/v1/me/listings/${id}/links/${linkId}`, { method: "DELETE" });
+
 /**
  * Sends the file to the API. Written out rather than going through `send`, because that sets a JSON
  * content type: a multipart body must keep the boundary fetch generates for it.

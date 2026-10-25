@@ -56,6 +56,11 @@ export default async function EditListingPage({ params, searchParams }: Props) {
           <Link href={`/account/listings/${listing.id}/photos`} className="text-sm font-black text-brand-700 hover:underline">
             Photos and video <span aria-hidden="true">&rarr;</span>
           </Link>
+          {/* Shown on every plan, not only the paid one: the page itself explains the allowance,
+              and hiding it would leave an owner no way to find out the Verified plan includes it. */}
+          <Link href={`/account/listings/${listing.id}/links`} className="text-sm font-black text-brand-700 hover:underline">
+            Website and social links <span aria-hidden="true">&rarr;</span>
+          </Link>
           {listing.status === "active" ? (
             <Link href={listing.url} className="text-sm font-black text-brand-700 hover:underline">
               View public page <span aria-hidden="true">&rarr;</span>

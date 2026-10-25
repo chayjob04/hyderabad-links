@@ -31,6 +31,25 @@ export type ListingDetail = {
   url: string;
   /** Logo first, then photos, then video. Media the plan no longer covers is not in this list at all. */
   media: ListingMedia[];
+  /**
+   * True only while a paid period is actually running. The API derives it by comparing the
+   * subscription's expiry against the clock, so a lapsed listing stops showing the badge on the
+   * next request — the site never has to work out whether a subscription is still good.
+   */
+  isVerified: boolean;
+  /**
+   * The business's own website and social links, in the owner's order. Always empty on a free
+   * listing and on a lapsed one: the API does not send them at all rather than relying on the page
+   * to hide them.
+   */
+  links: ListingLink[];
+};
+
+/** One website or social link on a public listing page. The URL is always http or https. */
+export type ListingLink = {
+  linkType: "website" | "instagram" | "facebook" | "youtube" | "linkedin" | "x" | "other";
+  label: string;
+  url: string;
 };
 
 /** One file on a public listing page. */
