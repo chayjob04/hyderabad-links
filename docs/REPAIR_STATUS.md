@@ -274,18 +274,69 @@ reach the query, the SQL checks run without the C# and never reach the rollback.
 a real payment's signature verifies, and that the subscription it buys appears. Nothing is
 simulated and no subscription row has ever been written outside a rolled-back transaction.
 
+## Fourth pass — expiry, the receipt, and the security header (2026-10-25)
+
+**The expiry bug.** Every public read filtered media on `is_hidden = 0` and nothing else, and
+nothing has ever set that flag — it was added in S0005 for a downgrade that did not exist yet. So a
+listing whose Verified period ran out kept showing all ten photos, its logo and its videos
+indefinitely, while its links correctly disappeared the same day. One allowance was enforced at read
+time; the other was not enforced at all. It was in three places: the detail gallery (and the
+`LocalBusiness` `image` array), the search cards and the homepage shelves.
+
+**S0012** adds `dbo.listing_visible_media`, the one definition of what a listing may show *now*:
+each kind capped at the plan's current allowance, oldest first, so a downgrade keeps an explainable
+subset rather than an arbitrary one. All three reads go through it. Expiry stays computed from the
+clock — nothing stored, no job — and renewing restores everything untouched, which is what "a
+downgrade never silently deletes media" requires. `media_visibility_smoke` proves it in 12
+assertions, including that a lapsed listing still holds all 17 of its rows while showing none.
+
+**The receipt.** A customer paid ₹399 and got nothing in writing. **S0013** extends
+`notifications_kind_check` with `subscription_activated`, finding the constraint by its *definition*
+because this database's constraints are system-named — the same trap S0010 hit on `permissions`.
+Both payment paths now send a confirmation stating the amount charged, the plan and the end date.
+Only an `Activated` result sends one, so a customer whose webhook and browser both arrive gets one
+email rather than two, and it can never fail a payment: the money is taken and the period committed
+before it runs.
+
+**Content-Security-Policy** on all three sites. `script-src` keeps `'unsafe-inline'` because the App
+Router inlines its hydration scripts and removing that needs a per-request nonce through middleware,
+which is a deliberate change rather than part of a security pass. The rest is real: no plugins, no
+base-tag hijack, no framing, no cross-origin form posts, and nothing loaded from an origin the
+policy does not name. Razorpay's script and frame origins are allowed on the public site **only**;
+the two admin sites allow no third party at all.
+
+**Admin panels.** A moderator could not tell a paying business from a free one before suspending it,
+so the queue now shows a Verified badge and the detail page a "Verified until …" row, both from the
+entitlement view. The super-admin overview said *"every listing is on the free plan until
+subscriptions are built"*, which had stopped being true; worse, its figures were grouped by
+`listings.plan_slug`, which never expires, so it would have reported a lapsed listing as Verified
+for ever. It now groups by the effective plan.
+
+| Check | Result |
+|---|---|
+| `npm run db:check` | **16/16 passed, 212 assertions**, against the live database |
+| `npm run verify` | **passed** — 19 script tests, three production builds, 458 unit, 149 integration, no warnings |
+| CSP, on both running sites | **present and correct** — the real category tree and the admin login form still render, and Razorpay is named on the public site only |
+| `subscription_activated` notification | **accepted by the live constraint**, proved by an insert inside a rolled-back transaction |
+
+**Not verified:** that a receipt actually sends. It runs only behind a verified signature, and
+manufacturing one would mean writing a paid subscription nobody paid for.
+
 ## Still to build or decide
 
 - **The payment provider is still the owner's choice** (D45). The Razorpay adapter is written and
   refuses to run unconfigured; `Payments:KeyId`, `Payments:KeySecret` and `Payments:WebhookSecret`
-  are what switch it on, and the webhook must be registered in Razorpay's dashboard for
-  `payment.captured`.
-- **The plan set.** S0009 is applied: Free and Verified, with `basic`, `advanced` and `premium`
-  deactivated. A later brief asked for Free, Verified, Gold and Premium, which contradicts it. That
-  needs the owner's answer before any further plan work, and nothing here has guessed at it.
-- **The first super-admin account**, which is what still blocks testing the admin and super-admin
-  sites past their sign-in screens.
-- **No Content-Security-Policy** on the three websites. The other headers are set in
-  `next.config.ts`; a CSP is the notable gap, and adding one now would need the Razorpay checkout's
-  script and frame origins allowed and every page re-checked, so it is called out rather than
-  guessed at.
+  switch it on, and the webhook must be registered in Razorpay's dashboard for `payment.captured`.
+- **MSG91's template variables.** The sender posts `Param1`/`Param2`/`Param3` alongside the `otp`
+  query parameter. If the DLT-approved template uses different variable names, MSG91 answers success
+  and no code arrives. One real send is the only way to know.
+- **The first super-admin account**, which still blocks testing the admin and super-admin sites past
+  their sign-in screens.
+- **Blob Storage**, without which the Verified plan's media allowance cannot be used at all.
+- **A nonce-based CSP.** `'unsafe-inline'` on `script-src` is the remaining weakness; closing it
+  means generating a nonce per request in middleware and threading it through, and verifying every
+  page afterwards.
+- **Migrations are not automated.** The deploy workflow ships the API and never migrates. S0009
+  through S0013 were applied by hand.
+- **No staging API or database**, which is why preview deployments are deliberately unreachable.
+- **An admin who loses both authenticator and recovery codes** needs a direct database edit.
