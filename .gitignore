@@ -38,3 +38,7 @@ backend/BusinessDirectory.Api/appsettings.Development.json
 
 # Database exports taken by `npm run db:export`. Real rows; never commit them.
 database/backups/
+
+# Written and re-added by `next dev` (see node_modules/next/dist/server/lib/generate-agent-files.js).
+# Generated, not authored here, so it is not committed. Delete these two lines if you would rather keep them.
+apps/*/AGENTS.md
