@@ -34,12 +34,16 @@ public static class Subscriptions
     }
 
     /// <param name="ExpiresAt">When the paid period now ends. Null unless something was granted or found.</param>
+    /// <param name="AmountPaise">What was charged, from the payment record rather than from the plan.</param>
+    /// <param name="Renewal">True when this extended a period that was already running.</param>
     public sealed record PaymentResult(
         PaymentOutcome Outcome,
         long? SubscriptionId = null,
         long? ListingId = null,
         string? PlanSlug = null,
-        DateTimeOffset? ExpiresAt = null);
+        DateTimeOffset? ExpiresAt = null,
+        long? AmountPaise = null,
+        bool Renewal = false);
 
     /// <summary>
     /// Opens a payment attempt against an order the provider has already created. Status
@@ -196,7 +200,8 @@ public static class Subscriptions
 
         await tx.CommitAsync(ct);
         return new PaymentResult(
-            PaymentOutcome.Activated, granted.SubscriptionId, listingId, plan, granted.ExpiresAt);
+            PaymentOutcome.Activated, granted.SubscriptionId, listingId, plan, granted.ExpiresAt,
+            orderAmountPaise, granted.Renewal);
     }
 
     /// <summary>
@@ -216,7 +221,7 @@ public static class Subscriptions
         return await command.ExecuteScalarAsync(ct) is not null;
     }
 
-    private sealed record Period(long SubscriptionId, string PlanSlug, DateTimeOffset ExpiresAt);
+    private sealed record Period(long SubscriptionId, string PlanSlug, DateTimeOffset ExpiresAt, bool Renewal);
 
     /// <summary>
     /// Grants the period: extends a live one, or opens a new one.
@@ -266,7 +271,7 @@ public static class Subscriptions
             extend.Parameters.AddWithValue("id", liveId.Value);
 
             var expires = (DateTimeOffset)(await extend.ExecuteScalarAsync(ct))!;
-            period = new Period(liveId.Value, planSlug, expires);
+            period = new Period(liveId.Value, planSlug, expires, Renewal: true);
         }
         else
         {
@@ -289,7 +294,7 @@ public static class Subscriptions
 
             await using var reader = await insert.ExecuteReaderAsync(ct);
             await reader.ReadAsync(ct);
-            period = new Period(reader.GetInt64(0), planSlug, reader.GetDateTimeOffset(1));
+            period = new Period(reader.GetInt64(0), planSlug, reader.GetDateTimeOffset(1), Renewal: false);
         }
 
         /* What the listing has bought, kept on the listing itself so the entitlements view can show
@@ -346,7 +351,7 @@ public static class Subscriptions
 
         await using var reader = await command.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct)
-            ? new Period(subscriptionId.Value, reader.GetString(0), reader.GetDateTimeOffset(1))
+            ? new Period(subscriptionId.Value, reader.GetString(0), reader.GetDateTimeOffset(1), Renewal: false)
             : null;
     }
 }

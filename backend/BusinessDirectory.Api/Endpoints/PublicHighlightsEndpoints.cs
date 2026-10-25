@@ -65,11 +65,14 @@ public static class PublicHighlightsEndpoints
         li.slug, li.name, c.slug AS city_slug, lo.slug AS locality_slug, lo.name AS locality_name,
         cat.slug AS category_slug, cat.name AS category_name, li.address_line,
         li.phone_primary, li.phone_whatsapp,
-        (SELECT m.storage_key FROM listing_media m
-         WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0
+        -- listing_visible_media (S0012), not listing_media: the view applies the plan's current
+        -- allowance, so a lapsed listing loses its logo from these shelves at the same moment it
+        -- loses it from its own page.
+        (SELECT m.storage_key FROM dbo.listing_visible_media m
+         WHERE m.listing_id = li.id AND m.kind = 'logo'
          ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) AS logo_key,
-        (SELECT m.storage_key FROM listing_media m
-         WHERE m.listing_id = li.id AND m.kind = 'photo' AND m.is_hidden = 0
+        (SELECT m.storage_key FROM dbo.listing_visible_media m
+         WHERE m.listing_id = li.id AND m.kind = 'photo'
          ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) AS photo_key,
         e.is_verified";
 

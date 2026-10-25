@@ -25,6 +25,9 @@ export type QueueItem = {
   phonePrimary: string;
   createdAt: string;
   updatedAt: string;
+  /** Paid up right now, from the entitlement view — not what the listing once bought. */
+  isVerified: boolean;
+  paidUntil: string | null;
 };
 
 export type QueuePage = {
@@ -62,6 +65,9 @@ export type AdminListing = {
   reviewedAt: string | null;
   reviewedBy: string | null;
   url: string | null;
+  /** Paid up right now, from the entitlement view — not what the listing once bought. */
+  isVerified: boolean;
+  paidUntil: string | null;
 };
 
 /** Permission codes used by these screens. They must match BusinessDirectory.Api.Auth.AdminPermissions. */

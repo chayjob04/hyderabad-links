@@ -427,14 +427,21 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
         return links;
     }
 
-    /// <summary>The listing's visible media, logo first, then photos, then video, each in its display order.</summary>
+    /// <summary>
+    /// The listing's visible media, logo first, then photos, then video, each in its display order.
+    ///
+    /// From <c>dbo.listing_visible_media</c>, which caps each kind at what the plan allows *now*
+    /// (S0012). Reading <c>listing_media</c> directly is the bug that view exists to prevent: a
+    /// lapsed listing kept showing all ten photos, because `is_hidden` was the only filter and
+    /// nothing has ever set it.
+    /// </summary>
     private static async Task<List<PublicMediaDto>> ReadPublicMedia(
         SqlDatabase db, long listingId, IMediaStorage storage, CancellationToken ct)
     {
         await using var command = db.CreateCommand(
             @"SELECT kind, storage_key, width, height
-              FROM listing_media
-              WHERE listing_id = @listing AND is_hidden = 0
+              FROM dbo.listing_visible_media
+              WHERE listing_id = @listing
               ORDER BY CASE kind WHEN 'logo' THEN 0 WHEN 'photo' THEN 1 ELSE 2 END, sort_order, id");
         command.Parameters.AddWithValue("listing", listingId);
 

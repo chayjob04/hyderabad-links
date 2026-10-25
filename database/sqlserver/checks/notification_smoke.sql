@@ -122,6 +122,23 @@ BEGIN TRY
     SET @failed = @failed + 1; PRINT 'FAIL: an unknown kind was accepted';
 END TRY BEGIN CATCH PRINT 'ok: unknown kind rejected'; END CATCH;
 
+-- ...and accept every kind the API does send. 'subscription_activated' is the receipt for a paid
+-- period, added by S0013: before that migration the kind constraint allowed only three values, so
+-- the row could not be recorded and a paying customer would have had no confirmation at all.
+BEGIN TRY
+    INSERT INTO notifications (kind, channel, recipient, subject_type, subject_id)
+    VALUES ('subscription_activated', 'email', 'notify.owner@example.com', 'listing', @listing);
+    PRINT 'ok: a subscription receipt can be recorded';
+    -- Removed again: the assertions further down count this listing's notifications, and an extra
+    -- row left here makes them describe something the check did not set up. (It did, first time
+    -- round: "expected 2 unsent notifications, found 3".)
+    DELETE FROM notifications WHERE kind = 'subscription_activated' AND subject_id = @listing;
+END TRY
+BEGIN CATCH
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: the subscription receipt kind was refused - ' + ERROR_MESSAGE();
+END CATCH;
+
 BEGIN TRY
     INSERT INTO notifications (kind, channel, recipient, subject_type, subject_id)
     VALUES ('listing_approved', 'pigeon', 'notify.owner@example.com', 'listing', @listing);

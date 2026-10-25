@@ -35,7 +35,14 @@ public static class AdminListingEndpoints
         string? AddressLine,
         string PhonePrimary,
         DateTimeOffset CreatedAt,
-        DateTimeOffset UpdatedAt);
+        DateTimeOffset UpdatedAt,
+        /// <summary>
+        /// Whether this listing is paid up right now, from listing_entitlements. A moderator was
+        /// previously given no way to tell a paying business from a free one, which matters when
+        /// deciding whether to suspend one.
+        /// </summary>
+        bool IsVerified,
+        DateTimeOffset? PaidUntil);
 
     public sealed record QueuePageDto(IReadOnlyList<QueueItemDto> Items, int Page, int PageSize, int Total, int TotalPages);
 
@@ -67,7 +74,10 @@ public static class AdminListingEndpoints
         DateTimeOffset? ReviewedAt,
         string? ReviewedBy,
         /// <summary>Null when the listing has no primary category yet, since the public URL is built from one.</summary>
-        string? Url);
+        string? Url,
+        /// <summary>Whether this listing is paid up right now, and until when. From listing_entitlements.</summary>
+        bool IsVerified,
+        DateTimeOffset? PaidUntil);
 
     // The category joins are LEFT joins on purpose: a listing with no primary category must still be
     // visible to a reviewer (that missing category is exactly the kind of thing to reject it for),
@@ -78,8 +88,10 @@ public static class AdminListingEndpoints
                  li.location.Lat, li.location.Long,
                  ci.slug, lo.slug, lo.name, pc.slug, pc.name,
                  u.phone_e164, li.created_at, li.updated_at, li.published_at,
-                 li.review_note, li.reviewed_at, ra.display_name
+                 li.review_note, li.reviewed_at, ra.display_name,
+                 e.is_verified, e.paid_until
           FROM listings li
+          JOIN dbo.listing_entitlements e ON e.listing_id = li.id
           JOIN localities lo ON lo.id = li.locality_id
           JOIN cities ci ON ci.id = lo.city_id
           LEFT JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
@@ -289,8 +301,10 @@ public static class AdminListingEndpoints
         var sql =
             @"WITH matches AS (
                   SELECT li.id, li.name, li.status, pc.name AS category_name, lo.name AS locality_name,
-                         li.address_line, li.phone_primary, li.created_at, li.updated_at
+                         li.address_line, li.phone_primary, li.created_at, li.updated_at,
+                         e.is_verified, e.paid_until
                   FROM listings li
+                  JOIN dbo.listing_entitlements e ON e.listing_id = li.id
                   JOIN localities lo ON lo.id = li.locality_id
                   LEFT JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
                   LEFT JOIN categories pc ON pc.id = lc.category_id
@@ -303,7 +317,8 @@ public static class AdminListingEndpoints
               )
               SELECT (SELECT COUNT_BIG(*) FROM matches) AS total,
                      p.id, p.name, p.status, p.category_name, p.locality_name,
-                     p.address_line, p.phone_primary, p.created_at, p.updated_at
+                     p.address_line, p.phone_primary, p.created_at, p.updated_at,
+                     p.is_verified, p.paid_until
               FROM (SELECT 1 AS one) AS always_one_row
               LEFT JOIN page p ON 1 = 1
               ORDER BY " + (query.OldestFirst ? "p.created_at ASC" : "p.updated_at DESC") + ", p.id ASC";
@@ -332,7 +347,9 @@ public static class AdminListingEndpoints
                 reader.IsDBNull(6) ? null : reader.GetString(6),
                 reader.GetString(7),
                 reader.GetFieldValue<DateTimeOffset>(8),
-                reader.GetFieldValue<DateTimeOffset>(9)));
+                reader.GetFieldValue<DateTimeOffset>(9),
+                reader.GetBoolean(10),
+                reader.IsDBNull(11) ? null : reader.GetFieldValue<DateTimeOffset>(11)));
         }
 
         var totalPages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)query.PageSize);
@@ -636,7 +653,9 @@ public static class AdminListingEndpoints
             reader.IsDBNull(22) ? null : reader.GetString(22),
             reader.IsDBNull(23) ? null : reader.GetFieldValue<DateTimeOffset>(23),
             reader.IsDBNull(24) ? null : reader.GetString(24),
-            category is null ? null : $"/{city}/{locality}/{category}/{slug}");
+            category is null ? null : $"/{city}/{locality}/{category}/{slug}",
+            reader.GetBoolean(25),
+            reader.IsDBNull(26) ? null : reader.GetFieldValue<DateTimeOffset>(26));
     }
 
     /// <summary>

@@ -43,6 +43,7 @@ public static class PaymentWebhookEndpoints
         HttpRequest request,
         SqlDatabase db,
         PaymentSettings settings,
+        Notifications.Notifier notifier,
         ILogger<Program> logger,
         CancellationToken ct)
     {
@@ -139,6 +140,10 @@ public static class PaymentWebhookEndpoints
                 logger.LogInformation(
                     "Listing {ListingId} is Verified until {ExpiresAt:u} after a payment confirmed by webhook.",
                     result.ListingId, result.ExpiresAt);
+
+                // The receipt. This is the path that matters for it: a customer who closed the tab
+                // never comes back to the success page, so without this they would hear nothing.
+                await SubscriptionNotifications.SendActivatedAsync(conn, notifier, result, logger, ct);
                 return Results.Ok(new { status = "applied" });
         }
     }

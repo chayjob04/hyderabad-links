@@ -246,6 +246,7 @@ public static class OwnerSubscriptionEndpoints
         ClaimsPrincipal principal,
         SqlDatabase db,
         PaymentSettings payments,
+        Notifications.Notifier notifier,
         ILogger<Program> logger,
         CancellationToken ct)
     {
@@ -298,6 +299,11 @@ public static class OwnerSubscriptionEndpoints
                     statusCode: StatusCodes.Status409Conflict);
 
             default:
+                // The receipt, after the period is committed. It never fails the payment, and only
+                // an Activated result sends one -- AlreadyApplied means the webhook got here first
+                // and has already sent it.
+                await SubscriptionNotifications.SendActivatedAsync(conn, notifier, result, logger, ct);
+
                 if (result.ListingId != id)
                 {
                     // The order belongs to a different listing of this owner's. Applying it to the
