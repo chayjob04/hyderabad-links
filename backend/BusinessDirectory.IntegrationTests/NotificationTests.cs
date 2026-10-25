@@ -42,7 +42,14 @@ public class NotificationTests(WebApplicationFactory<Program> factory) : IClassF
             // The endpoints take SqlDatabase as a service, and it is only registered when a
             // connection string exists. Nothing here opens a connection — creating a data source
             // does not — but without the string the routes would not even map.
-            builder.UseSetting("ConnectionStrings:Default", "Host=127.0.0.1;Port=1;Database=unused;Username=unused;Password=unused");
+            // SQL Server keywords, not PostgreSQL's. This said Host=/Username= until now, left over
+            // from before the conversion: a leftover that still worked, because nothing parses it
+            // unless a query runs, but it contradicted "no PostgreSQL left in testing" and would
+            // have thrown rather than failed to connect if anything ever had.
+            builder.UseSetting(
+                "ConnectionStrings:Default",
+                "Server=127.0.0.1,1;Database=unused;User Id=unused;Password=unused;"
+                + "Encrypt=False;TrustServerCertificate=True;Connect Timeout=1");
             foreach (var (key, value) in settings)
             {
                 builder.UseSetting(key, value);
