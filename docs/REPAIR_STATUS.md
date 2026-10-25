@@ -91,13 +91,26 @@ deployment cannot emit a localhost URL even if `SITE_URL` is forgotten.
   the server-only variable stands on its own: anything named `NEXT_PUBLIC_*` is inlined into the
   browser bundle by Next.js, and the API's address is not something the browser needs.
 
-  **Correction.** This was first written up as the cause of the reported `ENOTFOUND`, on the
-  reasoning that the older variable pointed at a host that no longer resolved. That was a hypothesis
-  and it is not supported: the deployed site reaches the API at request time right now
-  (`/api/localities/search?q=gachi` on hyderabad-links-main.vercel.app returns Gachibowli), Vercel
-  reports no runtime errors, and no `ENOTFOUND` appears in the runtime log window available. So
-  **the `ENOTFOUND` has not been reproduced or explained**, and whatever caused it is not currently
-  occurring. The variable precedence was still worth fixing; it was not proven to be the fault.
+  **Correction, twice over.** This was first written up as the cause of the reported `ENOTFOUND`, on
+  the reasoning that the older variable pointed at a host that no longer resolved. That was a
+  hypothesis and it was wrong: the production site reaches the API at request time
+  (`/api/localities/search?q=gachi` returns Gachibowli) and Vercel reports no runtime errors.
+
+  **The actual cause is that no environment variable applies to a preview deployment at all.** Every
+  variable on all three projects is scoped to the `production` target only, so a branch deployment
+  gets none of them, `API_BASE_URL` is undefined, and the base URL falls back to the built-in
+  `http://localhost:5080`. Reproduced on the preview built from this very branch:
+  `/api/localities/search?q=gachi` answers **502 `lookup_failed`**, and its prerendered sitemap has
+  two entries instead of 153 because the build could not reach the API either. A failed lookup of a
+  localhost address is exactly the shape of the reported error, and it explains why production
+  looked healthy throughout: the fault was only ever on previews.
+
+  Fixing it means adding the `preview` target to `API_BASE_URL` on each project, which can be done
+  without reading the encrypted value. It was **not** done here, for a reason worth a decision:
+  there is no staging API or staging database, so a preview pointed at `API_BASE_URL` talks to the
+  **production API and the production database** — an unreviewed PR preview could create real
+  listings, enquiries or reviews. Enabling it makes previews reviewable; it also puts production
+  data one preview away. That trade is the owner's to make.
 - **`db:export` lost long exports.** ~425 round trips on one connection to shared hosting; the server
   dropped it part way and the `InvalidOperationException` was not a `SqlException`, so the per-query
   guards missed it. Queries now reopen and retry once, buffering results so a retry cannot duplicate
