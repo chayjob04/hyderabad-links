@@ -2,6 +2,22 @@
 
 **Updated:** 2026-10-20. Read this first, then `CLAUDE.md`. It replaces re-auditing the repository.
 
+> **Newer than this file: `docs/REPAIR_STATUS.md` (2026-10-25).** It covers the repair of the shared
+> company database the platform now runs on (`hyderab3_workingmodel`, SQL Server 2022 Express, two
+> applications in one database), the five bugs that repair found, and the two passes that followed:
+> the Verified plan's links, and the paid path that makes the plan buyable. Where the two disagree,
+> REPAIR_STATUS is the later record. In particular:
+>
+> - There are now **two plans, not four** — Free and Verified (₹399 a year), with `basic`,
+>   `advanced` and `premium` deactivated by `S0009`. Everything below about four tiers and
+>   provisional media allowances is superseded: the allowances are confirmed, and the paid plan does
+>   grant the badge.
+> - Entitlement is **computed from the subscription period against the clock** through the
+>   `listing_entitlements` view, never read from `listings.plan_slug`.
+> - Payments are implemented behind `IPaymentGateway` and refuse to run unconfigured. **No payment
+>   has ever been taken, and the provider choice is still the owner's** (decision D45).
+> - The local SQL Server container described below is gone; development runs against a real database.
+
 ## SQL Server conversion — DONE for the application (2026-10-20 to 2026-10-21)
 
 The platform runs on **Microsoft SQL Server**, and Azure SQL Database in production (decision D41,

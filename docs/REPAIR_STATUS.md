@@ -223,15 +223,69 @@ setting is missing. A warning and not a throw on purpose: OTP is only owner sign
 categories, locality lookup and every listing page work without SMS, so refusing to start would take
 the public directory down over a feature most visitors never touch.
 
-## Still to build (code, no access needed)
+## Third pass — the paid path (2026-10-25)
 
-`subscriptions`, `subscription_payments` and `listing_links` now exist, and **nothing in the API
-reads or writes any of them**. Expiry enforcement is already correct where it is *read* —
-`OwnerMediaEndpoints.ReadAllowance` and `PublicHighlightsEndpoints` both go through the
-`listing_entitlements` view rather than `listings.plan_slug`, so a lapsed listing loses its allowance
-on the next request with no job to run. But:
+`subscriptions`, `subscription_payments` and `listing_links` existed and **nothing in the API read
+or wrote any of them**. The links half was finished in the second pass; this pass finished the other
+half, so the Rs 399 plan can actually be bought.
 
-- there is no way to **create** a subscription, so nothing can become Verified (needs the payment
-  decision above);
-- `listing_links` has no endpoints, so the "up to 5 website/social links" allowance is unreachable.
-  This needs nothing from the owner and is the next piece of code.
+- **`Payments/`** — `PaymentSettings` (configured under `Payments:`), `RazorpaySignature`,
+  `IPaymentGateway` / `RazorpayGateway` / `UnconfiguredPaymentGateway`, and `Subscriptions`, which
+  is the only place a listing becomes Verified.
+- **`GET|POST /api/v1/me/listings/{id}/subscription`, `/order`, `/verify`** — the owner's side.
+- **`POST /api/v1/webhooks/razorpay`** — the path that does not need a browser, for the customer who
+  closes the tab mid-payment. Signature over the raw body; redelivery is harmless.
+- **`GET /api/v1/me/subscriptions`** — every listing's plan in one request, for the dashboard.
+- **Owner screens** — `/account/subscription` (the sidebar item that waited for this table) and
+  `/account/listings/{id}/subscription`, with the checkout in `UpgradeButton`.
+
+**The protection that matters:** there is no method that marks a subscription paid without a
+verified signature. Both callers reach `RecordVerifiedPaymentAsync` only after one, and it runs in a
+single transaction with the payment row locked, so a webhook arriving at the same moment as the
+browser finds the work done instead of doing it again. A renewal extends from the existing
+`expires_at`; a lapsed period is closed before a new one opens; the amount is checked against the
+order the webhook claims to be paying for.
+
+**With nothing configured, every paying route answers 503 and writes nothing.** A key id without its
+secret counts as unconfigured: a checkout that opens and cannot then be verified ends with a
+customer charged and no subscription.
+
+### Verified by running it (2026-10-25)
+
+| Check | Result |
+|---|---|
+| `subscription_smoke.sql` | **16 assertions passed** against the live database, rolled back — an attempt is stored as an attempt; zero amounts and unknown statuses refused; the order id, payment id and webhook event id each unique per provider, while several unpaid attempts coexist because those indexes are filtered; one live period per listing; a renewal extends from the existing end date; a lapsed period can be closed and replaced; one listing's period verifies no other; a payment dies with its subscription but an unattached attempt outlives the listing; and the paid plan is still Rs 399 for 10 photos, 3 videos and 1 logo |
+| `npm run db:check` | **15/15 passed, 196 assertions** |
+| `npm run verify` | **passed** — 19 script tests, three production builds, 449 unit, 149 integration, no warnings |
+| Payment routes with **no provider configured** | **503** on order and verify, **503** on the webhook, nothing written |
+| Payment routes with deliberately fake test keys | **verify, wrong signature → 400**; **verify, correct signature for an order the database does not have → 404**; **webhook, wrong or tampered signature → 400**; **webhook, correct signature, unknown order → 200 `unknown_order`** and logged as an error; **webhook, an event we do not act on → 200 `ignored`**; **order on a draft listing → 409 before the provider is contacted** |
+| `GET /api/v1/me/listings/82/subscription` | **200** — Free in force, the Verified plan at 39900 paise with 10 photos / 3 videos / 5 links read from the live `plans` row; **404** for another owner's token; **401** anonymous |
+| `GET /api/v1/me/subscriptions` | **200** with the one listing; **401** anonymous |
+| `/account/subscription`, `/account/listings/82/subscription` | **307** to `/login` with the right `next` |
+| Rows written by any of it | **none** — `subscriptions`, `subscription_payments` and `listing_links` all still hold 0 rows |
+
+**A bug this found, by running it rather than reading it.** Rolling the transaction back from inside
+the `await using` block that holds the reader throws *"There is already an open DataReader associated
+with this Connection"*, so an order the database had no record of answered **500 instead of 404**.
+Neither test layer could have caught it: the integration tests run without a database and never
+reach the query, the SQL checks run without the C# and never reach the rollback.
+
+**Not proven, and will not be until the owner provides keys:** that Razorpay accepts an order, that
+a real payment's signature verifies, and that the subscription it buys appears. Nothing is
+simulated and no subscription row has ever been written outside a rolled-back transaction.
+
+## Still to build or decide
+
+- **The payment provider is still the owner's choice** (D45). The Razorpay adapter is written and
+  refuses to run unconfigured; `Payments:KeyId`, `Payments:KeySecret` and `Payments:WebhookSecret`
+  are what switch it on, and the webhook must be registered in Razorpay's dashboard for
+  `payment.captured`.
+- **The plan set.** S0009 is applied: Free and Verified, with `basic`, `advanced` and `premium`
+  deactivated. A later brief asked for Free, Verified, Gold and Premium, which contradicts it. That
+  needs the owner's answer before any further plan work, and nothing here has guessed at it.
+- **The first super-admin account**, which is what still blocks testing the admin and super-admin
+  sites past their sign-in screens.
+- **No Content-Security-Policy** on the three websites. The other headers are set in
+  `next.config.ts`; a CSP is the notable gap, and adding one now would need the Razorpay checkout's
+  script and frame origins allowed and every page re-checked, so it is called out rather than
+  guessed at.
