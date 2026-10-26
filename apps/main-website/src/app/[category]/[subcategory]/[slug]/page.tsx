@@ -135,7 +135,7 @@ export default async function ListingPage({ params }: Props) {
   const images = media.filter((item) => item.kind !== "video").map((item) => item.url);
 
   return (
-    <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
+    <main className="mx-auto max-w-4xl px-5 py-10 pb-20 sm:px-8 lg:py-14 lg:pb-24">
       {/*
         The crumbs follow the segments of the URL this page is at - city/locality/category/slug -
         and every one of them is a page that exists: the area and the category resolve through
@@ -167,7 +167,7 @@ export default async function ListingPage({ params }: Props) {
         </ol>
       </nav>
 
-      <article className="mt-6 rounded-2xl border border-line bg-white p-6 shadow-[0_12px_36px_#002a3410] sm:p-10">
+      <article className="mt-8 rounded-2xl border border-line bg-white p-6 shadow-[0_12px_36px_#002a3410] sm:p-10 lg:p-12">
         {logo ? (
           <img
             src={logo.url}
@@ -292,15 +292,6 @@ export default async function ListingPage({ params }: Props) {
 
       <ListingGallery media={media} businessName={listing.name} />
 
-      <Reviews
-        summary={reviews}
-        businessName={listing.name}
-        signedIn={signedIn}
-        writeHref={`/login?next=${encodeURIComponent(`/${category}/${subcategory}/${slug}`)}`}
-      >
-        <ReviewForm city={city} locality={locality} slug={slug} />
-      </Reviews>
-
       {/*
         Call and WhatsApp reach the owner immediately but leave no record. This form does: it
         becomes an enquiry in the owner's dashboard, so a missed call is not a lost customer.
@@ -308,7 +299,7 @@ export default async function ListingPage({ params }: Props) {
       <section
         id="enquiry"
         aria-labelledby="enquiry-heading"
-        className="mt-8 rounded-2xl border border-line bg-white p-5 shadow-[0_8px_28px_#002a3412] sm:p-7"
+        className="mt-10 rounded-2xl border border-line bg-white p-6 shadow-[0_8px_28px_#002a3412] sm:p-8"
       >
         <h2 id="enquiry-heading" className="text-xl font-black text-ink">
           Send {listing.name} a message
@@ -320,6 +311,17 @@ export default async function ListingPage({ params }: Props) {
           <EnquiryForm city={city} locality={locality} slug={slug} businessName={listing.name} />
         </div>
       </section>
+
+      {/* Reviews sit after the enquiry form: someone who has read the details wants to contact the
+          business, and what other people thought is what they check on the way out, not before. */}
+      <Reviews
+        summary={reviews}
+        businessName={listing.name}
+        signedIn={signedIn}
+        writeHref={`/login?next=${encodeURIComponent(`/${category}/${subcategory}/${slug}`)}`}
+      >
+        <ReviewForm city={city} locality={locality} slug={slug} />
+      </Reviews>
 
       <p className="mt-8 text-center text-sm text-muted">
         <Link href={categoryPage} className="font-bold text-brand-700 hover:underline">

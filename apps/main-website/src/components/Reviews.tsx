@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ReviewComposer } from "@/components/ReviewComposer";
 import type { PublicReview, ReviewSummary } from "@/lib/types";
 
 /**
@@ -57,7 +58,7 @@ export function Reviews({
     <section
       id="reviews"
       aria-labelledby="reviews-heading"
-      className="mt-8 rounded-2xl border border-line bg-white p-5 shadow-[0_8px_28px_#002a3412] sm:p-7"
+      className="mt-10 rounded-2xl border border-line bg-white p-6 shadow-[0_8px_28px_#002a3412] sm:p-8"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 id="reviews-heading" className="text-xl font-black text-ink">
@@ -88,7 +89,8 @@ export function Reviews({
 
       <div className="mt-6 border-t border-line pt-5">
         {signedIn ? (
-          children
+          // Behind a button: most people on this page are reading reviews, not writing one.
+          <ReviewComposer>{children}</ReviewComposer>
         ) : (
           <p className="text-sm text-muted">
             <Link href={writeHref} className="font-black text-brand-700 hover:underline">

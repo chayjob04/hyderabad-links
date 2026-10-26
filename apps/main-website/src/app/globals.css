@@ -74,7 +74,26 @@ html {
 }
 
 .category-panel {
-  animation: category-panel-in 140ms ease-out;
+  /* 220ms, not 140ms: the faster version read as the panel appearing rather than opening. Long
+     enough to follow, short enough that it is never in the way of the link you came for. */
+  animation: category-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * One motion default for the things that change on hover or focus across the site: links, buttons
+ * and cards. Each of those used to pick its own duration, or none, so the same gesture felt
+ * different depending on where you made it.
+ *
+ * Deliberately narrow. It names the properties that are cheap to animate -- colour, shadow,
+ * opacity, transform -- rather than `all`, which would also animate layout and make the page feel
+ * like it is settling after every interaction. Anything that sets its own `transition` still wins.
+ */
+a,
+button,
+[role="button"] {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /*
@@ -88,5 +107,12 @@ html {
 
   .category-panel {
     animation: none;
+  }
+
+  /* The hover and focus transitions above, too: "less motion" has to mean all of it. */
+  a,
+  button,
+  [role="button"] {
+    transition-duration: 0ms;
   }
 }

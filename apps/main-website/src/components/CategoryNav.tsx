@@ -43,7 +43,7 @@ const NAV_SLOTS = 7;
  *
  * Re-measure after changing this, the type scale or the gaps.
  */
-const SLOT_CLASS = ["", "", "", "", "hidden 2xl:block", "hidden 2xl:block", "hidden min-[1800px]:block"];
+const SLOT_CLASS = ["", "", "", "hidden xl:block", "hidden 2xl:block", "hidden 2xl:block", "hidden min-[1800px]:block"];
 
 /** The "All categories" disclosure shares the one open-panel state, so it needs a key of its own. */
 const ALL = "__all__";
@@ -52,7 +52,14 @@ const ALL = "__all__";
  * Leaving a trigger does not close its panel instantly. Crossing the hairline between the button
  * and the panel momentarily leaves both, and without this the menu flickers shut under the pointer.
  */
-const CLOSE_DELAY_MS = 120;
+const CLOSE_DELAY_MS = 180;
+
+/**
+ * And opening waits a moment too. Without it the panels fire the instant the pointer crosses them,
+ * so sweeping the bar on the way to something else flashes three menus open and shut. Short enough
+ * that deliberately pointing at a category still feels immediate.
+ */
+const OPEN_DELAY_MS = 110;
 
 /**
  * Which panel is open, and whether a click put it there.
@@ -70,8 +77,16 @@ const PANEL_CLASS =
 const PANEL_LINK_CLASS =
   "block rounded-md px-2 py-2 text-sm font-semibold text-ink hover:bg-brand-50 hover:text-brand-700";
 
+/*
+ * Each category reads as its own soft chip rather than bare text in a crowded row. The vertical
+ * padding moved onto the wrapper below so the chip can be short while the nav keeps its height --
+ * the panel is positioned against the nav, so shrinking it would slide the menu up into the header.
+ */
 const TRIGGER_CLASS =
-  "flex cursor-pointer items-center gap-1 py-5 text-[13px] font-bold whitespace-nowrap text-brand-800 hover:text-brand-500 xl:text-[15px]";
+  "flex cursor-pointer items-center gap-1.5 rounded-full bg-brand-50/60 px-3.5 py-2.5 text-[13px] font-bold whitespace-nowrap text-brand-800 transition-colors duration-200 ease-out hover:bg-brand-100 hover:text-brand-700 motion-reduce:transition-none xl:text-[15px]";
+
+/** Keeps the bar the height it was, now that the chip itself is short. */
+const SLOT_PADDING = "py-3";
 
 /** A chevron that turns over when its panel opens. An SVG, so the rotation can be animated. */
 function Chevron({ open }: { open: boolean }) {
@@ -95,6 +110,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
   const buttonRefs = useRef(new Map<string, HTMLButtonElement | null>());
   const navRef = useRef<HTMLElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function cancelClose() {
     if (closeTimer.current !== null) {
@@ -103,14 +119,32 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
     }
   }
 
-  /** Hovering opens a panel, but never steals one the visitor deliberately clicked open. */
+  function cancelOpen() {
+    if (openTimer.current !== null) {
+      clearTimeout(openTimer.current);
+      openTimer.current = null;
+    }
+  }
+
+  /**
+   * Hovering opens a panel after a short wait, and never steals one the visitor clicked open.
+   * The wait is skipped when a panel is already showing: moving along the bar from one open menu
+   * to the next should track the pointer, not lag behind it.
+   */
   function hoverOpen(slug: string) {
     cancelClose();
-    setOpen((current) => (current?.slug === slug ? current : { slug, pinned: false }));
+    cancelOpen();
+    const show = () => setOpen((current) => (current?.slug === slug ? current : { slug, pinned: false }));
+    if (open) {
+      show();
+      return;
+    }
+    openTimer.current = setTimeout(show, OPEN_DELAY_MS);
   }
 
   /** Only an unpinned (hover-opened) panel closes when the pointer leaves it. */
   function scheduleClose() {
+    cancelOpen();
     cancelClose();
     closeTimer.current = setTimeout(() => {
       setOpen((current) => (current?.pinned ? current : null));
@@ -118,11 +152,13 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
   }
 
   function toggle(slug: string) {
+    cancelOpen();
     cancelClose();
     setOpen((current) => (current?.slug === slug && current.pinned ? null : { slug, pinned: true }));
   }
 
   function close(returnFocusTo?: string) {
+    cancelOpen();
     cancelClose();
     setOpen(null);
     if (returnFocusTo) buttonRefs.current.get(returnFocusTo)?.focus();
@@ -145,9 +181,34 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
   }, [open]);
 
   // Never leave a timer running after the component goes away.
-  useEffect(() => cancelClose, []);
+  useEffect(
+    () => () => {
+      cancelClose();
+      cancelOpen();
+    },
+    [],
+  );
 
   if (tree.length === 0) return null;
+
+  /* Inside the dashboard the sidebar is the navigation, and seventeen public categories across the
+     top are just noise over it. The one thing an owner cannot otherwise do from here is get back
+     out to the public site, so that is what takes the space instead. */
+  if (pathname.startsWith("/account") || pathname.startsWith("/onboarding")) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center lg:order-1">
+        <Link
+          href="/"
+          className="group flex items-center gap-2 rounded-full bg-brand-50/60 px-4 py-2.5 text-sm font-bold text-brand-800 transition-colors duration-200 ease-out hover:bg-brand-100 hover:text-brand-700 motion-reduce:transition-none"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 transition-transform duration-200 ease-out group-hover:-translate-x-0.5 motion-reduce:transition-none">
+            <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Go to home
+        </Link>
+      </div>
+    );
+  }
 
   const onNavBar = tree.slice(0, NAV_SLOTS);
 
@@ -157,7 +218,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
       <nav
         aria-label="Business categories"
         ref={navRef}
-        className="relative hidden min-w-0 flex-1 items-center justify-center gap-x-2 gap-y-1 lg:order-1 lg:flex xl:gap-x-4 2xl:gap-x-6"
+        className="relative hidden min-w-0 flex-1 items-center justify-center gap-x-2.5 gap-y-1 lg:order-1 lg:flex xl:gap-x-3 2xl:gap-x-4"
         onKeyDown={(event) => {
           if (event.key === "Escape" && open) {
             event.preventDefault();
@@ -182,7 +243,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
           return (
             <div
               key={parent.slug}
-              className={SLOT_CLASS[index]}
+              className={`${SLOT_CLASS[index]} ${SLOT_PADDING}`}
               onMouseEnter={() => hoverOpen(parent.slug)}
               onMouseLeave={scheduleClose}
             >

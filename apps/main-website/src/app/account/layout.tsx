@@ -31,15 +31,15 @@ export default async function AccountLayout({ children }: { children: React.Reac
   );
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-5 py-6 sm:px-8">
+    <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:py-12">
       {/* Narrow screens: the nav collapses into a drawer above the content. */}
       <div className="lg:hidden">
         <AccountDrawerNav>{signOutButton}</AccountDrawerNav>
       </div>
 
-      <div className="mt-4 gap-7 lg:mt-0 lg:grid lg:grid-cols-[232px_minmax(0,1fr)]">
+      <div className="mt-4 gap-10 lg:mt-0 lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
         <aside aria-label="Dashboard" className="hidden lg:block">
-          <div className="sticky top-[136px] rounded-xl border border-line bg-white p-3 shadow-[0_8px_22px_#002a340b]">
+          <div className="sticky top-[136px] rounded-2xl border border-line bg-white p-4 shadow-[0_8px_22px_#002a340b]">
             <p className="px-3 pt-1 pb-3 text-xs font-black tracking-[0.12em] text-muted uppercase">
               Business owner
             </p>
@@ -49,7 +49,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
         </aside>
 
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4">
             <p className="text-sm text-muted">
               Signed in as{" "}
               <span className="font-bold text-brand-800">{me.ok ? me.data.phone : "your account"}</span>
@@ -58,7 +58,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
               <p className="text-sm font-bold text-brand-800">{me.data.name}</p>
             ) : null}
           </div>
-          <div className="pt-6">{children}</div>
+          <div className="pt-8">{children}</div>
         </div>
       </div>
     </div>
