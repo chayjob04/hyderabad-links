@@ -12,6 +12,11 @@ using Microsoft.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
 
+/* Kestrel announces itself in a `Server: Kestrel` header on every response. It tells an attacker
+   which server to look up known issues for and tells a legitimate caller nothing at all, so it is
+   turned off — the same reason `poweredByHeader: false` is set on the websites. */
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
 // `dotnet run --project backend/BusinessDirectory.Api -- migrate` applies migrations and seeds, then exits.
 if (args.Contains("migrate"))
 {
