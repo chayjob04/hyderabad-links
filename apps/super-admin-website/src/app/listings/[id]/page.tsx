@@ -5,14 +5,17 @@ import { ListingForm } from "@/components/ListingForm";
 import {
   PERMISSION_LISTINGS_DELETE,
   PERMISSION_LISTINGS_EDIT,
+  PERMISSION_LISTINGS_FEATURE,
   describeStatus,
   formatWhen,
   getCategories,
   getListing,
+  getListingAlerts,
   getProfile,
   type ListingDetail,
 } from "@/lib/super-admin-api";
-import { archiveListingAction, deleteListingAction, saveListingAction } from "../actions";
+import { archiveListingAction, deleteListingAction, saveListingAction, setFeaturedAction } from "../actions";
+import { AlertForm } from "./AlertForm";
 
 export const metadata: Metadata = { title: "Listing" };
 export const dynamic = "force-dynamic";
@@ -35,7 +38,12 @@ export default async function ListingPage({ params, searchParams }: Props) {
   const id = Number.parseInt(rawId, 10);
   if (!Number.isSafeInteger(id) || id < 1) notFound();
 
-  const [result, me, categories] = await Promise.all([getListing(id), getProfile(), getCategories()]);
+  const [result, me, categories, alerts] = await Promise.all([
+    getListing(id),
+    getProfile(),
+    getCategories(),
+    getListingAlerts(id),
+  ]);
 
   if (!result.ok) {
     if (result.status === 404) notFound();
@@ -53,6 +61,7 @@ export default async function ListingPage({ params, searchParams }: Props) {
   const tone = describeStatus(listing.status);
   const mayEdit = me.ok && me.data.permissions.includes(PERMISSION_LISTINGS_EDIT);
   const mayRemove = me.ok && me.data.permissions.includes(PERMISSION_LISTINGS_DELETE);
+  const mayFeature = me.ok && me.data.permissions.includes(PERMISSION_LISTINGS_FEATURE);
 
   return (
     <main className="mx-auto max-w-2xl px-4 pt-8 pb-12">
@@ -131,8 +140,105 @@ export default async function ListingPage({ params, searchParams }: Props) {
         </p>
       )}
 
+      {/* The homepage shelf, and asking the owner to fix something. Both apply whatever the
+          listing's status is, so they sit outside the edit form above. */}
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <FeaturedSection listing={listing} mayFeature={mayFeature} />
+
+        {mayEdit && alerts.ok ? (
+          <AlertForm listingId={listing.id} reasons={alerts.data.reasons} />
+        ) : (
+          <p className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+            {mayEdit
+              ? "We could not load the message form. Reload the page to try again."
+              : "Your account cannot write to business owners. It needs the “Edit any listing” permission."}
+          </p>
+        )}
+      </div>
+
+      {alerts.ok && alerts.data.items.length > 0 ? (
+        <section className="mt-6 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <h2 className="text-base font-semibold">What has been asked already</h2>
+          <ul className="mt-3 grid gap-3">
+            {alerts.data.items.map((alert) => (
+              <li key={alert.id} className="rounded-lg border border-neutral-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">{alert.reasonLabel}</p>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      alert.acknowledgedAt === null ? "bg-amber-100 text-amber-900" : "bg-neutral-100 text-neutral-600"
+                    }`}
+                  >
+                    {alert.acknowledgedAt === null ? "Not read yet" : "Read by the owner"}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm whitespace-pre-wrap text-neutral-800">{alert.message}</p>
+                <p className="mt-2 text-xs text-neutral-500">
+                  {alert.sentByName} &middot; {formatWhen(alert.createdAt)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {mayRemove ? <RemoveSection listing={listing} /> : null}
     </main>
+  );
+}
+
+/**
+ * Whether this listing is on the homepage Featured shelf, and the one button that changes it.
+ *
+ * Only a live listing can be put on it — the API refuses the rest, because a card on the homepage
+ * leading to a page the public cannot see is worse than an emptier shelf. The reason is said here
+ * too, rather than leaving someone to discover it by pressing the button.
+ */
+function FeaturedSection({ listing, mayFeature }: { listing: ListingDetail; mayFeature: boolean }) {
+  const featured = listing.featuredAt !== null;
+  const live = listing.status === "active";
+
+  return (
+    <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+      <h2 className="text-base font-semibold">Homepage Featured shelf</h2>
+      <p className="mt-1 text-sm text-neutral-600">
+        {featured
+          ? `On the shelf since ${formatWhen(listing.featuredAt)}.`
+          : "Not on the shelf. Featured is chosen by hand; Trending next to it is counted from real activity and cannot be set."}
+      </p>
+
+      {!mayFeature ? (
+        <p className="mt-3 text-sm text-neutral-600">
+          Your account cannot change it. It needs the &quot;Choose which listings appear on the
+          homepage Featured shelf&quot; permission.
+        </p>
+      ) : !live && !featured ? (
+        <p className="mt-3 text-sm text-neutral-600">
+          Only a live listing can be featured. This one is {describeStatus(listing.status).label.toLowerCase()}.
+        </p>
+      ) : (
+        <form action={setFeaturedAction.bind(null, listing.id)} className="mt-3">
+          <button
+            type="submit"
+            name="intent"
+            value={featured ? "unfeature" : "feature"}
+            className={
+              featured
+                ? "rounded-lg border border-neutral-300 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
+                : "rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-900"
+            }
+          >
+            {featured ? "Take off the shelf" : "Put on the homepage"}
+          </button>
+        </form>
+      )}
+
+      <p className="mt-3 text-xs text-neutral-500">
+        <Link href="/featured" className="font-medium text-brand-700 underline-offset-2 hover:underline">
+          See the whole shelf
+        </Link>
+      </p>
+    </section>
   );
 }
 

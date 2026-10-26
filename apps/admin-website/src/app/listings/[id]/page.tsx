@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "@/components/StatusBadge";
-import { PERMISSION_REVIEW, formatWhen, getAdminProfile, getListing } from "@/lib/admin-api";
+import {
+  PERMISSION_ALERT,
+  PERMISSION_REVIEW,
+  formatWhen,
+  getAdminProfile,
+  getListing,
+  getListingAlerts,
+} from "@/lib/admin-api";
+import { AlertForm } from "./AlertForm";
 import { DecisionForm } from "./DecisionForm";
 import { LiveStatusForm } from "./LiveStatusForm";
 
@@ -27,7 +35,7 @@ export default async function ReviewListingPage({ params, searchParams }: Props)
   const id = Number.parseInt(rawId, 10);
   if (!Number.isSafeInteger(id) || id < 1) notFound();
 
-  const [result, me] = await Promise.all([getListing(id), getAdminProfile()]);
+  const [result, me, alerts] = await Promise.all([getListing(id), getAdminProfile(), getListingAlerts(id)]);
 
   if (!result.ok) {
     if (result.status === 404) notFound();
@@ -45,6 +53,7 @@ export default async function ReviewListingPage({ params, searchParams }: Props)
   const mapsLink = `https://www.google.com/maps?q=${listing.latitude},${listing.longitude}`;
   // The API enforces this; the page only avoids showing a form that would be refused.
   const mayReview = me.ok && me.data.permissions.includes(PERMISSION_REVIEW);
+  const mayAlert = me.ok && me.data.permissions.includes(PERMISSION_ALERT);
 
   return (
     <main className="mx-auto max-w-3xl px-4 pt-8 pb-12">
@@ -164,6 +173,56 @@ export default async function ReviewListingPage({ params, searchParams }: Props)
             &quot;Approve or reject listings&quot; permission.
           </p>
         )}
+      </div>
+
+      {/* Asking for a correction, and what has already been asked. Separate from the decision
+          above, because it applies whatever the listing's status is: a live listing with a wrong
+          phone number is the commonest case, and the point of this feature is that it no longer has
+          to be suspended to get the number fixed. */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {mayAlert && alerts.ok ? (
+          <AlertForm listingId={listing.id} reasons={alerts.data.reasons} />
+        ) : (
+          <p className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+            {mayAlert
+              ? "We could not load the message form. Reload the page to try again."
+              : "Your account cannot write to business owners. Ask a super admin for the “Send a correction request” permission."}
+          </p>
+        )}
+
+        <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <h2 className="text-base font-semibold">What has been asked already</h2>
+          {!alerts.ok ? (
+            <p className="mt-2 text-sm text-neutral-600">{alerts.message}</p>
+          ) : alerts.data.items.length === 0 ? (
+            <p className="mt-2 text-sm text-neutral-600">Nobody has written to this owner yet.</p>
+          ) : (
+            <ul className="mt-3 grid gap-3">
+              {alerts.data.items.map((alert) => (
+                <li key={alert.id} className="rounded-lg border border-neutral-200 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
+                      {alert.reasonLabel}
+                    </p>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        alert.acknowledgedAt === null
+                          ? "bg-amber-100 text-amber-900"
+                          : "bg-neutral-100 text-neutral-600"
+                      }`}
+                    >
+                      {alert.acknowledgedAt === null ? "Not read yet" : "Read by the owner"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm whitespace-pre-wrap text-neutral-800">{alert.message}</p>
+                  <p className="mt-2 text-xs text-neutral-500">
+                    {alert.sentByName} &middot; {formatWhen(alert.createdAt)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </main>
   );

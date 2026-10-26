@@ -12,6 +12,9 @@ public static class NotificationKinds
 
     /// <summary>A paid period started or was renewed. Allowed by notifications_kind_check from S0013.</summary>
     public const string SubscriptionActivated = "subscription_activated";
+
+    /// <summary>Staff asked the owner to correct something. Allowed by notifications_kind_check from S0017.</summary>
+    public const string ListingAlert = "listing_alert";
 }
 
 /// <summary>

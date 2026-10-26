@@ -10,9 +10,10 @@ namespace BusinessDirectory.Api.Endpoints;
 /// Both are built from rows the database already holds. Nothing here scores a listing on a number
 /// the application invented:
 ///
-///   Featured — listings with a paid Verified period running right now, newest first. "Featured"
-///              means the business is paying for prominence, which is a fact about the
-///              subscription, not a judgement about the business.
+///   Featured — listings a super admin has chosen by hand, most recently chosen first. The one
+///              curated thing on the page, and deliberately a decision with a name against it
+///              (S0017). It used to mean "is paying right now", which made it a list of whoever had
+///              bought the Verified plan — useful, but not a recommendation anyone had made.
 ///   Trending — listings with the most real activity in the last 30 days: enquiries sent to them,
 ///              favourites saved against them, and approved reviews written about them. A listing
 ///              with no activity in the window never appears, so an empty shelf is an honest empty
@@ -106,8 +107,15 @@ public static class PublicHighlightsEndpoints
     }
 
     /// <summary>
-    /// Paying listings, newest first. is_verified comes from listing_entitlements, so a listing
-    /// whose year has run out drops off this shelf on the next request with nothing to run.
+    /// The listings a super admin has chosen, most recently chosen first (S0017).
+    ///
+    /// This was "every listing with a paid Verified period running", which made the shelf a list of
+    /// whoever had paid rather than a recommendation anyone stood behind. It is now a decision, taken
+    /// on the super-admin surface and recorded with who took it.
+    ///
+    /// `status = 'active'` is still checked here even though featuring refuses a listing that is not
+    /// live: a featured listing can be suspended afterwards, and the homepage must drop it the moment
+    /// it is, rather than keep a card that leads to a page the public cannot see.
     /// </summary>
     private static async Task<List<HighlightDto>> ReadFeatured(
         SqlDatabase db, IMediaStorage storage, string? city, CancellationToken ct)
@@ -116,9 +124,9 @@ public static class PublicHighlightsEndpoints
             SELECT TOP (@take) {CardColumns}
             {CardJoins}
             WHERE li.status = 'active'
-              AND e.is_verified = 1
+              AND li.featured_at IS NOT NULL
               AND (@city IS NULL OR c.slug = @city)
-            ORDER BY li.published_at DESC, li.name");
+            ORDER BY li.featured_at DESC, li.name");
         command.Parameters.AddWithValue("take", ShelfSize);
         command.Parameters.AddWithValue("city", (object?)city ?? DBNull.Value);
 

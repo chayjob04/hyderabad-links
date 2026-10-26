@@ -39,3 +39,15 @@ function siteOrigin(): string {
 export function absoluteUrl(path: string): string {
   return `${siteOrigin()}${path}`;
 }
+
+/**
+ * A price for display. The database stores paise, so ₹399 arrives as 39900.
+ *
+ * Shared rather than copied because three screens now show the same price, and a plan whose price
+ * reads differently on the plans page and on the listing card is worse than one that is hard to
+ * find. The number itself always comes from the `plans` table, never from here.
+ */
+export function rupees(paise: number): string {
+  const whole = paise / 100;
+  return `₹${whole.toLocaleString("en-IN", { maximumFractionDigits: whole % 1 === 0 ? 0 : 2 })}`;
+}

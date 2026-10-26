@@ -58,6 +58,8 @@ public static class SuperAdminListingEndpoints
         group.MapPut("/{id:long}", Update);
         group.MapPost("/{id:long}/archive", Archive);
         group.MapDelete("/{id:long}", Delete);
+        group.MapSuperAdminListingAlertEndpoints();
+        group.MapSuperAdminFeaturedEndpoints();  // the homepage Featured shelf, chosen by hand
         return group;
     }
 

@@ -20,13 +20,29 @@ public class AdminPermissionsTests
         string[] seeded =
         [
             "listings.view", "listings.create", "listings.edit", "listings.delete", "listings.review",
-            "listings.verify", "reports.handle", "users.view", "taxonomy.manage", "analytics.view",
+            "listings.verify", "listings.alert", "listings.feature",
+            "reports.handle", "users.view", "taxonomy.manage", "analytics.view",
             "data.export", "plans.manage", "admins.manage", "audit.view",
         ];
 
         Assert.Equal(
             seeded.OrderBy(p => p, StringComparer.Ordinal),
             AdminPermissions.AdminSurface.Concat(AdminPermissions.SuperAdminOnly).OrderBy(p => p, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void An_admin_may_write_to_an_owner_but_may_not_choose_the_homepage()
+    {
+        /* The S0017 split, asserted on both sides. Asking an owner to fix a wrong phone number is
+           the natural end of moderating a listing, so it is admin work. Choosing which businesses
+           the homepage recommends is not moderation -- it decides what the platform puts its own
+           name behind, and it is the one shelf a business would ask to be on -- so it is reserved
+           for the super-admin surface, and Authorize() refuses it there even to an account that
+           somehow holds the code. */
+        Assert.True(AdminPermissions.IsAdminSurface(AdminPermissions.ListingsAlert));
+        Assert.False(AdminPermissions.IsAdminSurface(AdminPermissions.ListingsFeature));
+        Assert.Contains(AdminPermissions.ListingsFeature, AdminPermissions.SuperAdminOnly);
+        Assert.DoesNotContain(AdminPermissions.ListingsAlert, AdminPermissions.SuperAdminOnly);
     }
 
     [Fact]

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PlanBanner } from "@/components/PlanBanner";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { describeStatus, listMyListings } from "@/lib/owner-api";
+import { describeStatus, getSubscriptions, listMyListings } from "@/lib/owner-api";
 import type { OwnerListing } from "@/lib/owner-api";
 
 export const metadata: Metadata = { title: "My listings" };
@@ -31,7 +32,13 @@ function statusCounts(listings: OwnerListing[]) {
 
 export default async function MyListingsPage({ searchParams }: Props) {
   const { submitted, welcome } = await searchParams;
-  const result = await listMyListings();
+
+  /* Two requests, in parallel. The listings carry each one's plan; this adds the paid plan's price,
+     which lives in the `plans` table, so the banner can say "₹399/year" without the figure being
+     typed into a component. A failure here is not worth failing the page for: the banner simply
+     names the plan without a price. */
+  const [result, subscriptions] = await Promise.all([listMyListings(), getSubscriptions()]);
+  const paidPlan = subscriptions.ok ? subscriptions.data.paidPlan : null;
 
   if (!result.ok) {
     return (
@@ -108,6 +115,14 @@ export default async function MyListingsPage({ searchParams }: Props) {
                 key={listing.id}
                 className="flex flex-col rounded-xl border border-line bg-white p-5 shadow-[0_8px_22px_#002a340b]"
               >
+                <PlanBanner
+                  planSlug={listing.planSlug}
+                  planName={listing.planName}
+                  verified={listing.verified}
+                  pricePaise={paidPlan?.pricePaise}
+                  periodMonths={paidPlan?.periodMonths}
+                />
+
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="text-lg leading-snug font-black text-ink">{listing.name}</h2>
@@ -124,6 +139,24 @@ export default async function MyListingsPage({ searchParams }: Props) {
                   <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
                     <span className="font-black">What to change:</span> {listing.reviewNote}
                   </p>
+                ) : null}
+
+                {/* Amber, not red: the listing is still live and nothing has been taken down —
+                    somebody has asked for a correction, which is a different thing from a
+                    rejection and has to look like one. */}
+                {listing.openAlerts > 0 ? (
+                  <Link
+                    href={`/account/listings/${listing.id}/alerts`}
+                    className="mt-3 block rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 hover:border-amber-500"
+                  >
+                    <span className="font-black">
+                      {listing.openAlerts === 1
+                        ? "We have asked you to change something"
+                        : `We have asked you to change ${listing.openAlerts} things`}
+                    </span>{" "}
+                    &mdash; read {listing.openAlerts === 1 ? "it" : "them"}{" "}
+                    <span aria-hidden="true">&rarr;</span>
+                  </Link>
                 ) : null}
 
                 <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-line pt-4">

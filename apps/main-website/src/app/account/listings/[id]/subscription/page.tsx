@@ -3,17 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { UpgradeButton } from "@/components/account/UpgradeButton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { rupees } from "@/lib/format";
 import { getListingSubscription, getMyListing } from "@/lib/owner-api";
 
 export const metadata: Metadata = { title: "Plan and payment" };
 
 type Props = { params: Promise<{ id: string }> };
 
-/** Paise to rupees, the way a price is written here: 39900 → ₹399. */
-function rupees(paise: number): string {
-  const whole = paise / 100;
-  return `₹${whole.toLocaleString("en-IN", { maximumFractionDigits: whole % 1 === 0 ? 0 : 2 })}`;
-}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });

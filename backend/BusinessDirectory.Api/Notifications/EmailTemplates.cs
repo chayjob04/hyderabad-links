@@ -166,6 +166,66 @@ public static class EmailTemplates
         return new EmailMessage(to, $"{decision.BusinessName} has not been approved", text.ToString(), html.ToString());
     }
 
+    /// <summary>A staff request for the owner to correct something on their listing.</summary>
+    /// <param name="ReasonLabel">The category, in the words the owner is shown rather than the stored code.</param>
+    /// <param name="Message">What the admin wrote. Quoted as written; this is the whole point of the email.</param>
+    /// <param name="SentByName">Who wrote it, so the owner is not answering an anonymous demand.</param>
+    public sealed record ListingAlertDetails(
+        string BusinessName,
+        string? ListingPath,
+        string ReasonLabel,
+        string Message,
+        string SentByName);
+
+    /// <summary>
+    /// Renders an alert. Unlike a rejection, the listing is still live — so this email has to ask for
+    /// a change without reading as a threat to remove the business, which is the difference the
+    /// wording carries.
+    ///
+    /// The owner is pointed at their own listings page rather than at a reply address, because
+    /// nothing in this project receives replies. Asking someone to "reply to this email" when nobody
+    /// reads the mailbox is worse than not asking.
+    /// </summary>
+    public static EmailMessage ListingAlertEmail(string to, ListingAlertDetails alert, string? siteBaseUrl)
+    {
+        var listings = Link(siteBaseUrl, "/account/listings");
+        var message = alert.Message.Trim();
+
+        var text = new StringBuilder();
+        text.AppendLine($"We need a change to your listing for {alert.BusinessName}.");
+        text.AppendLine();
+        text.AppendLine($"What this is about: {alert.ReasonLabel}");
+        text.AppendLine();
+        text.AppendLine($"{alert.SentByName} wrote:");
+        text.AppendLine();
+        text.AppendLine(message);
+        text.AppendLine();
+        text.AppendLine("Your listing is still live. Please sign in and update it when you can.");
+        if (listings is not null)
+        {
+            text.AppendLine();
+            text.AppendLine($"Your listings: {listings}");
+        }
+        text.AppendLine();
+        text.AppendLine("HYDERABAD LINKS");
+
+        var html = new StringBuilder();
+        OpenHtml(html, $"A change is needed to {alert.BusinessName}");
+        html.Append($"<p>We need a change to your listing for <strong>{Escape(alert.BusinessName)}</strong>.</p>");
+        html.Append($"<p><strong>What this is about:</strong> {Escape(alert.ReasonLabel)}</p>");
+        html.Append($"<p>{Escape(alert.SentByName)} wrote:</p>");
+        html.Append($"<blockquote style=\"margin:0 0 16px;padding:8px 12px;border-left:3px solid #ccc;white-space:pre-wrap\">{Escape(message)}</blockquote>");
+        html.Append("<p>Your listing is still live. Please sign in and update it when you can.</p>");
+        if (listings is not null)
+        {
+            html.Append($"<p><a href=\"{Escape(listings)}\">Open your listings</a></p>");
+        }
+        CloseHtml(html);
+
+        return new EmailMessage(
+            to, $"A change is needed to your {alert.BusinessName} listing", text.ToString(), html.ToString());
+    }
+
     /// <summary>A paid period, as the owner needs it confirmed.</summary>
     /// <param name="AmountPaise">What was actually charged, taken from the payment record rather than from the plan.</param>
     /// <param name="PaidUntil">The end of the period this payment bought.</param>

@@ -77,7 +77,14 @@ public static class AdminListingEndpoints
         string? Url,
         /// <summary>Whether this listing is paid up right now, and until when. From listing_entitlements.</summary>
         bool IsVerified,
-        DateTimeOffset? PaidUntil);
+        DateTimeOffset? PaidUntil,
+
+        /// <summary>
+        /// When a super admin put this on the homepage Featured shelf, or null (S0017). Read-only on
+        /// the admin surface, which can see the state but cannot change it: choosing the homepage
+        /// needs listings.feature, which the admin role does not hold.
+        /// </summary>
+        DateTimeOffset? FeaturedAt);
 
     // The category joins are LEFT joins on purpose: a listing with no primary category must still be
     // visible to a reviewer (that missing category is exactly the kind of thing to reject it for),
@@ -93,7 +100,7 @@ public static class AdminListingEndpoints
                  -- Appended rather than placed beside pc.slug where it belongs logically: this
                  -- result set is read by position, and inserting a column in the middle silently
                  -- shifts every index after it.
-                 pcparent.slug AS parent_category_slug
+                 pcparent.slug AS parent_category_slug, li.featured_at
           FROM listings li
           JOIN dbo.listing_entitlements e ON e.listing_id = li.id
           JOIN localities lo ON lo.id = li.locality_id
@@ -121,6 +128,9 @@ public static class AdminListingEndpoints
         group.MapPost("/{id:long}/reject", Reject);
         group.MapPost("/{id:long}/suspend", Suspend);
         group.MapPost("/{id:long}/reinstate", Reinstate);
+
+        // Ask the owner to correct something, instead of rejecting the business off the site.
+        group.MapAdminListingAlertEndpoints();
         return group;
     }
 
@@ -513,7 +523,8 @@ public static class AdminListingEndpoints
             reader.IsDBNull(24) ? null : reader.GetString(24),
             PublicUrl.ForListing(reader.IsDBNull(27) ? null : reader.GetString(27), category, slug),
             reader.GetBoolean(25),
-            reader.IsDBNull(26) ? null : reader.GetFieldValue<DateTimeOffset>(26));
+            reader.IsDBNull(26) ? null : reader.GetFieldValue<DateTimeOffset>(26),
+            reader.IsDBNull(28) ? null : reader.GetFieldValue<DateTimeOffset>(28));
     }
 
     /// <summary>

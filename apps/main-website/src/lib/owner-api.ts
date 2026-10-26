@@ -27,6 +27,30 @@ export type OwnerListing = {
   reviewNote: string | null;
   reviewedAt: string | null;
   url: string;
+
+  /**
+   * The plan this one listing is on. Each listing is paid for separately, so a user with three
+   * businesses can hold a Verified plan on two and leave the third Free — which is why this is on
+   * the listing and not on the account.
+   */
+  planSlug: string;
+  planName: string;
+  verified: boolean;
+  paidUntil: string | null;
+
+  /** Staff requests to correct something that the owner has not marked read yet. */
+  openAlerts: number;
+};
+
+/** A staff request to correct something on a listing. */
+export type ListingAlert = {
+  id: number;
+  reason: string;
+  reasonLabel: string;
+  message: string;
+  sentByName: string;
+  createdAt: string;
+  acknowledgedAt: string | null;
 };
 
 /** `needsOnboarding` is the API's own rule (an owner with no name has not registered yet), not ours. */
@@ -285,6 +309,10 @@ export const createListing = (input: ListingFormInput) =>
 export const updateListing = (id: number, input: ListingFormInput) =>
   authed<OwnerListing>(`/api/v1/me/listings/${id}`, { method: "PUT", body: json(toPayload({ ...input, localitySlug: undefined })) });
 export const submitListing = (id: number) => authed<OwnerListing>(`/api/v1/me/listings/${id}/submit`, { method: "POST" });
+
+export const listListingAlerts = (id: number) => authed<ListingAlert[]>(`/api/v1/me/listings/${id}/alerts`);
+export const acknowledgeListingAlert = (id: number, alertId: number) =>
+  authed<void>(`/api/v1/me/listings/${id}/alerts/${alertId}/acknowledge`, { method: "POST" });
 
 /** One photo, logo or video on a listing. `url` is the address the browser loads the file from. */
 export type ListingMediaItem = {

@@ -17,6 +17,8 @@ FROM (VALUES
   ('listings.review',  'Approve or reject listings'),
   ('listings.verify',  'Mark listings verified'),
   ('listings.delete',  'Delete a listing outright'),
+  ('listings.alert',   'Send a correction request to a business owner'),
+  ('listings.feature', 'Choose which listings appear on the homepage Featured shelf'),
   ('reports.handle',   'Handle abuse reports and reviews'),
   ('users.view',       'View business owner accounts'),
   ('taxonomy.manage',  'Manage categories, subcategories and localities'),
@@ -53,12 +55,14 @@ GO
 -- permission does not reach an admin until someone adds it here.
 --
 -- listings.create, listings.edit and listings.delete are deliberately absent (S0014). An admin
--- reviews what owners submit; writing listings is super-admin work on its own surface.
+-- reviews what owners submit; writing listings is super-admin work on its own surface. So is
+-- listings.feature (S0017): choosing who the platform recommends on its homepage is not moderation.
+-- listings.alert IS granted below: writing to an owner about a wrong detail is the admin's own job.
 INSERT INTO dbo.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM dbo.roles r
 JOIN dbo.permissions p ON p.code IN (
-    'listings.view', 'listings.review', 'listings.verify',
+    'listings.view', 'listings.review', 'listings.verify', 'listings.alert',
     'reports.handle', 'users.view', 'taxonomy.manage'
 )
 WHERE r.slug = 'admin'

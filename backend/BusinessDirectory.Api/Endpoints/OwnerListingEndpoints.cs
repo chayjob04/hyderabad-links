@@ -40,15 +40,35 @@ public static class OwnerListingEndpoints
         /// <summary>Why a reviewer rejected the listing. The owner reads this and fixes it.</summary>
         string? ReviewNote,
         DateTimeOffset? ReviewedAt,
-        string Url);
+        string Url,
+
+        /* The plan this one listing is on, so "My listings" can show it per card. Each listing is
+           bought for separately -- a user with three businesses can pay for two and leave the third
+           Free -- so a plan on the account would be the wrong shape entirely. It comes from
+           listing_entitlements, which works the period out against the clock at read time, so a
+           lapsed listing reads as Free with nothing having to run. */
+        string PlanSlug,
+        string PlanName,
+        bool Verified,
+        DateTimeOffset? PaidUntil,
+
+        /// <summary>Unacknowledged staff requests to fix something (S0017). The card shows a flag per listing.</summary>
+        int OpenAlerts);
 
     private const string OwnedListingSelect =
         @"SELECT li.id, li.slug, li.name, li.description, li.address_line, li.pincode, li.phone_primary, li.phone_whatsapp,
                  li.website_url, li.location.Lat, li.location.Long,
                  ci.slug, lo.slug, lo.name, pc.slug, pc.name, li.status, li.review_note, li.reviewed_at,
-                 pcparent.slug AS parent_category_slug
+                 -- Appended rather than placed where they belong logically: this result set is read
+                 -- by position, so inserting a column in the middle silently shifts every index
+                 -- after it. New columns go on the end.
+                 pcparent.slug AS parent_category_slug,
+                 e.effective_plan_slug, e.effective_plan_name, e.is_verified, e.paid_until,
+                 (SELECT COUNT_BIG(*) FROM dbo.listing_alerts a
+                  WHERE a.listing_id = li.id AND a.acknowledged_at IS NULL) AS open_alerts
           FROM listings li
           JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+          JOIN dbo.listing_entitlements e ON e.listing_id = li.id
           JOIN localities lo ON lo.id = li.locality_id
           JOIN cities ci ON ci.id = lo.city_id
           JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
@@ -67,7 +87,8 @@ public static class OwnerListingEndpoints
         group.MapPost("/{id:long}/submit", Submit);
         group.MapOwnerMediaEndpoints();   // photos, logo and video, with the plan allowance enforced
         group.MapOwnerLinkEndpoints();    // website and social links, capped by the plan's allowance
-        group.MapOwnerSubscriptionEndpoints();   // buying and renewing the Verified plan
+        group.MapOwnerSubscriptionEndpoints();   // buying and renewing the Verified plan, per listing
+        group.MapOwnerAlertEndpoints();   // staff requests to correct something, and marking them read
         return group;
     }
 
@@ -362,7 +383,13 @@ public static class OwnerListingEndpoints
             r.GetString(16),
             r.IsDBNull(17) ? null : r.GetString(17),
             r.IsDBNull(18) ? null : r.GetFieldValue<DateTimeOffset>(18),
-            PublicUrl.ForListing(r.GetString(19), category, slug)!);
+            PublicUrl.ForListing(r.GetString(19), category, slug)!,
+            r.GetString(20),
+            r.GetString(21),
+            r.GetBoolean(22),
+            r.IsDBNull(23) ? null : r.GetFieldValue<DateTimeOffset>(23),
+            // COUNT_BIG returns bigint; the count of open alerts on one listing fits an int easily.
+            (int)r.GetInt64(24));
     }
 
     private static async Task<OwnerListingDto?> LoadOwned(SqlConnection conn, SqlTransaction? tx, long userId, long listingId, CancellationToken ct)

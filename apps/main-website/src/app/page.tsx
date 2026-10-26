@@ -33,11 +33,12 @@ export default async function HomePage() {
   const tree = await getCategories();
 
   /*
-   * Both shelves come from the database. Featured is "has a paid Verified period running now", and
-   * Trending is "most enquiries, favourites and approved reviews in the last 30 days" — measured
-   * events, not a score this site made up. Either can legitimately come back empty (a new city has
-   * no paid listings and no activity yet), and a shelf with nothing in it is skipped rather than
-   * padded out with whatever else was to hand.
+   * Both shelves come from the database, and they are deliberately different kinds of thing.
+   * Featured is chosen by hand on the super-admin surface, so it is a recommendation someone made
+   * and signed their name to. Trending is "most enquiries, favourites and approved reviews in the
+   * last 30 days" — measured events, not a score this site made up, and nobody can put a business
+   * on it. Either can legitimately come back empty (nothing featured yet, no activity yet), and a
+   * shelf with nothing in it is skipped rather than padded out with whatever else was to hand.
    */
   const highlights = await getHighlights(DEFAULT_CITY);
 
@@ -168,15 +169,17 @@ export default async function HomePage() {
       ) : null}
 
       {/*
-        Featured. These are the listings on a paid Verified period, so the heading says plainly that
-        they are paying for the position rather than implying the site picked them on merit.
+        Featured. Chosen by hand rather than by who is paying, so the copy below no longer says
+        "businesses on a Verified plan" — that was true when the shelf was automatic, and saying it
+        of a curated list would describe the wrong thing. A featured business may or may not be
+        paying; its badge comes from the subscription either way.
       */}
       {highlights.featured.length > 0 ? (
         <section className={`border-t border-brand-100 bg-brand-50/60 ${SECTION}`}>
           <div className={SHELL}>
             <SectionHeading
               mark="&#10026;"
-              kicker="VERIFIED BUSINESSES"
+              kicker="PICKED BY OUR TEAM"
               title={
                 <>
                   Featured <span className="text-[#294d56]">on Hyderabad Links</span>
@@ -184,8 +187,8 @@ export default async function HomePage() {
               }
             />
             <p className="mx-auto -mt-2 mb-10 max-w-2xl text-center text-[15px] leading-relaxed text-muted lg:mb-14">
-              Businesses on a Verified plan. Each one has confirmed its details and keeps a verified
-              badge for as long as its plan is active.
+              Businesses our team has picked out. A verified badge, where you see one, means that
+              business is on a paid Verified plan.
             </p>
             <div className={CARD_GRID}>
               {highlights.featured.map((listing) => (

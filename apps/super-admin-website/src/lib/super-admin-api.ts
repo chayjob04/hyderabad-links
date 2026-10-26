@@ -239,6 +239,8 @@ export type ListingDetail = {
   url: string | null;
   isVerified: boolean;
   paidUntil: string | null;
+  /** When a super admin put this on the homepage Featured shelf, or null (S0017). */
+  featuredAt: string | null;
 };
 
 export const LISTING_STATUSES = ["pending_review", "active", "rejected", "draft", "suspended", "archived"] as const;
@@ -337,3 +339,61 @@ export const updateListing = (id: number, input: ListingFormInput) =>
     method: "PUT",
     body: JSON.stringify(toPayload({ ...input, localitySlug: undefined })),
   });
+
+// ---------------------------------------------------------------- alerts and the Featured shelf
+/** Writing to an owner. Shared with the admin surface, which holds listings.alert for the same act. */
+export const PERMISSION_LISTINGS_ALERT = "listings.edit";
+
+/** Choosing the homepage Featured shelf. Super-admin only, and the admin role does not hold it. */
+export const PERMISSION_LISTINGS_FEATURE = "listings.feature";
+
+export type ListingAlert = {
+  id: number;
+  reason: string;
+  reasonLabel: string;
+  message: string;
+  sentByName: string;
+  createdAt: string;
+  acknowledgedAt: string | null;
+};
+
+/**
+ * The alerts on a listing, plus the reasons the API accepts.
+ *
+ * `reasons` comes from the API so the dropdown is built from the same list the API validates
+ * against and the database constrains. A reason hard-coded here would be refused at the moment of
+ * sending, after the whole message had been written.
+ */
+export type ListingAlerts = { items: ListingAlert[]; reasons: Record<string, string> };
+
+export const getListingAlerts = (id: number) =>
+  authed<ListingAlerts>(`/api/v1/super-admin/listings/${id}/alerts`);
+
+export const sendListingAlert = (id: number, reason: string, message: string) =>
+  authed<ListingAlert>(`/api/v1/super-admin/listings/${id}/alerts`, {
+    method: "POST",
+    body: json({ reason, message }),
+  });
+
+/** One listing on the homepage Featured shelf. */
+export type FeaturedRow = {
+  id: number;
+  name: string;
+  status: string;
+  url: string | null;
+  featuredAt: string;
+  /** Null when the admin who chose it has since been removed. */
+  featuredBy: string | null;
+};
+
+/** `remaining` is sent so a full shelf disables the button rather than offering a refused action. */
+export type FeaturedList = { items: FeaturedRow[]; max: number; remaining: number };
+
+export const getFeatured = () => authed<FeaturedList>("/api/v1/super-admin/listings/featured");
+
+/** Featuring one that is already featured moves it to the front, which is the only ordering there is. */
+export const featureListing = (id: number) =>
+  authed<void>(`/api/v1/super-admin/listings/${id}/featured`, { method: "PUT" });
+
+export const unfeatureListing = (id: number) =>
+  authed<void>(`/api/v1/super-admin/listings/${id}/featured`, { method: "DELETE" });

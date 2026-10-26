@@ -11,3 +11,13 @@ export type ListingFormState = {
 };
 
 export const emptyListingFormState: ListingFormState = { rev: 0, values: {}, fieldErrors: {} };
+
+export type AlertState = {
+  error?: string;
+  sent?: boolean;
+  /** Kept so a message is not lost when the API refuses it (too short, say). */
+  reason?: string;
+  message?: string;
+};
+
+export const initialAlertState: AlertState = {};

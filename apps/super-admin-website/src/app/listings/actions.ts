@@ -6,11 +6,14 @@ import {
   archiveListing,
   createListing,
   deleteListing,
+  featureListing,
+  sendListingAlert,
+  unfeatureListing,
   updateListing,
   type ListingFormInput,
 } from "@/lib/super-admin-api";
 import { pagesAffectedBy, revalidatePublicPages } from "@/lib/revalidate";
-import type { ListingFormState } from "./form-state";
+import type { AlertState, ListingFormState } from "./form-state";
 
 /**
  * Server actions for the listing screens. None of them checks a permission: the API checks
@@ -105,4 +108,54 @@ function readPublicPaths(formData: FormData) {
     localitySlug: String(formData.get("localitySlug") ?? ""),
     categorySlug: (formData.get("categorySlug") as string) || null,
   };
+}
+
+/**
+ * Asks the owner to correct something, leaving the listing where it is.
+ *
+ * A super admin can also just edit the listing themselves, and often should. This exists for the
+ * cases where they should not: a phone number or an address can only really be confirmed by the
+ * business, and quietly rewriting one on their behalf is how a directory ends up confidently wrong.
+ */
+export async function sendAlertAction(
+  listingId: number,
+  _previous: AlertState,
+  formData: FormData,
+): Promise<AlertState> {
+  const reason = String(formData.get("reason") ?? "");
+  const message = String(formData.get("message") ?? "");
+
+  const result = await sendListingAlert(listingId, reason, message);
+  if (!result.ok) {
+    return { error: Object.values(result.fieldErrors)[0] ?? result.message, reason, message };
+  }
+
+  revalidatePath("/listings/" + listingId);
+  return { sent: true };
+}
+
+/**
+ * Puts a listing on the homepage Featured shelf, or takes it off.
+ *
+ * The public homepage is revalidated either way, because that is the page the change is for: the
+ * shelf would otherwise be correct in this panel and stale for every visitor until the cache
+ * window ran out.
+ */
+export async function setFeaturedAction(listingId: number, formData: FormData): Promise<void> {
+  const featuring = formData.get("intent") === "feature";
+  const result = featuring ? await featureListing(listingId) : await unfeatureListing(listingId);
+
+  if (!result.ok) {
+    // A full shelf and a listing that is not live are both refused with a reason worth reading.
+    redirect(`/listings/${listingId}?error=${encodeURIComponent(result.message)}`);
+  }
+
+  await revalidatePublicPages(["/"]);
+  revalidatePath("/listings/" + listingId);
+  revalidatePath("/featured");
+  redirect(
+    `/listings/${listingId}?done=${encodeURIComponent(
+      featuring ? "On the homepage Featured shelf." : "Off the Featured shelf.",
+    )}`,
+  );
 }

@@ -22,6 +22,8 @@ public class SuperAdminAccessTests(WebApplicationFactory<Program> factory) : ICl
         "/api/v1/super-admin/audit",
         "/api/v1/super-admin/listings",
         "/api/v1/super-admin/listings/1",
+        "/api/v1/super-admin/listings/featured",
+        "/api/v1/super-admin/listings/1/alerts",
     ];
 
     [Theory]
@@ -85,6 +87,28 @@ public class SuperAdminAccessTests(WebApplicationFactory<Program> factory) : ICl
         Assert.Equal(
             HttpStatusCode.Unauthorized,
             (await _client.DeleteAsync("/api/v1/super-admin/listings/1")).StatusCode);
+
+    [Fact]
+    public async Task Featuring_a_listing_refuses_an_anonymous_caller() =>
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.PutAsync("/api/v1/super-admin/listings/1/featured", null)).StatusCode);
+
+    [Fact]
+    public async Task Unfeaturing_a_listing_refuses_an_anonymous_caller() =>
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.DeleteAsync("/api/v1/super-admin/listings/1/featured")).StatusCode);
+
+    [Fact]
+    public async Task Sending_an_owner_an_alert_refuses_an_anonymous_caller()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/super-admin/listings/1/alerts",
+            new { reason = "incorrect_details", message = "The phone number rings a different shop." });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 
     [Fact]
     public async Task Resetting_an_authenticator_refuses_an_anonymous_caller() =>

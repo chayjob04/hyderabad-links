@@ -77,6 +77,8 @@ export const PERMISSION_REVIEW = "listings.review";
 export const PERMISSION_TAXONOMY = "taxonomy.manage";
 /** The seeded description of this one already reads "Handle abuse reports and reviews". */
 export const PERMISSION_REPORTS = "reports.handle";
+/** Writing to an owner to ask them to correct something (S0017). Admin work, unlike deleting. */
+export const PERMISSION_ALERT = "listings.alert";
 
 export type ApiFailure = { ok: false; status: number; message: string; fieldErrors: Record<string, string> };
 export type ApiResult<T> = { ok: true; data: T } | ApiFailure;
@@ -370,3 +372,33 @@ export const updateLocality = (
 
 export const deleteLocality = (id: number) =>
   authed<void>("/api/v1/admin/localities/" + id, { method: "DELETE" });
+
+// ---------------------------------------------------------------- alerts to business owners
+/** A correction request sent to an owner. */
+export type ListingAlert = {
+  id: number;
+  reason: string;
+  reasonLabel: string;
+  message: string;
+  sentByName: string;
+  createdAt: string;
+  acknowledgedAt: string | null;
+};
+
+/**
+ * The alerts on a listing, plus the reasons the API will accept.
+ *
+ * `reasons` is sent by the API rather than listed here so the dropdown is built from the same list
+ * the API validates against and the database constrains. A reason hard-coded in this app would be
+ * refused at the moment of sending, after the admin had written the whole message.
+ */
+export type ListingAlerts = { items: ListingAlert[]; reasons: Record<string, string> };
+
+export const getListingAlerts = (id: number) =>
+  authed<ListingAlerts>(`/api/v1/admin/listings/${id}/alerts`);
+
+export const sendListingAlert = (id: number, reason: string, message: string) =>
+  authed<ListingAlert>(`/api/v1/admin/listings/${id}/alerts`, {
+    method: "POST",
+    body: json({ reason, message }),
+  });

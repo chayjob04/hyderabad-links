@@ -78,6 +78,8 @@ public class AdminModerationAccessTests(WebApplicationFactory<Program> factory) 
     [InlineData("DELETE", "/api/v1/admin/categories/1")]
     [InlineData("GET", "/api/v1/admin/localities")]
     [InlineData("POST", "/api/v1/admin/localities")]
+    [InlineData("GET", "/api/v1/admin/listings/1/alerts")]
+    [InlineData("POST", "/api/v1/admin/listings/1/alerts")]
     public async Task A_valid_owner_token_is_refused_on_every_admin_route(string method, string path)
     {
         // The token is real and correctly signed; only its audience is wrong. Nothing reaches the
@@ -100,6 +102,24 @@ public class AdminModerationAccessTests(WebApplicationFactory<Program> factory) 
            explicitly, because a route quietly reappearing is exactly the regression that would put
            listing writes back on the admin surface. */
         var response = await Send(new HttpMethod(method), path, body: new { name = "X" });
+
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
+    }
+
+    // ---------------------------------------------------------------- the homepage is not admin work
+    [Theory]
+    [InlineData("GET", "/api/v1/admin/listings/featured")]
+    [InlineData("PUT", "/api/v1/admin/listings/1/featured")]
+    [InlineData("DELETE", "/api/v1/admin/listings/1/featured")]
+    public async Task Choosing_the_featured_shelf_is_not_on_the_admin_surface(string method, string path)
+    {
+        /* Featured is curated on /api/v1/super-admin/listings and nowhere else (S0017). As with
+           listing writes above, the route does not exist here at all rather than existing and
+           refusing: 404 or 405, never 401. An ordinary admin holds listings.alert and not
+           listings.feature, and the route being absent means even a mistaken grant changes nothing.
+
+           Trending has no route on either surface, because nobody may choose it. */
+        var response = await Send(new HttpMethod(method), path);
 
         Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
     }

@@ -28,4 +28,14 @@ public class OwnerListingAccessTests(WebApplicationFactory<Program> factory) : I
     [Fact]
     public async Task Submitting_a_listing_requires_sign_in() =>
         Assert.Equal(HttpStatusCode.Unauthorized, (await _client.PostAsync("/api/v1/me/listings/1/submit", null)).StatusCode);
+
+    [Fact]
+    public async Task Reading_the_alerts_on_a_listing_requires_sign_in() =>
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/api/v1/me/listings/1/alerts")).StatusCode);
+
+    [Fact]
+    public async Task Acknowledging_an_alert_requires_sign_in() =>
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.PostAsync("/api/v1/me/listings/1/alerts/1/acknowledge", null)).StatusCode);
 }

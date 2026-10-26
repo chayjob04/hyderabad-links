@@ -7,10 +7,12 @@ import {
   approveListing,
   reinstateListing,
   rejectListing,
+  sendListingAlert,
   suspendListing,
 } from "@/lib/admin-api";
 import { pagesAffectedBy, revalidatePublicPages } from "@/lib/revalidate";
 import { clearSessionCookies, readTokens } from "@/lib/session";
+import type { AlertState } from "./alert-state";
 import type { DecisionState } from "./decision-state";
 
 /**
@@ -70,4 +72,34 @@ export async function signOutAction(): Promise<void> {
   if (refresh) await adminLogout(refresh);
   await clearSessionCookies();
   redirect("/login");
+}
+
+/**
+ * Asks the owner to correct something, leaving the listing where it is.
+ *
+ * This is the proportionate tool that was missing. Before it, the only thing an admin could do
+ * about a wrong phone number on a live listing was suspend the business — which punishes a customer
+ * looking for them far more than it does the owner who mistyped a digit.
+ *
+ * Like every action here, it checks nothing itself: the API decides whether this admin holds
+ * listings.alert, and validates the reason and the message.
+ */
+export async function sendAlertAction(
+  listingId: number,
+  _previous: AlertState,
+  formData: FormData,
+): Promise<AlertState> {
+  const reason = String(formData.get("reason") ?? "");
+  const message = String(formData.get("message") ?? "");
+
+  const result = await sendListingAlert(listingId, reason, message);
+  if (!result.ok) {
+    // The field error first: "Say what needs changing, in at least 10 characters" is more use than
+    // "One or more validation errors occurred".
+    return { error: Object.values(result.fieldErrors)[0] ?? result.message, reason, message };
+  }
+
+  // The listing page lists what has already been asked for, so staff can see it without resending.
+  revalidatePath("/listings/" + listingId);
+  return { sent: true };
 }

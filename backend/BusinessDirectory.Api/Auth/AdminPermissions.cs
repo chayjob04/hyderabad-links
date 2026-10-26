@@ -25,6 +25,13 @@ public static class AdminPermissions
     /// </summary>
     public const string TaxonomyManage = "taxonomy.manage";
 
+    /// <summary>
+    /// Writing to an owner to ask them to correct something. On the admin surface because it is the
+    /// natural end of reviewing a listing: the admin who finds the wrong phone number is the one who
+    /// should be able to say so, and the alternative — rejecting the listing — is a blunter tool.
+    /// </summary>
+    public const string ListingsAlert = "listings.alert";
+
     // ---- super-admin only (listed so the separation is visible in one place; not checked here)
     /* Writing listings lives here rather than on the admin surface. An admin reviews what owners
        submit and nothing more -- approve, reject, suspend, reinstate. Adding a business by hand,
@@ -34,6 +41,15 @@ public static class AdminPermissions
     public const string ListingsCreate = "listings.create";
     public const string ListingsEdit = "listings.edit";
     public const string ListingsDelete = "listings.delete";
+
+    /// <summary>
+    /// Choosing which businesses the homepage recommends. Super-admin only, because it is not
+    /// moderation: it decides what the platform puts its own name behind, and it is the one shelf a
+    /// business would pay or ask to be on. Trending is beside it on the same page and cannot be
+    /// chosen by anyone — it is counted from what visitors actually did.
+    /// </summary>
+    public const string ListingsFeature = "listings.feature";
+
     public const string AnalyticsView = "analytics.view";
     public const string DataExport = "data.export";
     public const string PlansManage = "plans.manage";
@@ -43,13 +59,14 @@ public static class AdminPermissions
     /// <summary>Permissions an /api/v1/admin endpoint is allowed to require.</summary>
     public static readonly string[] AdminSurface =
     [
-        ListingsView, ListingsReview, ListingsVerify, ReportsHandle, UsersView, TaxonomyManage,
+        ListingsView, ListingsReview, ListingsVerify, ListingsAlert,
+        ReportsHandle, UsersView, TaxonomyManage,
     ];
 
     /// <summary>Permissions reserved for the super-admin surface.</summary>
     public static readonly string[] SuperAdminOnly =
     [
-        ListingsCreate, ListingsEdit, ListingsDelete,
+        ListingsCreate, ListingsEdit, ListingsDelete, ListingsFeature,
         AnalyticsView, DataExport, PlansManage, AdminsManage, AuditView,
     ];
 
