@@ -102,7 +102,15 @@ export default async function SearchPage({ searchParams }: Props) {
 
   // What is narrowing the results right now, each with a way to drop just that one.
   const filters: ActiveFilter[] = [];
-  if (criteria.q) filters.push({ kind: "Keyword", label: criteria.q, removeHref: searchWithout(raw, "q") });
+
+  /* The keyword chip is dropped when it only repeats the category's own name. Picking a category
+     from the search box fills the text box with that name and sets the category, which showed the
+     same words twice side by side, each with its own remove button. */
+  const keywordRepeatsCategory =
+    categoryName !== null && criteria.q?.trim().toLowerCase() === categoryName.toLowerCase();
+  if (criteria.q && !keywordRepeatsCategory) {
+    filters.push({ kind: "Keyword", label: criteria.q, removeHref: searchWithout(raw, "q") });
+  }
   if (criteria.category) {
     filters.push({
       kind: "Category",

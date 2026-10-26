@@ -1,9 +1,16 @@
 import type { Category, SearchCategory, SubCategory } from "./types";
 
 export function toSearchCategories(tree: Category[]): SearchCategory[] {
-  const children = tree.flatMap((p) => p.children.map((c) => ({ slug: c.slug, name: c.name, terms: c.searchTerms })));
-  const parents = tree.map((p) => ({ slug: p.slug, name: p.name, terms: [] as string[] }));
+  const children = tree.flatMap((p) =>
+    p.children.map((c) => ({ slug: c.slug, name: c.name, terms: c.searchTerms, parentSlug: p.slug })),
+  );
+  const parents = tree.map((p) => ({ slug: p.slug, name: p.name, terms: [] as string[], parentSlug: null }));
   return [...children, ...parents];
+}
+
+/** Where a category's own page lives: /shopping/supermarkets-and-groceries, or /shopping. */
+export function categoryPath(category: SearchCategory): string {
+  return category.parentSlug ? `/${category.parentSlug}/${category.slug}` : `/${category.slug}`;
 }
 
 /** Finds a category (parent or sub-category) by slug. */

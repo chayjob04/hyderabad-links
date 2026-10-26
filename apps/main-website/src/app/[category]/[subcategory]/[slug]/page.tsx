@@ -115,8 +115,17 @@ export default async function ListingPage({ params }: Props) {
     saved = favourites.ok && favourites.data.some((item) => item.url === listing.url);
   }
 
-  // The category in the URL must be the listing's primary category, otherwise 301 to the canonical URL (decision D4).
-  if (category !== listing.categorySlug) permanentRedirect(listing.url);
+  /* The URL must be the listing's canonical one, otherwise 301 to it (decision D4).
+
+     Compared as a whole path, not segment by segment. This read `category !== listing.categorySlug`
+     when the URL was /city/locality/category/slug, where `category` was the primary category. Under
+     /parent/category/slug it is the *parent*, so it never equalled the subcategory and every
+     listing page redirected to its own URL — a 308 loop, and the page never rendered.
+
+     Comparing the whole path cannot do that: this only fires when the two genuinely differ, so the
+     target is always somewhere else. */
+  const canonicalPath = `/${category}/${subcategory}/${slug}`;
+  if (listing.url !== canonicalPath) permanentRedirect(listing.url);
 
   const categoryPage = `/${category}/${subcategory}`;
   const facts = factsFor(listing);

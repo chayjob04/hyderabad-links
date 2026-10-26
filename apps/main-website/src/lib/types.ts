@@ -72,7 +72,14 @@ export type Sitemap = {
 };
 
 /** Flat, search-friendly view of the category tree (sub-categories first, then parents). */
-export type SearchCategory = { slug: string; name: string; terms: string[] };
+/**
+ * A category as the search box knows it, flattened so parents and subcategories sit in one list.
+ *
+ * `parentSlug` is null for a top-level category and its parent's slug for a subcategory. It is
+ * here because a category's page lives under its parent (/shopping/supermarkets-and-groceries):
+ * the slug on its own does not say where the page is.
+ */
+export type SearchCategory = { slug: string; name: string; terms: string[]; parentSlug: string | null };
 
 /** One row from /api/v1/public/listings/search. distanceMetres is null unless lat/lng were sent. */
 export type SearchListing = {

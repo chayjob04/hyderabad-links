@@ -3,8 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import { LocalityCombobox, type LocalityChoice } from "@/components/LocalityCombobox";
-import { resolveCategory } from "@/lib/categories";
-import { DEFAULT_CITY } from "@/lib/brand";
+import { categoryPath, resolveCategory } from "@/lib/categories";
 import type { SearchCategory } from "@/lib/types";
 
 type Props = {
@@ -59,7 +58,19 @@ export function SearchBox({ categories, initialQuery = "" }: Props) {
     }
 
     if (category && place) {
-      router.push(`/${DEFAULT_CITY}/${place.slug}/${category.slug}`);
+      router.push(`/areas/${place.slug}/${category.slug}`);
+      return;
+    }
+
+    /* Picking a category from the list and pressing Search should land on that category's page,
+       not on a search for its name: /shopping/supermarkets-and-groceries is the real page, and
+       /search?q=... is a filtered view of the same thing with a worse address.
+
+       Only when the text *is* the category name, which is what picking it from the list leaves
+       behind. Typing "supermarket" stays on /search, where the full-text match can do better than
+       one category's worth of results. */
+    if (category && !place && text.toLowerCase() === category.name.toLowerCase()) {
+      router.push(categoryPath(category));
       return;
     }
 
