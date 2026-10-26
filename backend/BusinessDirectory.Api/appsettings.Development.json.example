@@ -23,6 +23,12 @@
     }
   },
 
+  "Auth": {
+    "// dummy otp": "Development and testing only, and temporary. With DummyOtpEnabled true, every owner login code is 123456 and no SMS is sent, so sign-in can be tested before MSG91 delivery is proven. Everything after the code - the account, the session, the tokens - is unchanged.",
+    "// the catch": "It is an authentication bypass: anyone who can reach the API can sign in as any phone number. It is announced on every start and logged on every code issued. Set it to false, or remove it, before anyone else can reach the site.",
+    "DummyOtpEnabled": false
+  },
+
   "Cors": {
     "AllowedOrigins": [
       "http://localhost:3000",

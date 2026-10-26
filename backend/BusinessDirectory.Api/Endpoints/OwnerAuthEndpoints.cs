@@ -79,7 +79,10 @@ public static class OwnerAuthEndpoints
             }
         }
 
-        var code = OtpCodes.Generate();
+        /* Dummy mode (Auth:DummyOtpEnabled) changes the code's value and nothing else. It is hashed,
+           stored, rate-limited and verified by the same lines a real one is, which is why the rest
+           of sign-in needs no special case: see AuthSettings.DummyOtpEnabled. */
+        var code = settings.DummyOtpEnabled ? AuthSettings.DummyOtpCode : OtpCodes.Generate();
         var hash = OtpCodes.Hash(settings.OtpKey, phone, code);
 
         /* The challenge is written before the code is sent, because the code must be verifiable the
@@ -98,26 +101,39 @@ public static class OwnerAuthEndpoints
             challengeId = (long)(await insert.ExecuteScalarAsync(ct))!;
         }
 
-        try
+        if (settings.DummyOtpEnabled)
         {
-            await sms.SendOtpAsync(phone, code, ct);
+            /* Nothing is sent, so MSG91 is never called and no SMS is paid for. Logged on every
+               request, at warning, because a sign-in bypass that leaves no trace is one nobody
+               notices was left on. The code itself stays out of the line: it is in configuration
+               and in the docs, not in a log (CLAUDE.md). */
+            logger.LogWarning(
+                "Auth:DummyOtpEnabled is ON. No SMS was sent to {Phone}; the fixed test code will be accepted.",
+                Msg91SmsSender.Mask(phone));
         }
-        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+        else
         {
-            /* Three kinds of failure, one answer. InvalidOperationException is the sender's own
-               refusal (no credentials, or MSG91 rejecting the template); HttpRequestException is
-               MSG91 being unreachable; TaskCanceledException is it timing out. Only the first was
-               caught before, so a provider outage answered 500 and read like a fault in this API.
+            try
+            {
+                await sms.SendOtpAsync(phone, code, ct);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+            {
+                /* Three kinds of failure, one answer. InvalidOperationException is the sender's own
+                   refusal (no credentials, or MSG91 rejecting the template); HttpRequestException is
+                   MSG91 being unreachable; TaskCanceledException is it timing out. Only the first was
+                   caught before, so a provider outage answered 500 and read like a fault in this API.
 
-               The challenge is deleted, which is the part that matters. A code nobody received must
-               not count against this number's five-an-hour allowance or start its resend cooldown:
-               leaving the rows behind meant that an owner trying to sign in during an MSG91 outage
-               burned their whole allowance on codes that never arrived and was then refused with
-               429 for the rest of the hour. */
-            await DeleteUnsentChallenge(db, challengeId, logger, ct);
+                   The challenge is deleted, which is the part that matters. A code nobody received must
+                   not count against this number's five-an-hour allowance or start its resend cooldown:
+                   leaving the rows behind meant that an owner trying to sign in during an MSG91 outage
+                   burned their whole allowance on codes that never arrived and was then refused with
+                   429 for the rest of the hour. */
+                await DeleteUnsentChallenge(db, challengeId, logger, ct);
 
-            logger.LogError(ex, "A login code could not be sent, so the challenge was discarded.");
-            return Results.Problem("Login by phone is temporarily unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+                logger.LogError(ex, "A login code could not be sent, so the challenge was discarded.");
+                return Results.Problem("Login by phone is temporarily unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
         }
 
         // Same response whether or not the number already has an account.

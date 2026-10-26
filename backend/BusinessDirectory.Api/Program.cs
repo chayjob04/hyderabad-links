@@ -161,6 +161,28 @@ else
     }
 }
 
+/* Dummy OTP: a temporary testing switch that replaces the random login code with a fixed one and
+   sends no SMS, so owner sign-in can be exercised before MSG91 delivery is proven. Off unless
+   `Auth:DummyOtpEnabled` says otherwise.
+
+   Announced rather than refused outside Development, because this project has no staging
+   environment -- the deployed API runs as Production -- so refusing it there would make the switch
+   useless in the one place it is needed. The trade is that it has to be loud: this is an
+   authentication bypass, and the only way it must never fail is quietly. */
+if (authSettings.DummyOtpEnabled)
+{
+    Console.Error.WriteLine(new string('!', 78));
+    Console.Error.WriteLine(
+        $"WARNING: Auth:DummyOtpEnabled is ON in the {builder.Environment.EnvironmentName} environment.");
+    Console.Error.WriteLine(
+        "Owner sign-in accepts one fixed code for every phone number, and sends no SMS at all.");
+    Console.Error.WriteLine(
+        "Anyone who can reach this API can sign in as any owner. Before this site goes live:");
+    Console.Error.WriteLine(
+        "  set Auth:DummyOtpEnabled to false (or remove the setting), then restart the API.");
+    Console.Error.WriteLine(new string('!', 78));
+}
+
 // ---- Notifications (email) -------------------------------------------------------------
 // Configured under `Email:` only. There is no provider adapter yet: Resend is the candidate
 // (decision D14) but it has never been configured or tested, and nothing here pretends otherwise.
