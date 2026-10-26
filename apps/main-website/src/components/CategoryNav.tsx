@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Category } from "@/lib/types";
 
 /**
@@ -37,13 +37,26 @@ const NAV_SLOTS = 7;
  * `document.scrollWidth` alone therefore misses it; the test is `nav.scrollWidth > nav.clientWidth`.
  *
  * Measured at 15px type: the names run from 92px ("Healthcare") to 178px ("Education and
- * Training"), and "All categories" is always present at 112px. Against a nav box of 642px at
- * 1024, 890px at 1280 and 1138px at 1536, that allows four shortcuts up to 1535, six from 1536,
- * and seven only past about 1800.
+ * Training"), and "All categories" is always present at 112px. Each is now a chip, which adds its
+ * own 28px of horizontal padding, so a shortcut costs about 163px against a nav box of roughly
+ * 640px at 1024, 1060px at 1536 and 1470px at 1920.
  *
- * Re-measure after changing this, the type scale or the gaps.
+ * That allows two shortcuts up to 1279, three to 1535, four to 1799, five to 2099, six to 2399.
+ * The counts above the chips were too generous: six shortcuts at 1920 overran the box, and because
+ * these items cannot shrink -- they are nowrap -- an overrun does not scroll, it draws straight
+ * over the logo on one side and the account button on the other.
+ *
+ * Re-measure after changing this, the type scale, the chip padding or the gaps.
  */
-const SLOT_CLASS = ["", "", "", "hidden xl:block", "hidden 2xl:block", "hidden 2xl:block", "hidden min-[1800px]:block"];
+const SLOT_CLASS = [
+  "",
+  "",
+  "hidden xl:block",
+  "hidden 2xl:block",
+  "hidden min-[1800px]:block",
+  "hidden min-[2100px]:block",
+  "hidden min-[2400px]:block",
+];
 
 /** The "All categories" disclosure shares the one open-panel state, so it needs a key of its own. */
 const ALL = "__all__";
@@ -107,6 +120,8 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState<OpenState>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  /** null = however many the CSS breakpoints allow; a number = trimmed further to make them fit. */
+  const [shortcutLimit, setShortcutLimit] = useState<number | null>(null);
   const buttonRefs = useRef(new Map<string, HTMLButtonElement | null>());
   const navRef = useRef<HTMLElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -180,6 +195,34 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
 
+  /*
+   * The breakpoints above are measured, and measurements go stale: a longer category name, a
+   * bigger type scale or more chip padding all move them, and the failure is ugly -- these chips
+   * are nowrap, so a row that does not fit does not scroll, it draws over the logo on one side and
+   * the account button on the other.
+   *
+   * So the row checks itself. With no dependency array this runs after every render: while the
+   * content is wider than the box it drops one more shortcut and renders again, converging in a
+   * frame or two. Before paint, so nothing overlapping is ever shown. React bails out when the
+   * count stops changing, so this settles rather than looping.
+   */
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    // +1 for sub-pixel widths, which otherwise report an overflow that is not there.
+    if (nav && nav.scrollWidth > nav.clientWidth + 1) {
+      setShortcutLimit((current) => Math.max(1, (current ?? NAV_SLOTS) - 1));
+    }
+  });
+
+  // A wider window may have room again, so start over and let the effect above settle it.
+  useEffect(() => {
+    function onResize() {
+      setShortcutLimit(null);
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   // Never leave a timer running after the component goes away.
   useEffect(
     () => () => {
@@ -243,7 +286,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
           return (
             <div
               key={parent.slug}
-              className={`${SLOT_CLASS[index]} ${SLOT_PADDING}`}
+              className={`${index >= (shortcutLimit ?? NAV_SLOTS) ? "hidden" : SLOT_CLASS[index]} ${SLOT_PADDING}`}
               onMouseEnter={() => hoverOpen(parent.slug)}
               onMouseLeave={scheduleClose}
             >
