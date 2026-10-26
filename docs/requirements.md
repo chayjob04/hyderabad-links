@@ -20,12 +20,14 @@ Source of truth for scope. Full original brief is held by the project owner; thi
 
 **Settled on 2026-10-25 (decision D48): two plans, and no others.** The Basic / Gold / Premium
 table that stood here is gone — `S0009` deactivated those tiers and `S0011` deleted their rows, so
-`plans` holds exactly these two.
+`plans` holds exactly these two. The owner reconfirmed it on 2026-10-27 and corrected the video
+allowance from three to two (`S0016`); a brief that reintroduced the old tiers was withdrawn the
+same day.
 
 | Plan | Price | Photos | Videos | Logo | Links | Verified badge |
 |---|---|---|---|---|---|---|
 | Free | ₹0 | 0 | 0 | 0 | 0 | no |
-| Verified | **₹399 a year, per listing** | 10 | 3 | 1 | 5 | **yes** |
+| Verified | **₹399 a year, per listing** | 10 | 2 | 1 | 5 | **yes** |
 
 - Limits enforced on the backend, never only in the UI, and read from the `plans` table rather than
   from constants — so a price or an allowance is an `UPDATE`, not a deploy.

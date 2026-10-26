@@ -34,7 +34,7 @@ BEGIN
     SET name = 'Verified',
         price_paise = 39900,
         photo_limit = 10,
-        video_limit = 3,
+        video_limit = 2,
         logo_limit = 1,
         grants_verified_badge = 1,
         media_limits_confirmed = 1,

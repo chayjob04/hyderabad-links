@@ -95,7 +95,7 @@ BEGIN
 END
 ELSE PRINT 'ok: a logo, twelve photos and four videos are stored';
 
--- 2. A paying listing shows its logo, ten photos and three videos — the allowance, not everything.
+-- 2. A paying listing shows its logo, ten photos and two videos — the allowance, not everything.
 SET @n = (SELECT COUNT(*) FROM dbo.listing_visible_media WHERE listing_id = @paid AND kind = 'photo');
 IF @n <> 10
 BEGIN
@@ -104,11 +104,11 @@ END
 ELSE PRINT 'ok: a Verified listing shows ten of its twelve photos';
 
 SET @n = (SELECT COUNT(*) FROM dbo.listing_visible_media WHERE listing_id = @paid AND kind = 'video');
-IF @n <> 3
+IF @n <> 2
 BEGIN
-    SET @failed = @failed + 1; PRINT 'FAIL: a Verified listing showed ' + CAST(@n AS varchar(10)) + ' videos, not 3';
+    SET @failed = @failed + 1; PRINT 'FAIL: a Verified listing showed ' + CAST(@n AS varchar(10)) + ' videos, not 2';
 END
-ELSE PRINT 'ok: a Verified listing shows three of its four videos';
+ELSE PRINT 'ok: a Verified listing shows two of its four videos';
 
 SET @n = (SELECT COUNT(*) FROM dbo.listing_visible_media WHERE listing_id = @paid AND kind = 'logo');
 IF @n <> 1
@@ -160,12 +160,12 @@ SET expires_at = DATEADD(day, 364, SYSDATETIMEOFFSET())
 WHERE listing_id = @lapsed;
 
 SET @n = (SELECT COUNT(*) FROM dbo.listing_visible_media WHERE listing_id = @lapsed);
-IF @n <> 14
+IF @n <> 13
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: after renewing, ' + CAST(@n AS varchar(10)) + ' files were visible, not 14';
+    PRINT 'FAIL: after renewing, ' + CAST(@n AS varchar(10)) + ' files were visible, not 13';
 END
-ELSE PRINT 'ok: renewing restores the logo, ten photos and three videos at once';
+ELSE PRINT 'ok: renewing restores the logo, ten photos and two videos at once';
 
 -- 8. is_hidden still wins. It is a deliberate "do not show this one", which is a different question
 --    from how many the plan allows, so the two must both apply.

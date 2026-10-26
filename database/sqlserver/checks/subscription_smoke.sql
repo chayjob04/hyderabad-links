@@ -294,16 +294,16 @@ END
 ELSE PRINT 'ok: Free and Verified are the only plans that exist';
 
 -- 18. The paid plan is still what S0009 set it to. If the price or the allowance in the database
---     ever drifts from Rs 399 / 10 photos / 3 videos, the API would charge or grant the new figure
+--     ever drifts from Rs 399 / 10 photos / 2 videos, the API would charge or grant the new figure
 --     silently, because it reads both from here.
 IF NOT EXISTS (SELECT 1 FROM dbo.plans
                WHERE slug = 'verified' AND is_active = 1 AND grants_verified_badge = 1
-                 AND price_paise = 39900 AND photo_limit = 10 AND video_limit = 3 AND logo_limit = 1)
+                 AND price_paise = 39900 AND photo_limit = 10 AND video_limit = 2 AND logo_limit = 1)
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: the verified plan is not Rs 399 for 10 photos, 3 videos and 1 logo';
+    PRINT 'FAIL: the verified plan is not Rs 399 for 10 photos, 2 videos and 1 logo';
 END
-ELSE PRINT 'ok: the paid plan is Rs 399 a year for the badge, 10 photos, 3 videos and 1 logo';
+ELSE PRINT 'ok: the paid plan is Rs 399 a year for the badge, 10 photos, 2 videos and 1 logo';
 
 IF @failed > 0
 BEGIN

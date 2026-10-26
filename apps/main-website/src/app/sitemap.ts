@@ -16,10 +16,13 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // The fixed pages are listed whatever the API says, so a sitemap is always served.
-  const fixed: MetadataRoute.Sitemap = [
-    { url: absoluteUrl("/"), changeFrequency: "daily", priority: 1 },
-    { url: absoluteUrl("/search"), changeFrequency: "daily", priority: 0.8 },
-  ];
+  /*
+   * /search is deliberately absent. Its page sets robots noindex, because a filtered result page is
+   * not a destination, and listing a page in the sitemap while telling crawlers not to index it is
+   * a contradiction — the sitemap says "this is worth your time", the page says the opposite.
+   * The category and area pages below are the real browse pages, and they are indexable.
+   */
+  const fixed: MetadataRoute.Sitemap = [{ url: absoluteUrl("/"), changeFrequency: "daily", priority: 1 }];
 
   const data = await getSitemap();
   if (!data) {

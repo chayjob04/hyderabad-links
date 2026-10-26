@@ -87,7 +87,7 @@ BEGIN
 END
 ELSE PRINT 'ok: a current subscription grants the badge and five links';
 
--- 3. The paid listing also gets the Verified media allowance (10 photos, 3 videos, 1 logo).
+-- 3. The paid listing also gets the Verified media allowance (10 photos, 2 videos, 1 logo).
 SELECT @n = photo_limit FROM dbo.listing_entitlements WHERE listing_id = @paid;
 IF @n <> 10
 BEGIN
@@ -96,11 +96,11 @@ END
 ELSE PRINT 'ok: the paid listing gets ten photo slots';
 
 SELECT @n = video_limit FROM dbo.listing_entitlements WHERE listing_id = @paid;
-IF @n <> 3
+IF @n <> 2
 BEGIN
-    SET @failed = @failed + 1; PRINT 'FAIL: paid video_limit was ' + CAST(@n AS varchar(10)) + ', expected 3';
+    SET @failed = @failed + 1; PRINT 'FAIL: paid video_limit was ' + CAST(@n AS varchar(10)) + ', expected 2';
 END
-ELSE PRINT 'ok: the paid listing gets three video slots';
+ELSE PRINT 'ok: the paid listing gets two video slots';
 
 -- 4. The expired period reads as Free again, with no job having run. This is the assertion the
 --    whole design exists for: a missed background task cannot leave a badge up for free.

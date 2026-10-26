@@ -70,7 +70,7 @@ END
 ELSE PRINT 'ok: Verified plan price is 39900 paise';
 
 IF (SELECT photo_limit FROM plans WHERE slug = 'verified') <> 10
-   OR (SELECT video_limit FROM plans WHERE slug = 'verified') <> 3
+   OR (SELECT video_limit FROM plans WHERE slug = 'verified') <> 2
    OR (SELECT grants_verified_badge FROM plans WHERE slug = 'verified') <> 1
 BEGIN
     SET @failed = @failed + 1; PRINT 'FAIL: Verified plan allowances or badge configuration are incorrect';

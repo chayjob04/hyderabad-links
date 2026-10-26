@@ -1,3 +1,4 @@
+import { JsonLd } from "@/components/JsonLd";
 import { SearchBox } from "@/components/SearchBox";
 import { BusinessCard } from "@/components/ui/BusinessCard";
 import { ButtonLink } from "@/components/ui/Button";
@@ -5,8 +6,9 @@ import { CategoryCard } from "@/components/ui/CategoryCard";
 import { CategoryIcon } from "@/components/ui/CategoryIcon";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { getCategories, getHighlights } from "@/lib/api";
-import { DEFAULT_CITY } from "@/lib/brand";
+import { BRAND_NAME, DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { toSearchCategories } from "@/lib/categories";
+import { absoluteUrl } from "@/lib/format";
 
 // Fetches live data, so it must render per request (never at build time).
 export const dynamic = "force-dynamic";
@@ -43,6 +45,40 @@ export default async function HomePage() {
 
   return (
     <main>
+      {/* Who this site is and how to search it, in the form crawlers read. The listing pages have
+          carried LocalBusiness from the start; the homepage carried nothing, so nothing told a
+          search engine what the site as a whole is. SearchAction is what a sitelinks search box is
+          built from. */}
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": absoluteUrl("/#organization"),
+              name: BRAND_NAME,
+              url: absoluteUrl("/"),
+              logo: absoluteUrl("/hyderabad-links-logo.png"),
+              areaServed: { "@type": "City", name: DEFAULT_CITY_NAME },
+            },
+            {
+              "@type": "WebSite",
+              "@id": absoluteUrl("/#website"),
+              name: BRAND_NAME,
+              url: absoluteUrl("/"),
+              publisher: { "@id": absoluteUrl("/#organization") },
+              potentialAction: {
+                "@type": "SearchAction",
+                target: {
+                  "@type": "EntryPoint",
+                  urlTemplate: absoluteUrl("/search?q={search_term_string}"),
+                },
+                "query-input": "required name=search_term_string",
+              },
+            },
+          ],
+        }}
+      />
       <section className="flex h-8 items-center gap-3 overflow-hidden bg-[#050505] px-5 text-[11px] whitespace-nowrap text-white sm:justify-center sm:text-[13px]">
         <span>Everything about a business, and all its digital profiles, in one place</span>
         <b className="text-brand-400">&bull;</b>

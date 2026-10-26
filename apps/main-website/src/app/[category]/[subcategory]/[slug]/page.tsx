@@ -21,12 +21,33 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category, subcategory, slug } = await params;
   const listing = await getListing(category, subcategory, slug);
   if (!listing) return { title: "Not found", robots: { index: false } };
+  const title = `${listing.name} - ${listing.categoryName} in ${listing.localityName}, ${listing.cityName}`;
+  const description =
+    listing.description ??
+    `${listing.name}, ${listing.categoryName} in ${listing.localityName}, ${listing.cityName}.`;
+
+  /* The listing's own photo is the preview image where there is one. This is the page people share
+     — into WhatsApp above all, which this site tells them to use to reach a business — and a card
+     showing the shop beats one showing the directory's emblem. Falls back to the site default. */
+  const photo = listing.media.find((item) => item.kind === "photo") ?? listing.media.find((item) => item.kind === "logo");
+
   return {
-    title: `${listing.name} - ${listing.categoryName} in ${listing.localityName}, ${listing.cityName}`,
-    description:
-      listing.description ??
-      `${listing.name}, ${listing.categoryName} in ${listing.localityName}, ${listing.cityName}.`,
+    title,
+    description,
     alternates: { canonical: absoluteUrl(listing.url) },
+    openGraph: {
+      type: "website",
+      url: absoluteUrl(listing.url),
+      title,
+      description,
+      ...(photo ? { images: [{ url: photo.url, alt: listing.name }] } : {}),
+    },
+    twitter: {
+      card: photo ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(photo ? { images: [photo.url] } : {}),
+    },
   };
 }
 
