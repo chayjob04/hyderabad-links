@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import { LocalityCombobox, type LocalityChoice } from "@/components/LocalityCombobox";
-import { categoryPath, resolveCategory } from "@/lib/categories";
+import { categoryPath, exactCategory } from "@/lib/categories";
 import type { SearchCategory } from "@/lib/types";
 
 type Props = {
@@ -52,9 +52,15 @@ export function SearchBox({ categories, initialQuery = "" }: Props) {
       return;
     }
 
-    // "All" is not a category, so it must not become one -- or a keyword, which would search for
-    // the word itself and find nothing.
-    const category = wantsEverything ? null : resolveCategory(query, categories);
+    /* A category only when the text is exactly one. Anything else is treated as what someone
+       typed -- a business name, a service, a word they remember -- and handed to the search, which
+       matches names, descriptions and category terms alike. A partial match used to become a
+       filter here, which is how searching for a business by name could return nothing because its
+       name happened to contain a category word.
+
+       "All" is not a category either, and must not become a keyword: searching for the word "all"
+       finds nothing. */
+    const category = wantsEverything ? null : exactCategory(text, categories);
     const params = new URLSearchParams();
     if (text && !wantsEverything) params.set("q", text);
     if (category) params.set("category", category.slug);
@@ -105,7 +111,7 @@ export function SearchBox({ categories, initialQuery = "" }: Props) {
             list={listId}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Enter a business category"
+            placeholder="Enter a business name or category"
             autoComplete="off"
 className="w-full rounded-lg border border-neutral-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-500 caret-slate-900 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100"          />
           <datalist id={listId}>

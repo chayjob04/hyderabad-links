@@ -82,19 +82,26 @@ export function findSubCategory(
   return parent && sub ? { parent, sub } : null;
 }
 
-/** Turns what the visitor typed ("plumber", "pipe repair") into a category. Exact matches win over partial ones. */
-export function resolveCategory(text: string, categories: SearchCategory[]): SearchCategory | null {
+/**
+ * A category only when the text *is* one — its name or one of its search terms, exactly.
+ *
+ * This replaced a resolver that also accepted partial matches, which is right for "did they mean a
+ * category?" and wrong for "should I filter by one?". A business name that happens to contain a
+ * category word was turned into a filter that hid the very business being looked for: searching
+ * "Dental Delights" for a restaurant of that name matched the Dentists category and returned
+ * nothing.
+ *
+ * Nothing is lost by being strict here. The API matches the typed text against category search
+ * terms as well as business names and descriptions, so a partial like "plumb" still finds plumbers
+ * — it just does it by searching rather than by silently narrowing.
+ */
+export function exactCategory(text: string, categories: SearchCategory[]): SearchCategory | null {
   const q = text.trim().toLowerCase();
   if (!q) return null;
-  const nameIs = (c: SearchCategory) => c.name.toLowerCase() === q;
-  const termIs = (c: SearchCategory) => c.terms.some((t) => t.toLowerCase() === q);
-  const nameHas = (c: SearchCategory) => c.name.toLowerCase().includes(q);
-  const termHas = (c: SearchCategory) => c.terms.some((t) => t.toLowerCase().includes(q));
   return (
-    categories.find(nameIs) ??
-    categories.find(termIs) ??
-    categories.find(nameHas) ??
-    categories.find(termHas) ??
+    categories.find((c) => c.name.toLowerCase() === q) ??
+    categories.find((c) => c.terms.some((t) => t.toLowerCase() === q)) ??
     null
   );
 }
+
