@@ -73,7 +73,9 @@ export function SearchFilters({ criteria, categories, localityName }: Props) {
             defaultValue={criteria.category ?? ""}
             className={`mt-1.5 ${fieldClass}`}
           >
-            <option value="">All categories</option>
+            {/* Not just "no filter chosen": picking this and searching lists every business on the
+                site, which is a thing people want to do and had no way to ask for. */}
+            <option value="">All &mdash; every business on Hyderabad Links</option>
             {categories.map((parent) => (
               <optgroup key={parent.slug} label={parent.name}>
                 <option value={parent.slug}>All {parent.name.toLowerCase()}</option>

@@ -23,6 +23,9 @@ type Props = {
  * When the area came from the visitor's own location, the coordinates come with it, so the search
  * can be sorted by real distance rather than only filtered to the area.
  */
+/** The entry that means "do not narrow this at all". Matched case-insensitively on submit. */
+const ALL_CATEGORIES = "All";
+
 export function SearchBox({ categories, initialQuery = "" }: Props) {
   const router = useRouter();
   const listId = useId();
@@ -30,21 +33,30 @@ export function SearchBox({ categories, initialQuery = "" }: Props) {
   const [place, setPlace] = useState<LocalityChoice | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const suggestions = Array.from(new Set(categories.flatMap((c) => [c.name, ...c.terms])));
+  /* "All" leads the list on purpose. Every other entry narrows the search; this one is the way to
+     say "show me everything", which the box previously had no word for. */
+  const suggestions = [ALL_CATEGORIES, ...new Set(categories.flatMap((c) => [c.name, ...c.terms]))];
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
 
-    if (!query.trim() && !place) {
-      setMessage("Type what you are looking for, or choose an area.");
+    const text = query.trim();
+    const wantsEverything = text === "" || text.toLowerCase() === ALL_CATEGORIES.toLowerCase();
+
+    /* "Show me everything", typed or picked from the list, and with no area named. An empty search
+       used to be refused outright, so there was no way to browse the directory without first
+       naming something to look for. /search with no filters lists every business. */
+    if (wantsEverything && !place) {
+      router.push("/search");
       return;
     }
 
-    const category = resolveCategory(query, categories);
+    // "All" is not a category, so it must not become one -- or a keyword, which would search for
+    // the word itself and find nothing.
+    const category = wantsEverything ? null : resolveCategory(query, categories);
     const params = new URLSearchParams();
-    const text = query.trim();
-    if (text) params.set("q", text);
+    if (text && !wantsEverything) params.set("q", text);
     if (category) params.set("category", category.slug);
 
     if (place?.coords) {

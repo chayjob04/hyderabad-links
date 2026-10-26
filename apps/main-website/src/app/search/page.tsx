@@ -80,6 +80,25 @@ export default async function SearchPage({ searchParams }: Props) {
   const [tree, localities] = await Promise.all([getCategories(), getLocalities(DEFAULT_CITY)]);
   const areas = localities ?? [];
 
+  /*
+   * Choosing an area orders the results by distance from it, nearest first.
+   *
+   * The API will only sort by distance when it is given a point, and the form has no point to give
+   * it -- the area picker submits a slug. So the area's own centre is looked up here and passed as
+   * the point. Without this, picking an area filtered the list but left it in relevance order,
+   * which on a page about local businesses is the wrong answer: the whole reason for naming an
+   * area is wanting the closest one first.
+   *
+   * Only when nothing else was asked for. An explicit sort, or coordinates already in the URL from
+   * "use my current location", both win: a visitor's own position beats the centre of an area, and
+   * a sort they picked themselves beats one inferred for them.
+   */
+  const chosenArea = criteria.locality ? areas.find((area) => area.slug === criteria.locality) : undefined;
+  const searchCriteria: SearchCriteria =
+    chosenArea && criteria.lat === undefined && criteria.sort === undefined
+      ? { ...criteria, lat: chosenArea.latitude, lng: chosenArea.longitude, sort: "distance" }
+      : criteria;
+
   let results: SearchResults | null = null;
   /*
    * Two different failures, because they are two different things to tell a visitor. "serverError"
@@ -90,7 +109,7 @@ export default async function SearchPage({ searchParams }: Props) {
    */
   let failure: "serverError" | "unreachable" | null = null;
   try {
-    results = await searchListings(criteria);
+    results = await searchListings(searchCriteria);
   } catch (error) {
     failure = error instanceof ApiResponseError && error.status >= 500 ? "serverError" : "unreachable";
     // Server-side: this is the only place the real status is recorded, so log it before it is lost.
