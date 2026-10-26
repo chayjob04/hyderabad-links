@@ -67,7 +67,23 @@ public static class PublicDirectoryEndpoints
         string CategorySlug,
         string CategoryName,
         string Url,
-        List<PublicMediaDto> Media);
+        List<PublicMediaDto> Media,
+        /// <summary>
+        /// True only while a paid period is actually running. Read from listing_entitlements, which
+        /// compares expires_at against the clock, so a lapsed listing stops showing the badge on the
+        /// next request rather than waiting for a job to notice.
+        /// </summary>
+        bool IsVerified,
+        /// <summary>
+        /// The business's own website and social links. Empty on a free listing, because the
+        /// allowance is part of the paid plan -- and empty again once that plan lapses, since the
+        /// query below is gated on the same entitlement that drives the badge.
+        /// </summary>
+        List<PublicLinkDto> Links);
+
+    /// <param name="Url">Always http or https: enforced on the way in by the API and again by
+    /// listing_links_url_shape, so this can be put in an href without further checking.</param>
+    public sealed record PublicLinkDto(string LinkType, string Label, string Url);
 
     public static RouteGroupBuilder MapPublicDirectoryEndpoints(this RouteGroupBuilder group)
     {
@@ -221,9 +237,16 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
         await using var command = db.CreateCommand(
             /* search_terms was a text[] column; it is the category_search_terms table now, so the
                words come back as one comma-separated string and are split here. A search term with a
-               comma in it would be split wrongly, which is why the seed does not use any. */
+               comma in it would be split wrongly, which is why the seed does not use any.
+
+               dbo. is spelled out on this one table because an empty copy of it exists in the
+               production login's own schema, left behind by a repair script that said CREATE TABLE
+               without a schema. The login's default schema is not dbo, and SQL Server resolves an
+               unqualified name against the login's schema before dbo -- so the stray empty table
+               would win here and every category would come back with no search terms, silently,
+               with no error anywhere. Qualifying it is proof against that. */
             @"SELECT c.id, c.parent_id, c.slug, c.name,
-                     (SELECT STRING_AGG(t.term, ',') FROM category_search_terms t WHERE t.category_id = c.id)
+                     (SELECT STRING_AGG(t.term, ',') FROM dbo.category_search_terms t WHERE t.category_id = c.id)
               FROM categories c
               WHERE c.is_active = 1
               ORDER BY c.level, c.sort_order, c.name");
@@ -325,8 +348,12 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
         await using var command = db.CreateCommand(
             @"SELECT li.slug, li.name, li.description, li.address_line, li.pincode, li.phone_primary, li.phone_whatsapp,
                      li.website_url, li.location.Lat, li.location.Long,
-                     ci.slug, ci.name, lo.slug, lo.name, pc.slug, pc.name, li.id
+                     ci.slug, ci.name, lo.slug, lo.name, pc.slug, pc.name, li.id,
+                     -- The badge comes from the entitlement view, never from li.plan_slug: that
+                     -- column says what was bought, the view says what is still paid for.
+                     e.is_verified
               FROM listings li
+              JOIN dbo.listing_entitlements e ON e.listing_id = li.id
               JOIN localities lo ON lo.id = li.locality_id
               JOIN cities ci ON ci.id = lo.city_id
               JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
@@ -343,10 +370,16 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
         }
 
         var categorySlug = reader.GetString(14);
+        var listingId = reader.GetInt64(16);
+        var isVerified = reader.GetBoolean(17);
 
         // Read the media before the DTO is built, while this reader is still open: it runs on its own
         // connection from the pool, so the two queries do not get in each other's way.
-        var media = await ReadPublicMedia(db, reader.GetInt64(16), storage, ct);
+        var media = await ReadPublicMedia(db, listingId, storage, ct);
+
+        // Only a listing that is paid up shows its links. Gating the read rather than filtering
+        // afterwards means a lapsed listing's links never leave the database at all.
+        var links = isVerified ? await ReadPublicLinks(db, listingId, ct) : [];
 
         return Results.Ok(new ListingDetailDto(
             reader.GetString(0),
@@ -366,17 +399,49 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
             categorySlug,
             reader.GetString(15),
             $"/{reader.GetString(10)}/{reader.GetString(12)}/{categorySlug}/{reader.GetString(0)}",
-            media));
+            media,
+            isVerified,
+            links));
     }
 
-    /// <summary>The listing's visible media, logo first, then photos, then video, each in its display order.</summary>
+    /// <summary>
+    /// The listing's website and social links, in the owner's chosen order. Only ever called for a
+    /// listing the entitlement view reports as paid up.
+    /// </summary>
+    private static async Task<List<PublicLinkDto>> ReadPublicLinks(SqlDatabase db, long listingId, CancellationToken ct)
+    {
+        await using var command = db.CreateCommand(
+            @"SELECT link_type, label, url
+              FROM dbo.listing_links
+              WHERE listing_id = @listing
+              ORDER BY sort_order");
+        command.Parameters.AddWithValue("listing", listingId);
+
+        var links = new List<PublicLinkDto>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            links.Add(new PublicLinkDto(reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+        }
+
+        return links;
+    }
+
+    /// <summary>
+    /// The listing's visible media, logo first, then photos, then video, each in its display order.
+    ///
+    /// From <c>dbo.listing_visible_media</c>, which caps each kind at what the plan allows *now*
+    /// (S0012). Reading <c>listing_media</c> directly is the bug that view exists to prevent: a
+    /// lapsed listing kept showing all ten photos, because `is_hidden` was the only filter and
+    /// nothing has ever set it.
+    /// </summary>
     private static async Task<List<PublicMediaDto>> ReadPublicMedia(
         SqlDatabase db, long listingId, IMediaStorage storage, CancellationToken ct)
     {
         await using var command = db.CreateCommand(
             @"SELECT kind, storage_key, width, height
-              FROM listing_media
-              WHERE listing_id = @listing AND is_hidden = 0
+              FROM dbo.listing_visible_media
+              WHERE listing_id = @listing
               ORDER BY CASE kind WHEN 'logo' THEN 0 WHEN 'photo' THEN 1 ELSE 2 END, sort_order, id");
         command.Parameters.AddWithValue("listing", listingId);
 

@@ -10,7 +10,7 @@
 -- asserted below: the wrong owner must match nothing, the right owner must match both rows.
 --
 -- Run:
---   Get-Content database/sqlserver/checks/enquiry_smoke.sql | docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<password>" -C -d hyderabad_links -b -I
+--   npm run db:check -- enquiry_smoke
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;

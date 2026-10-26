@@ -78,14 +78,16 @@ public static class PublicSearchEndpoints
                      lo.slug AS locality_slug, lo.name AS locality_name,
                      pc.slug AS category_slug, pc.name AS category_name,
                      li.address_line, li.phone_primary, li.phone_whatsapp,
-                     -- One logo and one photo per card. Hidden media (over a downgraded plan's
-                     -- allowance, D10) is excluded here as well, so a card can never show a file the
-                     -- listing page itself no longer displays.
-                     (SELECT m.storage_key FROM listing_media m
-                      WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0
+                     -- One logo and one photo per card, from listing_visible_media (S0012) so a
+                     -- card can never show a file the listing page itself no longer displays. That
+                     -- view applies the plan's current allowance as well as is_hidden, which is
+                     -- what makes a lapsed listing's logo disappear from its card at the same
+                     -- moment it disappears from its page.
+                     (SELECT m.storage_key FROM dbo.listing_visible_media m
+                      WHERE m.listing_id = li.id AND m.kind = 'logo'
                       ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) AS logo_key,
-                     (SELECT m.storage_key FROM listing_media m
-                      WHERE m.listing_id = li.id AND m.kind = 'photo' AND m.is_hidden = 0
+                     (SELECT m.storage_key FROM dbo.listing_visible_media m
+                      WHERE m.listing_id = li.id AND m.kind = 'photo'
                       ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) AS photo_key,
                      li.location.STDistance(qry.point) AS distance_metres,
                      {3} AS relevance

@@ -16,8 +16,18 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
 
+/* slug is nvarchar(50), here and on listings.plan_slug further down. It said varchar(60) until
+   S0009 was first applied to the company database and failed: that database's schema was built
+   outside these migrations and its plans.slug is nvarchar(50), and SQL Server checks a foreign key
+   against the column that actually exists, so subscriptions.plan_slug could not reference it.
+
+   Editing an applied migration is normally wrong, and this is the exception that proves the rule
+   rather than breaking it: DbUp journals a script by name and never re-reads an applied one, so
+   this changes nothing for any database that already has the table. What it does change is a
+   database built from scratch, which now gets the same type as production instead of one that
+   S0009 would refuse. 50 characters is far more than any slug here needs. */
 CREATE TABLE plans (
-    slug                    varchar(60) NOT NULL CONSTRAINT plans_pkey PRIMARY KEY,
+    slug                    nvarchar(50) NOT NULL CONSTRAINT plans_pkey PRIMARY KEY,
     name                    nvarchar(120) NOT NULL,
     -- Paise, not rupees: integer money avoids the rounding problems of a float.
     price_paise             bigint NOT NULL,
@@ -54,7 +64,7 @@ INSERT INTO plans (slug, name, price_paise, photo_limit, video_limit, logo_limit
 -- Decision D5: subscriptions are per listing, so the plan hangs off the listing.
 -- Every existing listing becomes Free, which is the no-cost default and changes nothing about them.
 ALTER TABLE listings
-    ADD plan_slug varchar(60) NOT NULL CONSTRAINT listings_plan_default DEFAULT 'free'
+    ADD plan_slug nvarchar(50) NOT NULL CONSTRAINT listings_plan_default DEFAULT 'free'
         CONSTRAINT listings_plan_fk REFERENCES plans (slug);
 GO
 

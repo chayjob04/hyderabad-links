@@ -25,15 +25,37 @@ See `docs/PROJECT_STATUS.md` for the current state and the next step, and `docs/
 winget install Git.Git
 winget install OpenJS.NodeJS.LTS
 winget install Microsoft.DotNet.SDK.10
-winget install Docker.DockerDesktop
 winget install Microsoft.VisualStudioCode
 ```
+
+No Docker, and no local database engine: the API talks to Azure SQL Database, the same engine in
+development as in production.
+
+## Configure the database
+
+Start from the example, which is the only one of the two files in git:
+
+```powershell
+copy backend\BusinessDirectory.Api\appsettings.Development.json.example backend\BusinessDirectory.Api\appsettings.Development.json
+```
+
+`appsettings.Development.json` itself is git-ignored. Even so, secrets do not go in it: an ignored
+file is one `git add -f` away from being committed. They go in user-secrets, which live outside the
+working tree entirely:
+
+```powershell
+dotnet user-secrets set "ConnectionStrings:Default" "<your Azure SQL connection string>" --project backend/BusinessDirectory.Api
+```
+
+In Azure the same value comes from the App Service application settings, and nothing reads a file.
+
+Point it at a development or test database, never at production. `npm run db:migrate` changes
+whatever it is pointed at.
 
 ## Run locally
 
 ```powershell
 npm install                      # installs all three websites (npm workspaces)
-docker compose up -d             # SQL Server and the Azure Blob emulator (Azurite)
 npm run db:migrate                                     # apply migrations + reference seeds (safe to re-run)
 npm run db:seed-dev                                    # optional: sample listings for local testing (Development only)
 dotnet run --project backend/BusinessDirectory.Api     # API on :5080   (terminal 1)
@@ -42,8 +64,16 @@ npm run dev:admin                                      # admin :3001     (termin
 npm run dev:super-admin                                # super-admin :3002 (terminal 4)
 ```
 
-Optional: copy `.env.example` to `.env` to change local database credentials, and `apps/<app>/.env.example`
-to `apps/<app>/.env.local` to change an app's settings. **Never commit `.env` files.**
+Each website reads its own settings from `apps/<app>/.env.local`; copy `apps/<app>/.env.example` to start one.
+**Never commit `.env` files.** On Vercel the same values come from the project's environment variables.
+
+Media uploads need a storage account. `Media:BlobConnectionString` is empty by default, which makes the
+API refuse uploads with an explanation rather than accepting files it cannot store. Set it to a
+development or test Azure Storage account to work on photos, logos and video:
+
+```powershell
+dotnet user-secrets set "Media:BlobConnectionString" "<dev storage connection string>" --project backend/BusinessDirectory.Api
+```
 
 To sign in to the admin site you need an admin account. There is no sign-up page; create one from the
 command line (the password comes from an environment variable so it stays out of the shell history):
@@ -69,8 +99,8 @@ Runs: migration safety check, its self-tests, TypeScript checks, production buil
 and the .NET tests.
 
 Database behaviour has its own checks — thirteen of them, in `database/sqlserver/checks/`. They insert, assert and
-roll back, so they leave no data and are safe to re-run against a running local database. They need Docker and the
-schema, so they are not part of `npm run verify` and not part of CI:
+roll back, so they leave no data and are safe to re-run. They need a database and the schema, so they are not part
+of `npm run verify` and not part of CI:
 
 ```powershell
 npm run db:check
@@ -82,11 +112,16 @@ One of them, by any part of its name:
 npm run db:check -- review
 ```
 
-The database has to exist before the first `npm run db:migrate` — Azure SQL creates databases with its
-own options, so the migration runner deliberately never creates one:
+They run against whatever `ConnectionStrings:Default` points at, and they print the server and database
+they are about to use. Read that line before answering yes to anything.
 
-```powershell
-docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<password>" -C -Q "IF DB_ID('hyderabad_links') IS NULL CREATE DATABASE hyderabad_links;"
+The database itself has to exist before the first `npm run db:migrate`. Azure SQL creates databases with
+its own options — collation, service tier, backup policy — so the migration runner deliberately never
+creates one. Create it in the Azure portal, with the Azure CLI, or with one statement from any SQL
+client connected to the server:
+
+```sql
+IF DB_ID('hyderabad_links') IS NULL CREATE DATABASE hyderabad_links;
 ```
 
 ## Repository layout

@@ -71,16 +71,15 @@ One of them, by any part of its name:
 npm run db:check -- review
 ```
 
-They need the container and the schema, so this is a local command, not a CI one. To run a file by
-hand instead:
+They need a database with the schema on it, so this is a local command, not a CI one. It runs against
+whatever `ConnectionStrings:Default` points at and prints the server and database first — read that
+line before running it, because it is as easy to point at production as at anything else.
 
-```powershell
-Get-Content database/sqlserver/checks/constraints_smoke.sql | docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<the MSSQL_SA_PASSWORD from .env>" -C -d hyderabad_links -b -I
-```
-
-Note the `-i` on `docker exec`: without it sqlcmd gets no stdin and the script silently does
-nothing, which looks exactly like a pass. `-I` turns on QUOTED_IDENTIFIER, which sqlcmd otherwise
-leaves off.
+`npm run db:check` is `dotnet run --project backend/BusinessDirectory.Api -- db-check`, which uses
+the same connection string, the same driver and the same GO-splitting as the migration runner. It
+replaced a script that piped each file into sqlcmd inside a Docker container; that script stopped
+working the moment the database moved, which is the argument against tools that can only talk to one
+kind of host.
 
 Two things to know before adding a check. A **full-text index cannot see uncommitted rows**, so a
 `CONTAINSTABLE` assertion inside one of these transactions matches nothing — or matches a leftover
@@ -90,12 +89,39 @@ asserted inside the transaction, through `hl_similarity` against 0.3 (`pg_trgm`'
 Give each check a slug prefix of its own, so it does not depend on the dev database being pristine.
 
 The .NET integration tests deliberately need **no** database, because CI runs them without one.
-Anything that needs real rows belongs in `database/sqlserver/checks/`.
+Anything that needs real rows belongs in `database/sqlserver/checks/`. They do need
+`ConnectionStrings:Default` to *exist*, though — `Program.cs` registers `SqlDatabase` only when it
+does, and a handler taking an unregistered type has it inferred as a request body, which throws
+while the endpoints are being built. `TestEnvironment.cs` sets a deliberately unusable value in a
+module initializer so the suite stays hermetic; nothing connects.
+
+## Backing up and adopting an existing database
+
+```powershell
+npm run db:export      # live schema + every row to database/backups/<timestamp>/ (SELECT only)
+npm run db:baseline    # report what is already applied; --apply writes the DbUp journal
+```
+
+`db:export` exists because `BACKUP DATABASE` needs permissions a shared-hosting login usually does
+not have. It reads the catalogue views and the tables, writes `schema.txt`, `data.sql` and
+`manifest.txt`, and compares the live schema against what the migration scripts create. Exports hold
+real rows and are git-ignored.
+
+`db:baseline` adopts a database whose schema was applied outside DbUp: with no `dbo.SchemaVersions`,
+DbUp starts at S0001 and fails on tables that already exist. It marks a script applied only when
+every table that script creates is present, refuses on a partially applied script, and writes
+nothing without `--apply`.
 
 ## Running locally
 
-See `README.md`. In short: `docker compose up -d`, `npm run db:migrate`, `npm run db:seed-dev`,
+See `README.md`. In short: copy `appsettings.Development.json.example` over
+`appsettings.Development.json` (git-ignored), set `ConnectionStrings:Default` with
+`dotnet user-secrets` — never in a file, ignored or not — then `npm run db:migrate`, `npm run db:seed-dev`,
 then `npm run dev:api` and `npm run dev:main`.
+
+**There is no Docker in this project.** No Dockerfile, no compose file, no container in CI or
+deployment. The API is published to Azure App Service as a zip and the three websites are built by
+Vercel. Do not reintroduce a container to solve a local problem.
 
 ## Where things are
 

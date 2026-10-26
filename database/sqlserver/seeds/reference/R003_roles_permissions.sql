@@ -8,7 +8,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
 
-INSERT INTO permissions (code, description)
+INSERT INTO dbo.permissions (code, description)
 SELECT v.code, v.description
 FROM (VALUES
 ('listings.view',    'View all listings'),
@@ -24,40 +24,40 @@ FROM (VALUES
   ('admins.manage',    'Invite admins and manage roles'),
   ('audit.view',       'View the audit log')
 ) AS v(code, description)
-WHERE NOT EXISTS (SELECT 1 FROM permissions p WHERE p.code = v.code);
+WHERE NOT EXISTS (SELECT 1 FROM dbo.permissions p WHERE p.code = v.code);
 GO
 
-INSERT INTO roles (slug, name, description, is_system)
+INSERT INTO dbo.roles (slug, name, description, is_system)
 SELECT v.slug, v.name, v.description, v.is_system
 FROM (VALUES
 ('admin',       'Admin',       'Day-to-day listing and moderation work', 1),
   ('super_admin', 'Super admin', 'Full access, including admins, plans and audit log', 1)
 ) AS v(slug, name, description, is_system)
-WHERE NOT EXISTS (SELECT 1 FROM roles r WHERE r.slug = v.slug);
+WHERE NOT EXISTS (SELECT 1 FROM dbo.roles r WHERE r.slug = v.slug);
 GO
 
 -- The super admin holds everything there is, including any permission added later.
-INSERT INTO role_permissions (role_id, permission_id)
+INSERT INTO dbo.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
-FROM roles r
-CROSS JOIN permissions p
+FROM dbo.roles r
+CROSS JOIN dbo.permissions p
 WHERE r.slug = 'super_admin'
   AND NOT EXISTS (
-      SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id
+      SELECT 1 FROM dbo.role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id
   );
 GO
 
 -- The ordinary admin holds the day-to-day ones only. This list is deliberately explicit: a new
 -- permission does not reach an admin until someone adds it here.
-INSERT INTO role_permissions (role_id, permission_id)
+INSERT INTO dbo.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
-FROM roles r
-JOIN permissions p ON p.code IN (
+FROM dbo.roles r
+JOIN dbo.permissions p ON p.code IN (
     'listings.view', 'listings.create', 'listings.edit', 'listings.review',
     'listings.verify', 'reports.handle', 'users.view'
 )
 WHERE r.slug = 'admin'
   AND NOT EXISTS (
-      SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id
+      SELECT 1 FROM dbo.role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id
   );
 GO

@@ -13,12 +13,12 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
 
-INSERT INTO cities (slug, name, state, center)
+INSERT INTO dbo.cities (slug, name, state, center)
 SELECT 'hyderabad', 'Hyderabad', 'Telangana', geography::Point(17.3850, 78.4867, 4326)
-WHERE NOT EXISTS (SELECT 1 FROM cities WHERE slug = 'hyderabad');
+WHERE NOT EXISTS (SELECT 1 FROM dbo.cities WHERE slug = 'hyderabad');
 GO
 
-INSERT INTO localities (city_id, slug, name, center)
+INSERT INTO dbo.localities (city_id, slug, name, center)
 SELECT c.id, v.slug, v.name, geography::Point(v.lat, v.lng, 4326)
 FROM (VALUES
 ('gachibowli', 'Gachibowli', 17.4401, 78.3489),
@@ -125,7 +125,7 @@ FROM (VALUES
   ('moinabad', 'Moinabad', 17.305, 78.338),
   ('shamshabad', 'Shamshabad', 17.26, 78.39)
 ) AS v(slug, name, lat, lng)
-CROSS JOIN cities c
+CROSS JOIN dbo.cities c
 WHERE c.slug = 'hyderabad'
-  AND NOT EXISTS (SELECT 1 FROM localities l WHERE l.city_id = c.id AND l.slug = v.slug);
+  AND NOT EXISTS (SELECT 1 FROM dbo.localities l WHERE l.city_id = c.id AND l.slug = v.slug);
 GO

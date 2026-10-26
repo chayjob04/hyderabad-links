@@ -9,6 +9,9 @@ public static class NotificationKinds
     public const string EnquiryReceived = "enquiry_received";
     public const string ListingApproved = "listing_approved";
     public const string ListingRejected = "listing_rejected";
+
+    /// <summary>A paid period started or was renewed. Allowed by notifications_kind_check from S0013.</summary>
+    public const string SubscriptionActivated = "subscription_activated";
 }
 
 /// <summary>

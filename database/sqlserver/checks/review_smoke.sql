@@ -8,7 +8,7 @@
 -- cosmetic: AVG over smallint would have truncated 4.5 to 4 and hidden a wrong average.
 --
 -- Run:
---   Get-Content database/sqlserver/checks/review_smoke.sql | docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<password>" -C -d hyderabad_links -b -I
+--   npm run db:check -- review_smoke
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;

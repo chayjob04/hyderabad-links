@@ -5,6 +5,7 @@ using BusinessDirectory.Api.Data;
 using BusinessDirectory.Api.Endpoints;
 using BusinessDirectory.Api.Media;
 using BusinessDirectory.Api.Notifications;
+using BusinessDirectory.Api.Payments;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Data.SqlClient;
@@ -21,6 +22,51 @@ if (args.Contains("migrate"))
 if (args.Contains("seed-dev"))
 {
     Environment.Exit(MigrationRunner.SeedDev(builder.Configuration, builder.Environment.ContentRootPath, builder.Environment.IsDevelopment()));
+}
+
+// `-- db-export [--out <folder>]` writes the live schema and every row to local files, using only
+// SELECT. BACKUP DATABASE needs permissions a shared-hosting login usually lacks; this does not.
+if (args.Contains("db-export"))
+{
+    Environment.Exit(DatabaseExport.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
+// `-- db-baseline [--apply]` adopts a database whose schema was created outside DbUp, by recording
+// the scripts whose tables are already present. Reports only, unless --apply is given.
+if (args.Contains("db-baseline"))
+{
+    Environment.Exit(DatabaseBaseline.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
+// `-- db-repair [--apply]` runs the additive one-off scripts in database/sqlserver/repair, which
+// complete a partly-applied migration so db-baseline can then adopt the database. Refuses any
+// script that is not purely additive.
+if (args.Contains("db-repair"))
+{
+    Environment.Exit(DatabaseRepair.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
+// `-- db-reset [--apply]` drops *this project's* tables in a database shared with another
+// application, so migrate can rebuild them. Scope comes from the migration scripts, never from a
+// pattern, and it refuses on unexpected rows or on anything outside the scope depending on it.
+if (args.Contains("db-reset"))
+{
+    Environment.Exit(DatabaseReset.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
+// `-- db-check [name]` runs the transactional checks in database/sqlserver/checks. They insert,
+// assert and roll back, so they leave no data behind.
+if (args.Contains("db-check"))
+{
+    Environment.Exit(DatabaseChecks.Run(builder.Configuration, builder.Environment.ContentRootPath, args));
+}
+
+// `-- sms-test --phone +91XXXXXXXXXX` sends one real login code through MSG91 and reports what MSG91
+// said. It answers "are the credentials and the DLT template right?" without deploying and asking a
+// real person to try signing in. It costs money, and it never prints the code.
+if (args.Contains("sms-test"))
+{
+    Environment.Exit(SmsTest.Run(builder.Configuration, args));
 }
 
 // `-- create-admin --email ... --name ... [--role admin|super_admin]` creates the first admin account.
@@ -80,13 +126,61 @@ var authSettings = AuthSettings.Load(builder.Configuration, builder.Environment.
 builder.Services.AddSingleton(authSettings);
 builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton(new TotpSecrets(authSettings.TotpKey));
+
 if (builder.Environment.IsDevelopment())
 {
-    builder.Services.AddSingleton<ISmsSender, ConsoleSmsSender>();   // prints the code in the API console
+    // Local development: print OTP to the API console.
+    builder.Services.AddSingleton<ISmsSender, ConsoleSmsSender>();
 }
 else
 {
-    builder.Services.AddSingleton<ISmsSender, UnconfiguredSmsSender>();   // replaced by the MSG91 sender before launch
+    /* Production: send OTP through MSG91.
+
+       RemoveAllLoggers because MSG91's v5 OTP API takes the code as a query parameter, and
+       HttpClientFactory's own logging writes the request URI. The runtime redacts query strings in
+       that line -- checked, in Msg91SmsSenderTests, because the opposite was assumed first -- so
+       there is no leak today; this removes the dependency on a framework behaviour the project does
+       not control. The sender does its own logging instead, with the code never in it and the number
+       masked, which is what CLAUDE.md's rule about OTPs in logs asks for. */
+    builder.Services.AddHttpClient<ISmsSender, Msg91SmsSender>().RemoveAllLoggers();
+
+    /* Msg91SmsSender reads its credentials when it sends, not when it is constructed, so without
+       them the API starts perfectly and then throws on the first owner who tries to sign in. That
+       is the worst moment to find out, and nothing in a deployment log says it is coming.
+
+       A warning and not a throw, deliberately: OTP is only owner sign-in. Search, categories,
+       locality lookup and every listing page work without SMS, so refusing to start would take the
+       whole public directory down over a feature most visitors never touch. The line below is the
+       signal that belongs in Application Insights at deploy time. */
+    if (string.IsNullOrWhiteSpace(builder.Configuration["MSG91:AuthKey"])
+        || string.IsNullOrWhiteSpace(builder.Configuration["MSG91:TemplateId"]))
+    {
+        Console.Error.WriteLine(
+            "WARNING: MSG91:AuthKey and/or MSG91:TemplateId are not configured. The public API will "
+            + "work, but owner OTP sign-in will fail on every attempt until both are set.");
+    }
+}
+
+/* Dummy OTP: a temporary testing switch that replaces the random login code with a fixed one and
+   sends no SMS, so owner sign-in can be exercised before MSG91 delivery is proven. Off unless
+   `Auth:DummyOtpEnabled` says otherwise.
+
+   Announced rather than refused outside Development, because this project has no staging
+   environment -- the deployed API runs as Production -- so refusing it there would make the switch
+   useless in the one place it is needed. The trade is that it has to be loud: this is an
+   authentication bypass, and the only way it must never fail is quietly. */
+if (authSettings.DummyOtpEnabled)
+{
+    Console.Error.WriteLine(new string('!', 78));
+    Console.Error.WriteLine(
+        $"WARNING: Auth:DummyOtpEnabled is ON in the {builder.Environment.EnvironmentName} environment.");
+    Console.Error.WriteLine(
+        "Owner sign-in accepts one fixed code for every phone number, and sends no SMS at all.");
+    Console.Error.WriteLine(
+        "Anyone who can reach this API can sign in as any owner. Before this site goes live:");
+    Console.Error.WriteLine(
+        "  set Auth:DummyOtpEnabled to false (or remove the setting), then restart the API.");
+    Console.Error.WriteLine(new string('!', 78));
 }
 
 // ---- Notifications (email) -------------------------------------------------------------
@@ -97,16 +191,69 @@ else
 var emailSettings = EmailSettings.Load(builder.Configuration);
 builder.Services.AddSingleton(emailSettings);
 builder.Services.AddSingleton<Notifier>();
-if (builder.Environment.IsDevelopment())
+if (builder.Environment.IsDevelopment() && !string.Equals(emailSettings.Provider, "resend", StringComparison.OrdinalIgnoreCase))
 {
-    builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();   // prints the whole message in the API console
+    // Development, unless it deliberately asks for the real provider: prints the whole message in
+    // the API console so templates can be checked without an email leaving the machine.
+    builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+}
+else if (string.Equals(emailSettings.Provider, "resend", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>();
+
+    /* The same late-failure problem MSG91 had: with Email:Provider set to resend but no key, every
+       notification would fail one at a time with nothing said at deploy time. A warning, not a
+       throw -- an email that does not send is recorded as a failed notification and loses nothing,
+       so it is not worth refusing to start the API over. */
+    if (string.IsNullOrWhiteSpace(emailSettings.ApiKey) || string.IsNullOrWhiteSpace(emailSettings.FromAddress))
+    {
+        Console.Error.WriteLine(
+            "WARNING: Email:Provider is 'resend' but Email:ApiKey and/or Email:FromAddress are not "
+            + "configured. Every notification will be recorded as failed until both are set.");
+    }
 }
 else
 {
-    builder.Services.AddSingleton<IEmailSender, UnconfiguredEmailSender>();   // replaced by a real provider once D14 is settled
+    // No provider chosen. Sending throws and the Notifier records a failed notification, which is
+    // honest: nothing reports that an owner was told something when nobody was.
+    builder.Services.AddSingleton<IEmailSender, UnconfiguredEmailSender>();
 }
 
-// ---- Media storage (Azure Blob Storage; Azurite locally) --------------------------------
+// ---- Payments (the Rs 399 Verified plan) ----------------------------------------------
+// Configured under `Payments:` only. With no provider set there is no checkout at all: the
+// subscription endpoints answer 503 and write nothing, rather than opening a payment that could not
+// then be verified. Razorpay is the only adapter written, and nothing in this project has taken a
+// real payment yet.
+var paymentSettings = PaymentSettings.Load(builder.Configuration);
+builder.Services.AddSingleton(paymentSettings);
+if (string.Equals(paymentSettings.Provider, "razorpay", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<IPaymentGateway, RazorpayGateway>();
+
+    /* Half a configuration is the one case worth warning about loudly: a key id with no secret
+       opens a checkout whose result nothing can verify, which ends with a customer charged and no
+       subscription. PaymentSettings.IsConfigured already refuses that at request time -- this line
+       is so it is visible at deploy time instead of to the first paying customer. */
+    if (!paymentSettings.IsConfigured)
+    {
+        Console.Error.WriteLine(
+            "WARNING: Payments:Provider is 'razorpay' but Payments:KeyId and/or Payments:KeySecret are "
+            + "not configured. The Verified plan cannot be bought until both are set.");
+    }
+    else if (!paymentSettings.WebhooksConfigured)
+    {
+        Console.Error.WriteLine(
+            "WARNING: Payments:WebhookSecret is not configured. Payments will still complete when the "
+            + "customer's browser returns, but a customer who closes the tab will be charged without "
+            + "their listing being verified.");
+    }
+}
+else
+{
+    builder.Services.AddSingleton<IPaymentGateway, UnconfiguredPaymentGateway>();
+}
+
+// ---- Media storage (Azure Blob Storage) -----------------------------------------------
 // Configured by connection string only. With none set, uploads are refused rather than accepted
 // and silently dropped (see UnconfiguredMediaStorage).
 var mediaSettings = MediaSettings.Load(builder.Configuration);
@@ -208,7 +355,7 @@ if (app.Services.GetService<BlobMediaStorage>() is { } blobStorage)
     catch (Exception ex)
     {
         // Storage being unreachable must not stop the site serving listings; uploads will fail
-        // and say so. (Locally this means Azurite is not running.)
+        // and say so. (This usually means Media:BlobConnectionString is unset or wrong.)
         app.Logger.LogError(ex, "Media storage container could not be prepared. Uploads will fail until it is reachable.");
     }
 }
@@ -255,10 +402,13 @@ publicApi.MapGet("/meta", () => Results.Ok(new
 }));
 publicApi.MapPublicDirectoryEndpoints();
 publicApi.MapPublicSearchEndpoints();
+publicApi.MapPublicHighlightsEndpoints();  // the homepage's Featured and Trending shelves
 publicApi.MapPublicEnquiryEndpoints();   // customers contacting a business through its listing
 publicApi.MapPublicReviewEndpoints();     // approved reviews and the rating average
 publicApi.MapPublicSitemapEndpoints();    // every page the public site should list for search engines
 publicApi.MapPublicReportEndpoints();     // anyone reporting a listing or a review
+
+app.MapPaymentWebhookEndpoints();   // /api/v1/webhooks/razorpay: the path that does not need a browser
 
 app.MapOwnerAuthEndpoints();   // /api/v1/auth/owner: request code, verify code, refresh, logout
 app.MapMeEndpoints();          // /api/v1/me: signed-in owner

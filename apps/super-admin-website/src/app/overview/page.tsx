@@ -77,10 +77,11 @@ export default async function OverviewPage() {
             <section className="mt-10">
               <h2 className="text-lg font-semibold">Listings by plan</h2>
               <p className="mt-1 text-sm text-neutral-600">
-                Every listing is on the free plan until subscriptions are built, so these numbers will
-                stay as they are for now.
+                Free and Verified (&#8377;399 a year) are the only plans. A listing counts as
+                Verified for exactly as long as its paid period runs, so these figures follow
+                renewals and expiries on their own.
               </p>
-              <dl className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <dl className="mt-3 grid grid-cols-2 gap-4">
                 {result.data.listingsByPlan.map((row) => (
                   <Tile key={row.key} label={row.key} value={row.count} />
                 ))}

@@ -26,6 +26,7 @@ public static class MeEndpoints
         group.MapOwnerProfileEndpoints();
         group.MapFavouriteEndpoints();   // listings this person saved; private to them
         group.MapOwnerListingEndpoints();
+        group.MapOwnerSubscriptionOverview();   // every listing's plan in one request
         return group;
     }
 

@@ -9,7 +9,7 @@
 -- the bad values are the point of this check.
 --
 -- Run:
---   Get-Content database/sqlserver/checks/constraints_smoke.sql | docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<password>" -C -d hyderabad_links -b
+--   npm run db:check -- constraints_smoke
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;

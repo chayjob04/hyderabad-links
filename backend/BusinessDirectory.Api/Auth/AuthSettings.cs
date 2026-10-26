@@ -53,6 +53,26 @@ public sealed class AuthSettings
     public int MaxOtpPerPhonePerHour { get; init; } = 5;
     public int MaxOtpPerIpPerHour { get; init; } = 20;
 
+    /// <summary>
+    /// The one code every login uses while <see cref="DummyOtpEnabled"/> is on. Not a secret: the
+    /// point of it is that whoever is testing already knows it without reading an SMS.
+    /// </summary>
+    public const string DummyOtpCode = "123456";
+
+    /// <summary>
+    /// Development and testing only (`Auth:DummyOtpEnabled`). When on, every login code is
+    /// <see cref="DummyOtpCode"/> and no SMS is sent, so owner sign-in can be exercised before
+    /// MSG91 delivery is proven. Only the code's *value* changes: it is still hashed, stored,
+    /// rate-limited, attempt-counted and consumed the same way, so the account, the session and the
+    /// tokens are the production path exactly.
+    ///
+    /// It is an authentication bypass — anyone who can reach the API can sign in as any phone
+    /// number — so it is off unless configuration turns it on, announced on every start
+    /// (`Program.cs`) and logged on every code issued (`OwnerAuthEndpoints`). It is temporary;
+    /// remove the setting to remove the behaviour.
+    /// </summary>
+    public bool DummyOtpEnabled { get; init; }
+
     // Admin sign-in. Shorter-lived than an owner session: admins work in sittings, owners come back weeks later.
     public int AdminAccessTokenMinutes { get; init; } = 15;
     public int AdminRefreshTokenDays { get; init; } = 7;
@@ -86,6 +106,7 @@ public sealed class AuthSettings
             ResendCooldownSeconds = section.GetValue("ResendCooldownSeconds", 30),
             MaxOtpPerPhonePerHour = section.GetValue("MaxOtpPerPhonePerHour", 5),
             MaxOtpPerIpPerHour = section.GetValue("MaxOtpPerIpPerHour", 20),
+            DummyOtpEnabled = section.GetValue("DummyOtpEnabled", false),
             AdminAccessTokenMinutes = section.GetValue("AdminAccessTokenMinutes", 15),
             AdminRefreshTokenDays = section.GetValue("AdminRefreshTokenDays", 7),
             AdminMaxFailedLogins = section.GetValue("AdminMaxFailedLogins", 5),

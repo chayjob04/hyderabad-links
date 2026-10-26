@@ -42,6 +42,7 @@ public static class OwnerAuthEndpoints
         SqlDatabase db,
         AuthSettings settings,
         ISmsSender sms,
+        ILogger<Program> logger,
         CancellationToken ct)
     {
         if (!PhoneNumber.TryNormalizeIndia(request.Phone, out var phone))
@@ -78,27 +79,61 @@ public static class OwnerAuthEndpoints
             }
         }
 
-        var code = OtpCodes.Generate();
+        /* Dummy mode (Auth:DummyOtpEnabled) changes the code's value and nothing else. It is hashed,
+           stored, rate-limited and verified by the same lines a real one is, which is why the rest
+           of sign-in needs no special case: see AuthSettings.DummyOtpEnabled. */
+        var code = settings.DummyOtpEnabled ? AuthSettings.DummyOtpCode : OtpCodes.Generate();
         var hash = OtpCodes.Hash(settings.OtpKey, phone, code);
 
+        /* The challenge is written before the code is sent, because the code must be verifiable the
+           instant it arrives — an SMS can reach a phone faster than a second database round trip.
+           Its id comes back so that a send which fails can take the row with it; see below. */
+        long challengeId;
         await using (var insert = db.CreateCommand(
             @"INSERT INTO otp_challenges (phone_e164, code_hash, expires_at, requester_ip)
+              OUTPUT INSERTED.id
               VALUES (@phone, @hash, DATEADD(second, @ttl, SYSDATETIMEOFFSET()), @ip)"))
         {
             insert.Parameters.AddWithValue("phone", phone);
             insert.Parameters.Add(new SqlParameter("hash", SqlDbType.VarBinary) { Value = hash });
             insert.Parameters.AddWithValue("ttl", settings.OtpTtlSeconds);
             insert.Parameters.Add(new SqlParameter("ip", SqlDbType.VarChar) { Value = (object?)ip?.ToString() ?? DBNull.Value });
-            await insert.ExecuteNonQueryAsync(ct);
+            challengeId = (long)(await insert.ExecuteScalarAsync(ct))!;
         }
 
-        try
+        if (settings.DummyOtpEnabled)
         {
-            await sms.SendOtpAsync(phone, code, ct);
+            /* Nothing is sent, so MSG91 is never called and no SMS is paid for. Logged on every
+               request, at warning, because a sign-in bypass that leaves no trace is one nobody
+               notices was left on. The code itself stays out of the line: it is in configuration
+               and in the docs, not in a log (CLAUDE.md). */
+            logger.LogWarning(
+                "Auth:DummyOtpEnabled is ON. No SMS was sent to {Phone}; the fixed test code will be accepted.",
+                Msg91SmsSender.Mask(phone));
         }
-        catch (InvalidOperationException)
+        else
         {
-            return Results.Problem("Login by phone is temporarily unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            try
+            {
+                await sms.SendOtpAsync(phone, code, ct);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+            {
+                /* Three kinds of failure, one answer. InvalidOperationException is the sender's own
+                   refusal (no credentials, or MSG91 rejecting the template); HttpRequestException is
+                   MSG91 being unreachable; TaskCanceledException is it timing out. Only the first was
+                   caught before, so a provider outage answered 500 and read like a fault in this API.
+
+                   The challenge is deleted, which is the part that matters. A code nobody received must
+                   not count against this number's five-an-hour allowance or start its resend cooldown:
+                   leaving the rows behind meant that an owner trying to sign in during an MSG91 outage
+                   burned their whole allowance on codes that never arrived and was then refused with
+                   429 for the rest of the hour. */
+                await DeleteUnsentChallenge(db, challengeId, logger, ct);
+
+                logger.LogError(ex, "A login code could not be sent, so the challenge was discarded.");
+                return Results.Problem("Login by phone is temporarily unavailable.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
         }
 
         // Same response whether or not the number already has an account.
@@ -365,5 +400,28 @@ public static class OwnerAuthEndpoints
         command.Parameters.AddWithValue("days", settings.RefreshTokenDays);
         command.Parameters.Add(new SqlParameter("ip", SqlDbType.VarChar) { Value = (object?)ip?.ToString() ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("ua", SqlDbType.NVarChar) { Value = string.IsNullOrEmpty(userAgent) ? DBNull.Value : userAgent });
+    }
+
+    /// <summary>
+    /// Removes a challenge whose code was never delivered, so it cannot count against the caller's
+    /// allowance. Never throws: the request is already being answered with a 503, and failing to
+    /// tidy up must not turn that into a 500. The row expires on its own in any case.
+    /// </summary>
+    private static async Task DeleteUnsentChallenge(
+        SqlDatabase db, long challengeId, ILogger logger, CancellationToken ct)
+    {
+        try
+        {
+            await using var delete = db.CreateCommand(
+                "DELETE FROM otp_challenges WHERE id = @id AND consumed_at IS NULL");
+            delete.Parameters.AddWithValue("id", challengeId);
+            await delete.ExecuteNonQueryAsync(ct);
+        }
+        catch (Exception ex) when (ex is SqlException or InvalidOperationException)
+        {
+            logger.LogWarning(
+                ex,
+                "An unsent login challenge could not be discarded; it will expire on its own in a few minutes.");
+        }
     }
 }

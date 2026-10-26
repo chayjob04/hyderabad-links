@@ -107,6 +107,17 @@ export default async function ReviewListingPage({ params, searchParams }: Props)
         </dl>
 
         <dl className="rounded-xl border border-neutral-200 bg-white px-4 py-2 shadow-sm">
+          {/* The plan, from the entitlement view: "Verified until …" while a period is running,
+              and plain "Free" once it is not. Worth knowing before suspending a business that is
+              paying for the page you are about to take down. */}
+          <Field
+            label="Plan"
+            value={
+              listing.isVerified
+                ? `Verified${listing.paidUntil ? ` until ${formatWhen(listing.paidUntil)}` : ""}`
+                : "Free"
+            }
+          />
           <Field label="Submitted by" value={listing.submittedByPhone} />
           <Field label="Created" value={formatWhen(listing.createdAt)} />
           <Field label="Last change" value={formatWhen(listing.updatedAt)} />

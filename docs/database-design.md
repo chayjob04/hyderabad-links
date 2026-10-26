@@ -2,7 +2,7 @@
 
 ## 1. Database Platform
 
-- **Local development:** Microsoft SQL Server in Docker.
+- **Local development:** an Azure SQL database (there is no local engine).
 - **Production:** Azure SQL Database.
 - **Database driver:** `Microsoft.Data.SqlClient`.
 - **Data access:** Raw parameterized SQL. No ORM.

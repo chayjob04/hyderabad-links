@@ -145,9 +145,13 @@ public static class SuperAdminEndpoints
         var byStatus = await CountRows(db, "SELECT status, COUNT_BIG(*) FROM listings GROUP BY status ORDER BY status", ct);
         var byPlan = await CountRows(
             db,
-            @"SELECT p.slug, COUNT_BIG(li.id)
-              FROM plans p
-              LEFT JOIN listings li ON li.plan_slug = p.slug
+            /* Grouped by the *effective* plan, from listing_entitlements, not by listings.plan_slug.
+               That column records what a listing bought and never expires, so counting it would
+               report a listing as Verified years after its period ran out — the one figure on this
+               page staff would use to answer "how many are paying right now". */
+            @"SELECT p.slug, COUNT_BIG(e.listing_id)
+              FROM dbo.plans p
+              LEFT JOIN dbo.listing_entitlements e ON e.effective_plan_slug = p.slug
               GROUP BY p.slug, p.sort_order
               ORDER BY p.sort_order",
             ct);

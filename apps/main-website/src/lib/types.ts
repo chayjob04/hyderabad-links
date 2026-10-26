@@ -31,6 +31,25 @@ export type ListingDetail = {
   url: string;
   /** Logo first, then photos, then video. Media the plan no longer covers is not in this list at all. */
   media: ListingMedia[];
+  /**
+   * True only while a paid period is actually running. The API derives it by comparing the
+   * subscription's expiry against the clock, so a lapsed listing stops showing the badge on the
+   * next request — the site never has to work out whether a subscription is still good.
+   */
+  isVerified: boolean;
+  /**
+   * The business's own website and social links, in the owner's order. Always empty on a free
+   * listing and on a lapsed one: the API does not send them at all rather than relying on the page
+   * to hide them.
+   */
+  links: ListingLink[];
+};
+
+/** One website or social link on a public listing page. The URL is always http or https. */
+export type ListingLink = {
+  linkType: "website" | "instagram" | "facebook" | "youtube" | "linkedin" | "x" | "other";
+  label: string;
+  url: string;
 };
 
 /** One file on a public listing page. */
@@ -100,3 +119,21 @@ export type SearchCriteria = {
 
 /** Re-exported from the API client so components can import review shapes from one place. */
 export type { PublicReview, ReviewSummary } from "./api";
+
+/**
+ * One card on a homepage shelf. The same fields as a search result minus the distance (a shelf is
+ * not a proximity search), plus whether a paid period is running.
+ */
+export type HighlightListing = Omit<SearchListing, "distanceMetres"> & {
+  /** True while the listing has a paid Verified period. Drives the badge. */
+  verified: boolean;
+};
+
+export type Highlights = {
+  /** Listings paying for prominence right now, newest first. */
+  featured: HighlightListing[];
+  /** Listings with the most real activity (enquiries, favourites, approved reviews) in the window. */
+  trending: HighlightListing[];
+  /** How many days back "trending" measured, so the heading can say it without hard-coding it. */
+  trendingWindowDays: number;
+};

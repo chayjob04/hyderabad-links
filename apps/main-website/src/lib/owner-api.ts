@@ -4,10 +4,7 @@ import type { SessionTokens } from "./session-cookies";
 
 // Server-side only. The browser never calls the API: server components and server actions do,
 // attaching the owner's token from the httpOnly cookie.
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  process.env.API_BASE_URL ??
-  "http://localhost:5080";
+import { API_BASE_URL } from "./api-base";
 export type OwnerListing = {
   id: number;
   slug: string;
@@ -316,6 +313,145 @@ export const moveListingMedia = (id: number, mediaId: number, direction: "up" | 
 
 export const deleteListingMedia = (id: number, mediaId: number) =>
   authed<void>(`/api/v1/me/listings/${id}/media/${mediaId}`, { method: "DELETE" });
+
+/** One website or social link on a listing. */
+export type ListingLinkItem = {
+  id: number;
+  linkType: ListingLinkType;
+  label: string;
+  url: string;
+  sortOrder: number;
+};
+
+export type ListingLinkType =
+  | "website"
+  | "instagram"
+  | "facebook"
+  | "youtube"
+  | "linkedin"
+  | "x"
+  | "other";
+
+/**
+ * What this listing may do with links right now.
+ *
+ * `limit` is 5 on a paid listing and 0 otherwise, and the API works it out from the subscription
+ * period against the clock — so a lapsed listing reports 0 here without anything on this side
+ * having to reason about expiry. `paidUntil` is what lets the screen say when it runs out.
+ */
+export type ListingLinkAllowance = {
+  planSlug: string;
+  planName: string;
+  limit: number;
+  used: number;
+  verified: boolean;
+  paidUntil: string | null;
+};
+
+export type ListingLinks = { allowance: ListingLinkAllowance; items: ListingLinkItem[] };
+
+export const getListingLinks = (id: number) =>
+  authed<ListingLinks>(`/api/v1/me/listings/${id}/links`);
+
+export const addListingLink = (
+  id: number,
+  link: { linkType: string; label: string; url: string },
+) =>
+  authed<ListingLinkItem>(`/api/v1/me/listings/${id}/links`, {
+    method: "POST",
+    body: json(link),
+  });
+
+export const deleteListingLink = (id: number, linkId: number) =>
+  authed<void>(`/api/v1/me/listings/${id}/links/${linkId}`, { method: "DELETE" });
+
+/** The paid plan as the database has it. The price is in paise, so Rs 399 arrives as 39900. */
+export type PaidPlan = {
+  slug: string;
+  name: string;
+  pricePaise: number;
+  photoLimit: number;
+  videoLimit: number;
+  linkLimit: number;
+  periodMonths: number;
+};
+
+/**
+ * What this listing has, and what it could buy.
+ *
+ * `planSlug` is what is in force right now — it reads `free` the moment a period lapses, with no
+ * job having run — while `subscribedPlanSlug` remembers what was last bought, which is what lets
+ * the screen say "your Verified plan ended on the 3rd" instead of silently showing less.
+ *
+ * `paymentsAvailable` is false when no payment provider is configured. The plan and its price are
+ * still shown; only the pay button is not, so nobody is sent into a checkout that cannot finish.
+ */
+export type ListingSubscription = {
+  planSlug: string;
+  planName: string;
+  verified: boolean;
+  paidUntil: string | null;
+  subscribedPlanSlug: string;
+  paidPlan: PaidPlan | null;
+  paymentsAvailable: boolean;
+};
+
+export const getListingSubscription = (id: number) =>
+  authed<ListingSubscription>(`/api/v1/me/listings/${id}/subscription`);
+
+/** One row per listing on the dashboard's plans screen. */
+export type SubscriptionSummary = {
+  listingId: number;
+  listingName: string;
+  listingStatus: string;
+  planSlug: string;
+  planName: string;
+  verified: boolean;
+  paidUntil: string | null;
+  subscribedPlanSlug: string;
+};
+
+export type Subscriptions = {
+  items: SubscriptionSummary[];
+  paidPlan: PaidPlan | null;
+  paymentsAvailable: boolean;
+};
+
+/** Every listing's plan in one request, rather than one request per listing. */
+export const getSubscriptions = () => authed<Subscriptions>("/api/v1/me/subscriptions");
+
+/** What the checkout needs. `keyId` is Razorpay's publishable key and authorises nothing on its own. */
+export type PaymentOrder = {
+  orderId: string;
+  amountPaise: number;
+  currency: string;
+  keyId: string;
+  planName: string;
+  businessName: string;
+};
+
+export const startSubscriptionPayment = (id: number) =>
+  authed<PaymentOrder>(`/api/v1/me/listings/${id}/subscription/order`, { method: "POST" });
+
+export type PaymentConfirmation = {
+  planSlug: string;
+  paidUntil: string | null;
+  /** True when this payment had already been applied — a refreshed page, or the webhook got here first. */
+  alreadyApplied: boolean;
+};
+
+/**
+ * Hands the checkout's signed result to the API, which is the only side that can verify it: the key
+ * secret never leaves the server, so nothing here can decide a payment was real.
+ */
+export const confirmSubscriptionPayment = (
+  id: number,
+  result: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string },
+) =>
+  authed<PaymentConfirmation>(`/api/v1/me/listings/${id}/subscription/verify`, {
+    method: "POST",
+    body: json(result),
+  });
 
 /**
  * Sends the file to the API. Written out rather than going through `send`, because that sets a JSON

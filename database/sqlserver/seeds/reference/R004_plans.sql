@@ -1,52 +1,67 @@
--- The four subscription plans (decision D23). Reference data, re-applied on every migrate, so it is
--- written to be idempotent and never to overwrite an allowance the owner has since corrected.
---
--- Prices are APPROVED (D23). Media allowances are PROVISIONAL: requirements.md documents
--- Free 0/0, Basic 4/0, Gold 4/2, Premium 16/4, but D23 renamed the middle tier from "Gold" to
--- "Advanced", so placing Gold's figures on Advanced is an inference. media_limits_confirmed stays 0
--- until the owner confirms, and the application tells the owner they are provisional rather than
--- presenting them as settled.
---
--- No plan grants verification: requirements.md states a paid plan must never do so automatically.
---
--- The SQL Server counterpart of database/seeds/reference/R004_plans.sql. PostgreSQL did this with
--- ON CONFLICT ... DO UPDATE; here the update and the insert are two statements over the same values,
--- which says the same thing and keeps the "never touch a confirmed allowance" rule visible.
+﻿SET XACT_ABORT ON;
 
-SET ANSI_NULLS ON;
-SET QUOTED_IDENTIFIER ON;
-GO
+BEGIN TRANSACTION;
 
-WITH wanted AS (
-    SELECT *
-    FROM (VALUES
-        ('free',     'Free',     CAST(0 AS bigint),        0,  0, 0, 0),
-        ('basic',    'Basic',    CAST(69900 AS bigint),    4,  0, 1, 1),
-        ('advanced', 'Advanced', CAST(699900 AS bigint),   4,  2, 1, 2),
-        ('premium',  'Premium',  CAST(3699900 AS bigint), 16,  4, 1, 3)
-    ) AS v(slug, name, price_paise, photo_limit, video_limit, logo_limit, sort_order)
-)
--- Name, price and ordering are kept current. The media allowances and the badge flag are
--- deliberately NOT updated: once the owner sets a real number, re-running this must not put the
--- provisional one back.
-UPDATE p
-SET name = w.name,
-    price_paise = w.price_paise,
-    sort_order = w.sort_order,
+-- Ensure the Free plan exists and is configured correctly.
+IF EXISTS (SELECT 1 FROM dbo.plans WHERE slug = 'free')
+BEGIN
+    UPDATE dbo.plans
+    SET name = 'Free',
+        price_paise = 0,
+        photo_limit = 0,
+        video_limit = 0,
+        logo_limit = 0,
+        grants_verified_badge = 0,
+        media_limits_confirmed = 1,
+        sort_order = 0,
+        is_active = 1,
+        updated_at = SYSDATETIMEOFFSET()
+    WHERE slug = 'free';
+END
+ELSE
+BEGIN
+    INSERT INTO dbo.plans
+        (slug, name, price_paise, photo_limit, video_limit, logo_limit,
+         grants_verified_badge, media_limits_confirmed, sort_order, is_active)
+    VALUES
+        ('free', 'Free', 0, 0, 0, 0, 0, 1, 0, 1);
+END;
+
+-- Configure the single paid plan.
+IF EXISTS (SELECT 1 FROM dbo.plans WHERE slug = 'verified')
+BEGIN
+    UPDATE dbo.plans
+    SET name = 'Verified',
+        price_paise = 39900,
+        photo_limit = 10,
+        video_limit = 3,
+        logo_limit = 1,
+        grants_verified_badge = 1,
+        media_limits_confirmed = 1,
+        sort_order = 1,
+        is_active = 1,
+        updated_at = SYSDATETIMEOFFSET()
+    WHERE slug = 'verified';
+END
+ELSE
+BEGIN
+    INSERT INTO dbo.plans
+        (slug, name, price_paise, photo_limit, video_limit, logo_limit,
+         grants_verified_badge, media_limits_confirmed, sort_order, is_active)
+    VALUES
+        ('verified', 'Verified', 39900, 10, 3, 1, 1, 1, 1, 1);
+END;
+
+/* Free and Verified are the whole subscription structure. The three old tiers were removed by
+   migration S0011; this is the safety net for anything else that turns up — it deactivates rather
+   than deletes, because a seed runs on every `db:migrate` and a seed is the wrong place to remove
+   rows that something might reference. Removing a plan for good is a migration's job, where it can
+   check its dependencies and refuse. */
+UPDATE dbo.plans
+SET is_active = 0,
     updated_at = SYSDATETIMEOFFSET()
-FROM plans p
-JOIN wanted w ON w.slug = p.slug
-WHERE p.name <> w.name OR p.price_paise <> w.price_paise OR p.sort_order <> w.sort_order;
-GO
+WHERE slug NOT IN ('free', 'verified')
+  AND is_active = 1;
 
-INSERT INTO plans (slug, name, price_paise, photo_limit, video_limit, logo_limit,
-                   grants_verified_badge, media_limits_confirmed, sort_order)
-SELECT v.slug, v.name, v.price_paise, v.photo_limit, v.video_limit, v.logo_limit, 0, 0, v.sort_order
-FROM (VALUES
-    ('free',     'Free',     CAST(0 AS bigint),        0,  0, 0, 0),
-    ('basic',    'Basic',    CAST(69900 AS bigint),    4,  0, 1, 1),
-    ('advanced', 'Advanced', CAST(699900 AS bigint),   4,  2, 1, 2),
-    ('premium',  'Premium',  CAST(3699900 AS bigint), 16,  4, 1, 3)
-) AS v(slug, name, price_paise, photo_limit, video_limit, logo_limit, sort_order)
-WHERE NOT EXISTS (SELECT 1 FROM plans p WHERE p.slug = v.slug);
+COMMIT TRANSACTION;
 GO

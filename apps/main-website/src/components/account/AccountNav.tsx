@@ -79,6 +79,18 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    // Left out while `subscriptions` did not exist, on the rule that every item here must reach a
+    // working page. The table exists now, and so does a way to buy the plan.
+    href: "/account/subscription",
+    label: "Plans & Payment",
+    icon: (
+      <svg {...iconProps}>
+        <rect x="3" y="5.5" width="18" height="13" rx="2" />
+        <path d="M3 10h18M6.5 14.5h4" />
+      </svg>
+    ),
+  },
+  {
     href: "/account/profile",
     label: "Business Profile",
     icon: (

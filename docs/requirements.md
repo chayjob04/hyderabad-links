@@ -16,16 +16,25 @@ Source of truth for scope. Full original brief is held by the project owner; thi
 - Migrations: version-controlled SQL; no destructive migration without approval.
 - No paid Azure resource without a cost explanation and approval.
 
-## Plans (stored in the database, editable by authorised staff; prices NOT finalised)
-| Plan | Photos | Videos |
-|---|---|---|
-| Free | 0 (assumption) | 0 |
-| Basic | 4 | 0 |
-| Gold | 4 | 2 |
-| Premium | 16 | 4 |
+## Plans (stored in the database, editable by authorised staff)
 
-- Limits enforced on the backend, never only in the UI.
-- A paid plan never grants verification automatically; verification is a separate process with its own audit trail.
+**Settled on 2026-10-25 (decision D48): two plans, and no others.** The Basic / Gold / Premium
+table that stood here is gone — `S0009` deactivated those tiers and `S0011` deleted their rows, so
+`plans` holds exactly these two.
+
+| Plan | Price | Photos | Videos | Logo | Links | Verified badge |
+|---|---|---|---|---|---|---|
+| Free | ₹0 | 0 | 0 | 0 | 0 | no |
+| Verified | **₹399 a year, per listing** | 10 | 3 | 1 | 5 | **yes** |
+
+- Limits enforced on the backend, never only in the UI, and read from the `plans` table rather than
+  from constants — so a price or an allowance is an `UPDATE`, not a deploy.
+- Entitlement is computed from the subscription period against the clock
+  (`listing_entitlements`), never from a flag on the listing, so a lapsed plan loses its allowance
+  on the next request with no job to run.
+- **Verification is what the paid tier buys** (D48, superseding the earlier rule that a paid plan
+  must never grant it automatically). It is granted only by a payment whose signature verified, and
+  it lasts exactly as long as the period paid for.
 - Downgrades never silently delete media.
 - Paid features activate only after the backend confirms payment (signed, idempotent Razorpay webhooks).
 

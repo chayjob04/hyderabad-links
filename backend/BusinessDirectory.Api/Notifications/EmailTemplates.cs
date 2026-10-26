@@ -166,7 +166,97 @@ public static class EmailTemplates
         return new EmailMessage(to, $"{decision.BusinessName} has not been approved", text.ToString(), html.ToString());
     }
 
+    /// <summary>A paid period, as the owner needs it confirmed.</summary>
+    /// <param name="AmountPaise">What was actually charged, taken from the payment record rather than from the plan.</param>
+    /// <param name="PaidUntil">The end of the period this payment bought.</param>
+    /// <param name="Renewal">True when this extended a period that was already running.</param>
+    public sealed record SubscriptionActivated(
+        string BusinessName,
+        string PlanName,
+        long AmountPaise,
+        DateTimeOffset PaidUntil,
+        string? ListingPath,
+        bool Renewal);
+
+    /// <summary>
+    /// Confirms that money was taken and what it bought. This is the receipt an owner goes looking
+    /// for, so it states the amount, the plan and the end date, and nothing it cannot know — no
+    /// invoice number, because nothing issues one, and no payment id, because that belongs in the
+    /// provider's dashboard rather than in an owner's inbox.
+    /// </summary>
+    public static EmailMessage SubscriptionActivatedEmail(
+        string to, SubscriptionActivated activated, string? siteBaseUrl)
+    {
+        var listingUrl = Link(siteBaseUrl, activated.ListingPath);
+        var plans = Link(siteBaseUrl, "/account/subscription");
+        var amount = FormatRupees(activated.AmountPaise);
+        var until = activated.PaidUntil.ToOffset(TimeSpan.FromMinutes(330))
+            .ToString("d MMMM yyyy", CultureInfo.InvariantCulture);
+        var headline = activated.Renewal
+            ? $"{activated.BusinessName} is Verified until {until}"
+            : $"{activated.BusinessName} is now Verified";
+
+        var text = new StringBuilder();
+        text.AppendLine(headline + ".");
+        text.AppendLine();
+        text.AppendLine(activated.Renewal
+            ? $"Your {activated.PlanName} plan has been renewed. We received {amount}."
+            : $"We received {amount} for the {activated.PlanName} plan. Thank you.");
+        text.AppendLine();
+        text.AppendLine($"Plan:         {activated.PlanName}");
+        text.AppendLine($"Amount paid:  {amount}");
+        text.AppendLine($"Verified until: {until}");
+        text.AppendLine();
+        text.AppendLine("Your listing now carries the Verified badge, and you can add photos, video");
+        text.AppendLine("and up to five website and social links.");
+        if (listingUrl is not null)
+        {
+            text.AppendLine();
+            text.AppendLine($"Your listing: {listingUrl}");
+        }
+        if (plans is not null)
+        {
+            text.AppendLine($"Your plan:    {plans}");
+        }
+        text.AppendLine();
+        text.AppendLine("HYDERABAD LINKS");
+
+        var html = new StringBuilder();
+        OpenHtml(html, headline);
+        html.Append($"<p><strong>{Escape(headline)}</strong>.</p>");
+        html.Append(activated.Renewal
+            ? $"<p>Your {Escape(activated.PlanName)} plan has been renewed. We received {Escape(amount)}.</p>"
+            : $"<p>We received {Escape(amount)} for the {Escape(activated.PlanName)} plan. Thank you.</p>");
+        html.Append("<table cellpadding=\"6\" style=\"border-collapse:collapse\">");
+        html.Append(Row("Plan", activated.PlanName));
+        html.Append(Row("Amount paid", amount));
+        html.Append(Row("Verified until", until));
+        html.Append("</table>");
+        html.Append("<p>Your listing now carries the Verified badge, and you can add photos, video and up to five website and social links.</p>");
+        if (listingUrl is not null)
+        {
+            html.Append($"<p><a href=\"{Escape(listingUrl)}\">View your listing</a></p>");
+        }
+        if (plans is not null)
+        {
+            html.Append($"<p><a href=\"{Escape(plans)}\">Manage your plan</a></p>");
+        }
+        CloseHtml(html);
+
+        return new EmailMessage(to, headline, text.ToString(), html.ToString());
+    }
+
     // ------------------------------------------------------------------ helpers
+    /// <summary>
+    /// Paise as rupees, the way a price is written here: 39900 becomes "₹399". Paise are shown only
+    /// when there are any, so a round amount does not read as "₹399.00" in a receipt.
+    /// </summary>
+    private static string FormatRupees(long paise)
+    {
+        var rupees = paise / 100m;
+        return "₹" + rupees.ToString(paise % 100 == 0 ? "N0" : "N2", CultureInfo.GetCultureInfo("en-IN"));
+    }
+
     /// <summary>
     /// An absolute URL, or null when either half is missing. Returning null is what makes the
     /// templates leave a link out instead of printing "/account/enquiries", which does nothing in a

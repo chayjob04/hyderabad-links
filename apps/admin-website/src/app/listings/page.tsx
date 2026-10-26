@@ -101,7 +101,17 @@ export default async function ModerationQueuePage({ searchParams }: Props) {
                       {listing.addressLine ? ` · ${listing.addressLine}` : ""}
                     </p>
                   </div>
-                  <StatusBadge status={listing.status} />
+                  <div className="flex shrink-0 items-center gap-2">
+                    {/* Whether this business is paying, which a reviewer could not see before.
+                        It comes from the entitlement view, so it disappears the day a plan
+                        lapses rather than showing what was once bought. */}
+                    {listing.isVerified ? (
+                      <span className="rounded-full bg-teal-700 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-white uppercase">
+                        Verified
+                      </span>
+                    ) : null}
+                    <StatusBadge status={listing.status} />
+                  </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                   <p className="text-xs text-neutral-500">

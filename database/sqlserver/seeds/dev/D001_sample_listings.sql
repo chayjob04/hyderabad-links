@@ -9,7 +9,7 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
 
-INSERT INTO businesses (name)
+INSERT INTO dbo.businesses (name)
 SELECT v.name FROM (VALUES
 ('Sample Sri Sai Plumbers Gachibowli'),
   ('Sample Sri Sai Plumbers Madhapur'),
@@ -41,10 +41,10 @@ SELECT v.name FROM (VALUES
   ('Sample Dr Rao Family Clinic Begumpet'),
   ('Sample Dr Rao Family Clinic Lb Nagar')
 ) AS v(name)
-WHERE NOT EXISTS (SELECT 1 FROM businesses b WHERE b.name = v.name);
+WHERE NOT EXISTS (SELECT 1 FROM dbo.businesses b WHERE b.name = v.name);
 GO
 
-INSERT INTO listings (business_id, locality_id, slug, name, description, address_line, location, phone_primary, status, source)
+INSERT INTO dbo.listings (business_id, locality_id, slug, name, description, address_line, location, phone_primary, status, source)
 SELECT b.id, lo.id, v.slug, v.name, 'Sample listing for local development only.',
        -- || is PostgreSQL's concatenation; SQL Server uses +.
        'Sample address, ' + lo.name,
@@ -80,12 +80,12 @@ FROM (VALUES
   ('begumpet', 'sample-dr-rao-family-clinic-begumpet', 'Sample Dr Rao Family Clinic Begumpet', 17.44260, 78.47100, '+919999010028'),
   ('lb-nagar', 'sample-dr-rao-family-clinic-lb-nagar', 'Sample Dr Rao Family Clinic Lb Nagar', 17.34800, 78.55090, '+919999010029')
 ) AS v(locality_slug, slug, name, lat, lng, phone)
-JOIN localities lo ON lo.slug = v.locality_slug
-JOIN businesses b ON b.name = v.name
-WHERE NOT EXISTS (SELECT 1 FROM listings li WHERE li.locality_id = lo.id AND li.slug = v.slug);
+JOIN dbo.localities lo ON lo.slug = v.locality_slug
+JOIN dbo.businesses b ON b.name = v.name
+WHERE NOT EXISTS (SELECT 1 FROM dbo.listings li WHERE li.locality_id = lo.id AND li.slug = v.slug);
 GO
 
-INSERT INTO listing_categories (listing_id, category_id, is_primary)
+INSERT INTO dbo.listing_categories (listing_id, category_id, is_primary)
 SELECT li.id, c.id, 1
 FROM (VALUES
 ('gachibowli', 'sample-sri-sai-plumbers-gachibowli', 'plumbers'),
@@ -118,11 +118,11 @@ FROM (VALUES
   ('begumpet', 'sample-dr-rao-family-clinic-begumpet', 'general-physicians'),
   ('lb-nagar', 'sample-dr-rao-family-clinic-lb-nagar', 'general-physicians')
 ) AS v(locality_slug, listing_slug, category_slug)
-JOIN localities lo ON lo.slug = v.locality_slug
-JOIN listings li ON li.locality_id = lo.id AND li.slug = v.listing_slug
-JOIN categories c ON c.slug = v.category_slug
+JOIN dbo.localities lo ON lo.slug = v.locality_slug
+JOIN dbo.listings li ON li.locality_id = lo.id AND li.slug = v.listing_slug
+JOIN dbo.categories c ON c.slug = v.category_slug
 WHERE NOT EXISTS (
-    SELECT 1 FROM listing_categories lc WHERE lc.listing_id = li.id AND lc.category_id = c.id
+    SELECT 1 FROM dbo.listing_categories lc WHERE lc.listing_id = li.id AND lc.category_id = c.id
 );
 GO
 
@@ -133,8 +133,8 @@ GO
 UPDATE li
 SET phone_whatsapp = '+919999010025',
     website_url = 'https://example.com/sample-brew-and-bites'
-FROM listings li
-JOIN localities lo ON lo.id = li.locality_id
+FROM dbo.listings li
+JOIN dbo.localities lo ON lo.id = li.locality_id
 WHERE lo.slug = 'madhapur'
   AND li.slug = 'sample-brew-and-bites-cafe-madhapur';
 GO

@@ -2,14 +2,29 @@
 
 **Updated:** 2026-10-20. Read this first, then `CLAUDE.md`. It replaces re-auditing the repository.
 
+> **Newer than this file: `docs/REPAIR_STATUS.md` (2026-10-25).** It covers the repair of the shared
+> company database the platform now runs on (`hyderab3_workingmodel`, SQL Server 2022 Express, two
+> applications in one database), the five bugs that repair found, and the two passes that followed:
+> the Verified plan's links, and the paid path that makes the plan buyable. Where the two disagree,
+> REPAIR_STATUS is the later record. In particular:
+>
+> - There are now **two plans, not four** — Free and Verified (₹399 a year), with `basic`,
+>   `advanced` and `premium` deactivated by `S0009`. Everything below about four tiers and
+>   provisional media allowances is superseded: the allowances are confirmed, and the paid plan does
+>   grant the badge.
+> - Entitlement is **computed from the subscription period against the clock** through the
+>   `listing_entitlements` view, never read from `listings.plan_slug`.
+> - Payments are implemented behind `IPaymentGateway` and refuse to run unconfigured. **No payment
+>   has ever been taken, and the provider choice is still the owner's** (decision D45).
+> - The local SQL Server container described below is gone; development runs against a real database.
+
 ## SQL Server conversion — DONE for the application (2026-10-20 to 2026-10-21)
 
 The platform runs on **Microsoft SQL Server**, and Azure SQL Database in production (decision D41,
 approved by the owner). PostgreSQL support was **not** kept: nothing in the application connects to
 it, and `database/migrations`, `database/seeds` and `database/checks` are kept only as history.
 
-**What that means in practice.** `docker compose up -d` starts SQL Server, `npm run db:migrate`
-builds the schema with DbUp from `database/sqlserver/migrations`, `npm run db:seed-dev` loads the
+**What that means in practice.** `npm run db:migrate` builds the schema with DbUp from `database/sqlserver/migrations`, `npm run db:seed-dev` loads the
 sample listings, and the API, the three websites and every feature built before the conversion work
 exactly as they did. The whole site was driven end to end against SQL Server; see the table below.
 
@@ -28,7 +43,11 @@ exactly as they did. The whole site was driven end to end against SQL Server; se
 | Regex constraints | Each `CHECK (x ~ '…')` became `LIKE` patterns over **`Latin1_General_BIN2`**. A binary collation is required: a range like `[a-z]` is read through the collation, and even a case-*sensitive* one orders `aAbBcC…`, so `ABIDS` passed as a slug until this was fixed |
 | Migration running | Two DbUp passes. `CREATE FULLTEXT CATALOG` cannot run inside a transaction, so files named `*.notx.sql` are applied without one and everything else keeps its transaction per script |
 
-### Verified against SQL Server 2022 (Developer Edition, in Docker, with full-text search installed)
+### Verified against SQL Server 2022 (Developer Edition, with full-text search installed)
+
+*These results were produced on 2026-10-21 against a local SQL Server container, which the project
+no longer uses. They stand as the record of the conversion; re-running them now means pointing
+`ConnectionStrings:Default` at an Azure SQL database.*
 
 | Check | Result |
 |---|---|
@@ -99,16 +118,22 @@ only; each folder has a README saying so, and nothing in the project reads them.
 
 ### Configuring a database
 
-**Locally** — `docker compose up -d` builds `docker/sqlserver/Dockerfile` (SQL Server 2022 plus the
-`mssql-server-fts` package, which the stock image does not carry) and starts it on
-`127.0.0.1:1433`. The password comes from `MSSQL_SA_PASSWORD` in `.env`; `.env.example` has a
-throwaway default. The database itself has to exist before the first migrate:
+**Locally** — there is no local database engine. Development runs against an Azure SQL database, so
+the engine, the collation and the feature set are the ones production uses. Set the connection
+string with user-secrets, never in `appsettings.Development.json`, which is tracked:
 
 ```powershell
-docker exec -i hl-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "<password>" -C -Q "IF DB_ID('hyderabad_links') IS NULL CREATE DATABASE hyderabad_links;"
+dotnet user-secrets set "ConnectionStrings:Default" "<your Azure SQL connection string>" --project backend/BusinessDirectory.Api
 npm run db:migrate
 npm run db:seed-dev
 ```
+
+The database itself must already exist: Azure SQL creates one with its own collation, service tier
+and backup policy, so the migration runner deliberately never creates one. `CREATE DATABASE` from
+the portal, the Azure CLI, or any SQL client connected to the server.
+
+Full-text search must be available on the target. It is on by default on Azure SQL Database, and
+the `S0008` migration fails outright on a server without it rather than quietly skipping the index.
 
 **Azure SQL later** — provision the database with a case-insensitive collation, then set
 `ConnectionStrings__Default` on the API's App Service to a Key Vault reference holding
@@ -559,8 +584,8 @@ Photos, a logo and video for a listing, with the plan's allowance enforced in th
 - **`listing_media`** keeps the metadata; the bytes live in Blob Storage. `storage_key` is unique
   across the table, and `is_hidden` is there for D10, so a downgrade can hide media without deleting
   anybody's file.
-- **`IMediaStorage`** (`Media/MediaStorage.cs`) is the one seam between the API and storage: Azurite
-  locally, Azure Blob Storage in production, chosen by connection string alone. With none configured
+- **`IMediaStorage`** (`Media/MediaStorage.cs`) is the one seam between the API and storage: an
+  Azure Storage account, chosen by connection string alone (a dev or test account in development). With none configured
   the API answers **503 and writes no row**, rather than recording a file it never stored.
 - **`GET|POST /api/v1/me/listings/{id}/media`, `DELETE .../{mediaId}`** — the upload enforces three
   things, each of them in the API and not in the UI:
@@ -880,8 +905,10 @@ migration chain into a brand-new database, not only by altering the dev one.
 - **D22 — public URL scheme.** The locality-first `/{city}/{locality}/{category}/{slug}` scheme stays.
   The live site's category-first URLs are served by 301 redirects rather than adopted, so no
   three-level taxonomy migration is needed and the city segment survives for a second city.
-- **D23 — subscription tiers.** Free ₹0 / Basic ₹699 / Advanced ₹6999 / Premium ₹36999, from the
-  owner's prototype. This supersedes D9's Basic/Gold/Premium media-count model.
+- **D23 — subscription tiers.** ~~Free ₹0 / Basic ₹699 / Advanced ₹6999 / Premium ₹36999~~
+  **Superseded.** The owner confirmed on 2026-10-25 that the structure is **Free and Verified
+  (₹399) only**, with no Gold or Premium. `S0009` deactivated the three old tiers and `S0011`
+  deleted their rows; `plans` now holds exactly two.
 - **D24 — onboarding shape.** Registration collects name, business name, email, locality and primary
   category, and creates the profile, business, ownership row and first draft listing in one
   transaction.
@@ -942,10 +969,10 @@ None of these are in the repository, and none should be.
 | JWT signing key | `Auth:JwtSigningKey` | Development generates one. Production must supply it. |
 | OTP HMAC key | `Auth:OtpHmacKey` | As above. |
 | TOTP encryption key | `Auth:TotpEncryptionKey` | **Required in production** (base64, ≥32 bytes; only the first 32 are used). Development generates a random one per start, which invalidates enrolled authenticators on every restart. Rotating it in production forces every admin to re-enroll. |
-| Database | `ConnectionStrings:Default` | Local value comes from `.env` / Docker Compose. |
+| Database | `ConnectionStrings:Default` | `dotnet user-secrets` locally, App Service settings in Azure. Never `appsettings.Development.json`, which is tracked. |
 | Email delivery (D14, D42) | `Email:Provider`, `Email:ApiKey`, `Email:FromAddress`, `Email:ReplyTo`, `Email:SiteBaseUrl` | **Code is wired up; no provider is configured.** See the paragraph below for exactly what is outstanding. |
 | Razorpay | not wired up | Not configured. |
-| Azure Blob Storage | `Media:BlobConnectionString`, `Media:ContainerName`, `Media:PublicBaseUrl` | **Code is wired up and used.** Locally it is Azurite's `UseDevelopmentStorage=true` (in `appsettings.Development.json`; the emulator's own well-known account, not a secret). Production needs a real connection string from Key Vault and an account that allows blob public access — see `docs/deployment.md`. With none set the API refuses uploads with 503 rather than pretending. |
+| Azure Blob Storage | `Media:BlobConnectionString`, `Media:ContainerName`, `Media:PublicBaseUrl` | **Code is wired up and used.** Set it to a dev or test Azure Storage account locally; empty disables uploads (in `appsettings.Development.json`; the emulator's own well-known account, not a secret). Production needs a real connection string from Key Vault and an account that allows blob public access — see `docs/deployment.md`. With none set the API refuses uploads with 503 rather than pretending. |
 
 ### What email still needs, exactly
 

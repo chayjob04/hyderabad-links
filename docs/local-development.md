@@ -4,8 +4,8 @@
 
 1. Install Node.js 22 or later.
 2. Install the .NET SDK required by the project.
-3. Install Docker Desktop and ensure it is running.
-4. Install Git.
+3. Install Git.
+4. Have an Azure SQL database to point at. There is no local database engine and no Docker.
 
 ## Setup
 
