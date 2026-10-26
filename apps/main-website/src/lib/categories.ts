@@ -8,6 +8,42 @@ export function toSearchCategories(tree: Category[]): SearchCategory[] {
   return [...children, ...parents];
 }
 
+/**
+ * Shorter labels for the header bar only.
+ *
+ * The real names are what a category is called everywhere else — on its own page, in search, in the
+ * admin screens — and they are long on purpose ("Construction and Interiors" says more than
+ * "Interiors"). But seventeen of them, five words wide, will not share one row with a logo and an
+ * account button at any screen size, and dropping some so the rest fit hides whole sections of the
+ * directory behind "All categories".
+ *
+ * So the bar abbreviates rather than omits. Keyed by slug, so renaming a category's display name in
+ * the admin screens does not silently change what the bar says; a category with no entry here falls
+ * back to its full name, which is the right default for one that was added later.
+ */
+const NAV_SHORT_NAMES: Record<string, string> = {
+  "home-services": "Home",
+  "restaurants-and-food": "Food",
+  healthcare: "Health",
+  "beauty-and-salons": "Beauty",
+  "education-and-training": "Education",
+  automotive: "Auto",
+  "real-estate": "Property",
+  "construction-and-interiors": "Interiors",
+  "events-and-weddings": "Events",
+  "professional-services": "Professional",
+  "it-and-digital": "IT",
+  "travel-and-hotels": "Travel",
+  "business-services": "Business",
+  "fitness-and-sports": "Fitness",
+  "movers-and-transport": "Movers",
+};
+
+/** What the header bar calls this category. The full name stays available for the accessible one. */
+export function navLabel(category: { slug: string; name: string }): string {
+  return NAV_SHORT_NAMES[category.slug] ?? category.name;
+}
+
 /** Where a category's own page lives: /shopping/supermarkets-and-groceries, or /shopping. */
 export function categoryPath(category: SearchCategory): string {
   return category.parentSlug ? `/${category.parentSlug}/${category.slug}` : `/${category.slug}`;
