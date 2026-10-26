@@ -88,7 +88,7 @@ export default async function SubCategoryPage({ params, searchParams }: Props) {
   const basePath = `/${page.parent.slug}/${page.sub.slug}`;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-8">
+    <main className="mx-auto max-w-5xl px-4 pt-8 pb-16">
       <SearchBox categories={toSearchCategories(page.tree)} initialQuery={page.sub.name} />
 
       <nav aria-label="Breadcrumb" className="mt-8 text-sm text-neutral-500">

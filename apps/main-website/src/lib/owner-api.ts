@@ -164,6 +164,22 @@ export const logoutSession = (refreshToken: string) =>
 export const getMe = () => authed<OwnerProfile>("/api/v1/me");
 
 /**
+ * The signed-in owner, or null when nobody is signed in.
+ *
+ * `getMe` above redirects to sign-in when there is no usable token, which is right on an owner
+ * page and wrong in the site header: every public page would bounce a logged-out visitor to the
+ * login screen. This one answers the question instead of acting on it, and never throws — a header
+ * must render even when the API is down, so an unreachable API reads as "signed out" rather than
+ * taking the whole page with it.
+ */
+export async function getMeIfSignedIn(): Promise<OwnerProfile | null> {
+  const { access } = await readTokens();
+  if (!access) return null;
+  const result = await send<OwnerProfile>("/api/v1/me", {}, access);
+  return result.ok ? result.data : null;
+}
+
+/**
  * Reads the profile with a token passed in directly, for the moment just after sign-in when the
  * cookie has been set but we would rather not depend on reading back what we only just wrote.
  */

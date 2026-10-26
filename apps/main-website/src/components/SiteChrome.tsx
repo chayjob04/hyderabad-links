@@ -1,11 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
+import { signOutAction } from "@/app/account/actions";
 import { CategoryNav } from "@/components/CategoryNav";
+import { ProfileMenu } from "@/components/ProfileMenu";
 import { getCategories } from "@/lib/api";
-import { BRAND_NAME } from "@/lib/brand";
+import { BRAND_NAME, SOCIAL_LINKS, SUPPORT_EMAIL } from "@/lib/brand";
+import { getMeIfSignedIn } from "@/lib/owner-api";
 
 export async function SiteHeader() {
-  const tree = await getCategories();
+  // Both in one round trip. getMeIfSignedIn answers rather than redirects, so a logged-out visitor
+  // on a public page is not bounced to the login screen by the header.
+  const [tree, me] = await Promise.all([getCategories(), getMeIfSignedIn()]);
 
   return (
     <header className="sticky top-0 z-40 bg-white shadow-[0_3px_18px_#002a3410]">
@@ -68,13 +73,31 @@ export async function SiteHeader() {
           <CategoryNav tree={tree} />
         </div>
 
-        {/* Login */}
-        <Link
-          href="/login"
-          className="shrink-0 bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-brand-800 sm:px-6 sm:py-3"
-        >
-          LogIn
-        </Link>
+        {/* Signed in: the account menu. Signed out: the way in. Same spot either way, on every
+            page including the dashboard, so there is never a Login button while you are logged in. */}
+        {me ? (
+          <ProfileMenu
+            name={me.name}
+            phone={me.phone}
+            signOut={
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  className="w-full cursor-pointer rounded-lg px-3 py-2.5 text-left text-sm font-bold text-red-700 hover:bg-red-50"
+                >
+                  Logout
+                </button>
+              </form>
+            }
+          />
+        ) : (
+          <Link
+            href="/login"
+            className="shrink-0 bg-brand-700 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-brand-800 sm:px-6 sm:py-3"
+          >
+            LogIn
+          </Link>
+        )}
       </div>
     </header>
   );
@@ -83,31 +106,41 @@ export async function SiteHeader() {
 export function SiteFooter() {
   return (
     <footer className="bg-[#333] text-neutral-300">
-      <div className="relative flex min-h-[115px] flex-col items-center justify-around gap-5 bg-brand-700 px-5 py-7 text-white sm:flex-row sm:gap-6">
-        <nav className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold">
-          <Link href="/" className="hover:opacity-70">
-            Home
+      {/* The navigation that used to live here repeated the header exactly, which is the one place
+          a footer earns nothing. It carries the things a header has no room for instead: where to
+          find us, and the terms people are agreeing to. */}
+      <div className="relative flex min-h-[115px] flex-col items-center justify-center gap-4 bg-brand-700 px-5 py-7 text-white">
+        {SOCIAL_LINKS.length > 0 ? (
+          <nav aria-label="Follow us" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-bold">
+            {SOCIAL_LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:opacity-70"
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        ) : null}
+
+        <nav aria-label="Legal and help" className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold">
+          <Link href="/terms" className="hover:opacity-70">
+            Terms of use
           </Link>
 
-          <Link href="/search" className="hover:opacity-70">
-            Search
+          <Link href="/privacy" className="hover:opacity-70">
+            Privacy policy
           </Link>
 
-          <Link href="/account/listings" className="hover:opacity-70">
-            List your business
+          <Link href="/help" className="hover:opacity-70">
+            Help &amp; feedback
           </Link>
 
-          <Link href="/login" className="hover:opacity-70">
-            Owner sign in
-          </Link>
-
-          <a
-            href="https://hyderabadlinks.com/blog"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:opacity-70"
-          >
-            Blog
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:opacity-70">
+            Contact us
           </a>
         </nav>
       </div>

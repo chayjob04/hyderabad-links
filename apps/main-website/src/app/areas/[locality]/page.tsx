@@ -85,7 +85,7 @@ export default async function AreaPage({ params, searchParams }: Props) {
   const basePath = `/areas/${page.area.slug}`;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-8">
+    <main className="mx-auto max-w-5xl px-4 pt-8 pb-16">
       <SearchBox categories={toSearchCategories(page.tree)} />
 
       <h1 className="mt-8 text-2xl font-bold">

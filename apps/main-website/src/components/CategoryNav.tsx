@@ -209,7 +209,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
                   >
                     All {parent.name} &rarr;
                   </Link>
-                  <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 md:grid-cols-3 xl:grid-cols-4">
+                  <ul className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 md:grid-cols-3 xl:grid-cols-4">
                     {parent.children.map((child) => (
                       <li key={child.slug}>
                         <Link href={`/${parent.slug}/${child.slug}`} className={PANEL_LINK_CLASS}>
@@ -247,7 +247,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
           {open?.slug === ALL ? (
             <div id="category-panel-all" className={PANEL_CLASS}>
               <p className="text-xs font-black tracking-[0.18em] text-brand-700 uppercase">Browse every category</p>
-              <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 md:grid-cols-3 xl:grid-cols-4">
+              <ul className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 md:grid-cols-3 xl:grid-cols-4">
                 {tree.map((parent) => (
                   <li key={parent.slug}>
                     <Link href={`/${parent.slug}`} className={PANEL_LINK_CLASS}>

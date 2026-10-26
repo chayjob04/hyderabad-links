@@ -51,14 +51,25 @@ html {
  * small - this is a menu opening, not a flourish. The panel is centred with -translate-x-1/2, so
  * the X half of the transform has to be repeated here or it would jump sideways as it animates.
  */
+/*
+ * The panel is centred with Tailwind's `left-1/2 -translate-x-1/2`, so its horizontal position
+ * lives in `transform`. This keyframe used to animate `transform` too, which meant that for the
+ * frame before the animation took hold the panel rendered with its transform unresolved: it
+ * appeared at left: 50% -- a long way right of centre -- and then snapped into place. That is the
+ * "flashing from left to middle".
+ *
+ * Animating `top` instead leaves `transform` alone, so the centring is in force from the first
+ * painted frame. The movement is the same few pixels of rise, and it ends on the value
+ * `top-full` already sets, so nothing shifts when the animation finishes.
+ */
 @keyframes category-panel-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -0.375rem);
+    top: calc(100% - 0.375rem);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, 0);
+    top: 100%;
   }
 }
 
