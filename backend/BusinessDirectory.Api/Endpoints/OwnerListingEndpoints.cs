@@ -10,7 +10,10 @@ namespace BusinessDirectory.Api.Endpoints;
 /// <summary>
 /// A signed-in owner's own listings, under /api/v1/me/listings. Raw parameterised SQL, no ORM.
 /// Every query is scoped to the caller through business_members, so another owner's listing looks like "not found".
-/// New listings start as "draft"; the owner submits them for review. Approval (draft -> active) is an admin action (Phase 5).
+/// A listing goes to review when the owner saves it, not when they press a separate button: a
+/// complete one is created as "pending_review", and every later edit puts it back there. That means
+/// a live listing leaves the public site until a moderator approves the change -- deliberate, so
+/// nothing reaches the public that a reviewer has not seen. Only an incomplete draft stays put.
 /// </summary>
 public static class OwnerListingEndpoints
 {
@@ -151,6 +154,9 @@ public static class OwnerListingEndpoints
         }
 
         var slug = await ListingWriter.ChooseSlug(conn, tx, locality.Id, value.Name, ct);
+        var initialStatus = ListingReadiness.IsReadyForReview(value.AddressLine, value.Description)
+            ? "pending_review"
+            : "draft";
 
         long listingId;
         try
@@ -165,9 +171,12 @@ public static class OwnerListingEndpoints
                 await member.ExecuteNonQueryAsync(ct);
             }
 
-            // An owner's listing starts as a draft: they submit it for review when it is ready.
+            /* A listing goes to review the moment it is complete, without the owner having to find
+               a "submit" button. The full form asks for an address and a description, so this is
+               normally "pending_review" straight away; it stays a draft only when something the
+               reviewer needs is still missing, and the owner is told which. */
             listingId = await ListingWriter.InsertListing(
-                conn, tx, businessId, locality, slug, value, status: "draft", source: "owner", createdByUserId: userId, ct);
+                conn, tx, businessId, locality, slug, value, status: initialStatus, source: "owner", createdByUserId: userId, ct);
 
             await ListingWriter.AddPrimaryCategory(conn, tx, listingId, categoryId.Value, ct);
         }
@@ -215,12 +224,28 @@ public static class OwnerListingEndpoints
         {
             return Results.Problem("This listing is suspended. Please contact support.", statusCode: StatusCodes.Status403Forbidden);
         }
+        if (lockResult.Value.Status == "archived")
+        {
+            return Results.Problem("This listing is archived and can no longer be edited.", statusCode: StatusCodes.Status409Conflict);
+        }
 
         // The area (and so the URL) cannot be changed here; it is ignored on edit.
         var validation = ListingValidator.Validate(input, requireLocality: false, fallbackPhone: ownerPhone);
         if (validation.Value is not { } value)
         {
             return Results.ValidationProblem(validation.Errors);
+        }
+
+        /* Every edit goes back through review, so what an owner changes is seen before the public
+           sees it. A draft that is still incomplete simply stays a draft -- saving progress must
+           keep working -- but a listing that has already been reviewed may not be saved into an
+           incomplete state: that would drop a live business off the site over a cleared
+           description, which is a worse answer than refusing the save and saying what is missing. */
+        var missing = ListingReadiness.MissingForReview(value.AddressLine, value.Description);
+        var wasDraft = lockResult.Value.Status == "draft";
+        if (missing.Count > 0 && !wasDraft)
+        {
+            return Results.ValidationProblem(missing);
         }
 
         var categoryId = await ListingWriter.FindCategoryId(conn, tx, value.CategorySlug, ct);
@@ -231,6 +256,21 @@ public static class OwnerListingEndpoints
 
         await ListingWriter.UpdateListing(conn, tx, id, value, lockResult.Value.Latitude, lockResult.Value.Longitude, ct);
         await ListingWriter.SetPrimaryCategory(conn, tx, id, categoryId.Value, ct);
+
+        /* Back into the queue. A live listing leaves the public site until a moderator approves it
+           again -- that is the point of re-reviewing an edit, not a side effect -- and the old
+           rejection note goes with the old version, exactly as the submit path has always done.
+           An incomplete draft is the one case that stays put, with nothing queued. */
+        var newStatus = missing.Count > 0 ? "draft" : "pending_review";
+        await using (var requeue = new SqlCommand(
+            @"UPDATE listings
+              SET status = @status, review_note = NULL, updated_at = SYSDATETIMEOFFSET()
+              WHERE id = @id", conn, tx))
+        {
+            requeue.Parameters.AddWithValue("id", id);
+            requeue.Parameters.Add(new SqlParameter("status", SqlDbType.VarChar) { Value = newStatus });
+            await requeue.ExecuteNonQueryAsync(ct);
+        }
 
         await WriteAudit(conn, tx, userId, "listing.updated", id, http, ct);
         var dto = await LoadOwned(conn, tx, userId, id, ct);
@@ -270,16 +310,9 @@ public static class OwnerListingEndpoints
             return Results.NotFound();
         }
 
-        // What a listing needs before a reviewer sees it.
-        var missing = new Dictionary<string, string[]>();
-        if (string.IsNullOrWhiteSpace(listing.AddressLine))
-        {
-            missing["addressLine"] = ["Add the business address before submitting."];
-        }
-        if (listing.Description is null || listing.Description.Length < 20)
-        {
-            missing["description"] = ["Add a short description (at least 20 characters) before submitting."];
-        }
+        /* The same rule creating and editing use. This endpoint is still here for a draft made
+           before saving started queueing automatically, and for anything that calls it directly. */
+        var missing = ListingReadiness.MissingForReview(listing.AddressLine, listing.Description);
         if (missing.Count > 0)
         {
             return Results.ValidationProblem(missing);

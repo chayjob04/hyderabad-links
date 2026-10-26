@@ -65,8 +65,8 @@ export default async function MyListingsPage({ searchParams }: Props) {
             <span aria-hidden="true">&#10003;</span> Your account is ready.
           </p>
           <p className="mt-1 text-sm text-muted">
-            We saved your business below as a draft. Add the address and a description, then submit
-            it for review to go live.
+            We saved your business below. Add the address and a description, and saving will send
+            it to us for review — there is no separate button to press.
           </p>
         </div>
       ) : null}
@@ -131,7 +131,7 @@ export default async function MyListingsPage({ searchParams }: Props) {
                     href={`/account/listings/${listing.id}/edit`}
                     className="rounded-full border border-brand-200 px-5 py-2 text-sm font-bold text-brand-700 hover:border-brand-700 hover:bg-brand-50"
                   >
-                    {listing.status === "draft" || listing.status === "rejected" ? "Edit and submit" : "Edit"}
+                    {listing.status === "draft" || listing.status === "rejected" ? "Finish and send for review" : "Edit"}
                   </Link>
                   {listing.status === "active" ? (
                     <Link href={listing.url} className="text-sm font-black text-brand-700 hover:underline">

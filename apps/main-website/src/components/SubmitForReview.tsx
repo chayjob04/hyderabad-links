@@ -12,10 +12,10 @@ export function SubmitForReview({ listingId }: { listingId: number }) {
 
   return (
     <form action={formAction} className="rounded-2xl border border-brand-200 bg-brand-50 p-6">
-      <h2 className="text-lg font-black text-brand-800">Ready to go live?</h2>
+      <h2 className="text-lg font-black text-brand-800">Not sent for review yet</h2>
       <p className="mt-1.5 text-sm text-muted">
-        Save your changes first: submitting sends the last saved version. We will check it, and it
-        will appear on the site once approved.
+        Saving this listing sends it to us automatically once it has everything we need. It is still
+        missing something — press below and we will tell you what.
       </p>
       {state.message ? (
         <p
@@ -30,7 +30,7 @@ export function SubmitForReview({ listingId }: { listingId: number }) {
         disabled={pending}
         className="mt-4 cursor-pointer rounded-full bg-brand-700 px-6 py-3 text-sm font-extrabold text-white hover:bg-brand-800 disabled:cursor-default disabled:opacity-60"
       >
-        {pending ? "Submitting..." : "Submit for review"}
+        {pending ? "Checking..." : "Check what is missing"}
       </button>
     </form>
   );

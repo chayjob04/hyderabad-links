@@ -142,7 +142,12 @@ public static class OwnerOnboardingEndpoints
                 await member.ExecuteNonQueryAsync(ct);
             }
 
-            // Draft, exactly like any other listing an owner creates: they submit it when it is ready.
+            /* A draft, and it has to be: onboarding asks for a business name, an area and a
+               category, and nothing else — look at the AddressLine: null and Description: null
+               above. A reviewer needs both, so queueing this now would put a listing with a blank
+               address in front of a moderator whose only honest answer is to reject it.
+               It queues itself the moment the owner saves those two fields, in
+               OwnerListingEndpoints.Update; they never press a submit button. */
             listingId = await ListingWriter.InsertListing(
                 conn, tx, businessId, locality, slug, validListing,
                 status: "draft", source: "owner", createdByUserId: userId, ct);

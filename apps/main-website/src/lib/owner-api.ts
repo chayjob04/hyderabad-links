@@ -490,13 +490,13 @@ export async function uploadListingMedia(
 export function describeStatus(status: string): { label: string; tone: "grey" | "amber" | "green" | "red"; help: string } {
   switch (status) {
     case "draft":
-      return { label: "Draft", tone: "grey", help: "Only you can see this. Add the address and a description, then submit it for review." };
+      return { label: "Draft", tone: "grey", help: "Only you can see this. Add the address and a description, and saving will send it for review." };
     case "pending_review":
       return { label: "In review", tone: "amber", help: "We are checking your listing. It will appear on the site once approved." };
     case "active":
-      return { label: "Live", tone: "green", help: "Visible to everyone on the site." };
+      return { label: "Live", tone: "green", help: "Visible to everyone on the site. Editing it sends it back for review, so it comes off the site until we approve the change." };
     case "rejected":
-      return { label: "Needs changes", tone: "red", help: "We could not publish it as it is. Make the change below, then submit it again." };
+      return { label: "Needs changes", tone: "red", help: "We could not publish it as it is. Make the change below and save; that sends it back to us." };
     case "suspended":
       return { label: "Suspended", tone: "red", help: "This listing is hidden. Please contact support." };
     default:

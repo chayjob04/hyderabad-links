@@ -32,7 +32,8 @@ export default async function EditListingPage({ params, searchParams }: Props) {
   }
 
   const listing = result.data;
-  const canSubmit = listing.status === "draft" || listing.status === "rejected";
+  // Only an unfinished draft needs this: saving re-queues everything else, rejected included.
+  const canSubmit = listing.status === "draft";
 
   return (
     <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
@@ -83,7 +84,7 @@ export default async function EditListingPage({ params, searchParams }: Props) {
           role="status"
           className="mt-5 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 text-sm text-brand-800"
         >
-          Draft saved. Add the address and a description, then submit it for review.
+          Saved. Add the address and a description, and saving again will send it for review.
         </p>
       ) : null}
 
