@@ -56,8 +56,9 @@ function toCriteria(raw: RawParams): SearchCriteria {
 
 function headingFor(criteria: SearchCriteria, categoryName: string | null, localityName: string | null): string {
   const what = criteria.q ? `"${criteria.q}"` : categoryName ?? "Businesses";
-  const where = localityName ?? (criteria.lat !== undefined ? "near you" : DEFAULT_CITY_NAME);
-  return `${what} in ${where}`.replace(" in near you", " near you");
+  // An area is a centre to measure from, so the heading reads "near X" rather than "in X".
+  if (localityName) return `${what} near ${localityName}`;
+  return criteria.lat !== undefined ? `${what} near you` : `${what} in ${DEFAULT_CITY_NAME}`;
 }
 
 /** The same search with one parameter dropped. Used by the "remove this filter" chips. */
@@ -81,22 +82,30 @@ export default async function SearchPage({ searchParams }: Props) {
   const areas = localities ?? [];
 
   /*
-   * Choosing an area orders the results by distance from it, nearest first.
+   * An area names a place to search *from*, not a fence to search inside.
    *
-   * The API will only sort by distance when it is given a point, and the form has no point to give
-   * it -- the area picker submits a slug. So the area's own centre is looked up here and passed as
-   * the point. Without this, picking an area filtered the list but left it in relevance order,
-   * which on a page about local businesses is the wrong answer: the whole reason for naming an
-   * area is wanting the closest one first.
+   * `locality` is a hard filter in the API: it returns only businesses whose own area is that one
+   * (or that list it as somewhere they serve). On a directory with a handful of listings that
+   * almost always means nothing at all -- searching Habsiguda returned no results while a
+   * supermarket sat 300m away in Sainikpuri, which is not what anybody meant by choosing an area.
    *
-   * Only when nothing else was asked for. An explicit sort, or coordinates already in the URL from
-   * "use my current location", both win: a visitor's own position beats the centre of an area, and
-   * a sort they picked themselves beats one inferred for them.
+   * So the slug is swapped for the area's own centre: the filter is dropped, every business is
+   * returned, and they are ordered by how far they are from there. The slug stays in the URL, so
+   * the picker and the "near X" chip still work and the search is still shareable.
+   *
+   * Coordinates already in the URL win -- "use my current location" is a better centre than an
+   * area someone picked -- and so does a sort the visitor chose for themselves.
    */
   const chosenArea = criteria.locality ? areas.find((area) => area.slug === criteria.locality) : undefined;
   const searchCriteria: SearchCriteria =
-    chosenArea && criteria.lat === undefined && criteria.sort === undefined
-      ? { ...criteria, lat: chosenArea.latitude, lng: chosenArea.longitude, sort: "distance" }
+    chosenArea && criteria.lat === undefined
+      ? {
+          ...criteria,
+          locality: undefined,
+          lat: chosenArea.latitude,
+          lng: chosenArea.longitude,
+          sort: criteria.sort ?? "distance",
+        }
       : criteria;
 
   let results: SearchResults | null = null;
@@ -139,15 +148,15 @@ export default async function SearchPage({ searchParams }: Props) {
   }
   if (criteria.locality) {
     filters.push({
-      kind: "Area",
+      kind: "Near",
       label: localityName ?? criteria.locality,
       removeHref: searchWithout(raw, "locality"),
     });
   }
   if (criteria.lat !== undefined) {
     filters.push({
-      kind: "Area",
-      label: "Near my location",
+      kind: "Near",
+      label: "my location",
       // Sorting by distance cannot outlive the coordinates it sorts by.
       removeHref: searchWithout(raw, "lat", "lng", "radiusKm", "sort"),
     });
@@ -201,7 +210,8 @@ export default async function SearchPage({ searchParams }: Props) {
             }
           >
             <p>
-              Try a different keyword, pick a wider category, or clear the area filter. Only approved listings appear
+              Try a different keyword or a wider category. An area only decides what comes first,
+              so it never hides anything. Only approved listings appear
               in public results.
             </p>
           </EmptyState>

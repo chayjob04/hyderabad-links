@@ -20,8 +20,16 @@ const labelClass = "block text-xs font-black tracking-[0.12em] text-muted upperc
  * the server component that renders the results). It needs no client-side JavaScript to work.
  */
 export function SearchFilters({ criteria, categories, localityName }: Props) {
-  // Sorting by distance is only offered when the URL carries coordinates, because the API rejects it otherwise.
-  const hasCoordinates = criteria.lat !== undefined && criteria.lng !== undefined;
+  /* Sorting by distance needs a point to measure from. The URL carries one after "use my current
+     location"; choosing an area gives one too, because the search page swaps the area for its own
+     centre. Either way the option belongs in the list -- offering it without a point would just
+     earn a 400 from the API. */
+  const hasOwnCoordinates = criteria.lat !== undefined && criteria.lng !== undefined;
+  const canSortByDistance = hasOwnCoordinates || criteria.locality !== undefined;
+
+  /* An area with no sort chosen is already ordered by distance, so the control has to say so.
+     Showing "Best match" over a list that is plainly nearest-first reads as a bug. */
+  const effectiveSort = criteria.sort ?? (criteria.locality !== undefined ? "distance" : "");
 
   return (
     <form
@@ -31,7 +39,7 @@ export function SearchFilters({ criteria, categories, localityName }: Props) {
     >
       {/* Changing a filter starts again at the first page. */}
       <input type="hidden" name="page" value="1" />
-      {hasCoordinates ? (
+      {hasOwnCoordinates ? (
         <>
           <input type="hidden" name="lat" value={criteria.lat} />
           <input type="hidden" name="lng" value={criteria.lng} />
@@ -104,9 +112,9 @@ export function SearchFilters({ criteria, categories, localityName }: Props) {
           <label htmlFor="search-sort" className={labelClass}>
             Sort by
           </label>
-          <select id="search-sort" name="sort" defaultValue={criteria.sort ?? ""} className={`mt-1.5 ${fieldClass}`}>
+          <select id="search-sort" name="sort" defaultValue={effectiveSort} className={`mt-1.5 ${fieldClass}`}>
             <option value="">Best match</option>
-            {hasCoordinates ? <option value="distance">Nearest first</option> : null}
+            {canSortByDistance ? <option value="distance">Nearest first</option> : null}
             <option value="name">Name (A to Z)</option>
           </select>
         </div>
