@@ -102,17 +102,33 @@ ELSE PRINT 'ok: deleting an audit row changed nothing';
 DECLARE @super int = (SELECT COUNT(*) FROM roles r
                       JOIN role_permissions rp ON rp.role_id = r.id
                       WHERE r.slug = 'super_admin');
-DECLARE @ordinary int = (SELECT COUNT(*) FROM roles r
-                         JOIN role_permissions rp ON rp.role_id = r.id
-                         WHERE r.slug = 'admin');
 DECLARE @total int = (SELECT COUNT(*) FROM permissions);
 
-IF @total <> 14
+/* The catalogue, asserted by *name* rather than by count.
+   A count has to be edited every time a permission is added, which makes a passing check a
+   statement about arithmetic rather than about the product: it fails for the one harmless reason
+   (something was added on purpose) and passes if a code is renamed or swapped for another. Listing
+   them means this fails only when the set is genuinely not what the seed defines. */
+DECLARE @expectedPermissions TABLE (code varchar(50) PRIMARY KEY);
+INSERT INTO @expectedPermissions (code)
+VALUES ('listings.view'), ('listings.create'), ('listings.edit'), ('listings.delete'),
+       ('listings.review'), ('listings.verify'), ('listings.alert'), ('listings.feature'),
+       ('reports.handle'), ('users.view'), ('taxonomy.manage'),
+       ('analytics.view'), ('data.export'), ('plans.manage'), ('admins.manage'), ('audit.view');
+
+DECLARE @missingPermissions int =
+    (SELECT COUNT(*) FROM (SELECT code FROM @expectedPermissions EXCEPT SELECT code FROM permissions) AS m);
+DECLARE @unexpectedPermissions int =
+    (SELECT COUNT(*) FROM (SELECT code FROM permissions EXCEPT SELECT code FROM @expectedPermissions) AS u);
+
+IF @missingPermissions <> 0 OR @unexpectedPermissions <> 0
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: expected 14 permissions, found ' + CAST(@total AS varchar(10));
+    PRINT 'FAIL: the permission catalogue is wrong: '
+          + CAST(@missingPermissions AS varchar(10)) + ' missing, '
+          + CAST(@unexpectedPermissions AS varchar(10)) + ' unexpected';
 END
-ELSE PRINT 'ok: 14 permissions exist';
+ELSE PRINT 'ok: the catalogue is exactly the ' + CAST(@total AS varchar(10)) + ' codes the seed defines';
 
 /* Against @total rather than a number of its own: "super_admin holds everything there is" is the
    actual rule (R003 grants it by CROSS JOIN), and writing it this way means adding a permission
@@ -124,47 +140,51 @@ BEGIN
 END
 ELSE PRINT 'ok: super_admin holds every permission';
 
-/* The admin role is asserted by *name*, not by count. A count passes when one grant is swapped for
-   another, and the swap that matters here is exactly the one S0014 made: an admin must not hold
-   listings.create, listings.edit or listings.delete, whatever the total happens to be. */
+/* The admin role, by name, with the two kinds of difference counted separately.
+   A count alone passes when one grant is swapped for another, and the swap that matters is exactly
+   the one S0014 made: an admin must not hold listings.create, edit or delete, whatever the total
+   happens to be. S0017 adds listings.alert and withholds listings.feature on the same principle.
+
+   Written as two counts rather than one EXCEPT ... UNION ALL ... EXCEPT chain. SQL Server evaluates
+   those left to right, so the chain reduced to "which expected grants are missing" and would not
+   have noticed an *extra* one -- which is the half this check exists for. */
 DECLARE @expectedAdmin TABLE (code varchar(50) PRIMARY KEY);
 INSERT INTO @expectedAdmin (code)
-VALUES ('listings.view'), ('listings.review'), ('listings.verify'),
+VALUES ('listings.view'), ('listings.review'), ('listings.verify'), ('listings.alert'),
        ('reports.handle'), ('users.view'), ('taxonomy.manage');
 
-DECLARE @wrongAdminGrants int = (
-    SELECT COUNT(*) FROM (
-        SELECT p.code
-        FROM roles r
-        JOIN role_permissions rp ON rp.role_id = r.id
-        JOIN permissions p ON p.id = rp.permission_id
-        WHERE r.slug = 'admin'
-        EXCEPT SELECT code FROM @expectedAdmin
-        UNION ALL
-        SELECT code FROM @expectedAdmin
-        EXCEPT
-        SELECT p.code
-        FROM roles r
-        JOIN role_permissions rp ON rp.role_id = r.id
-        JOIN permissions p ON p.id = rp.permission_id
-        WHERE r.slug = 'admin'
-    ) AS difference);
+DECLARE @adminGrants TABLE (code varchar(50) PRIMARY KEY);
+INSERT INTO @adminGrants (code)
+SELECT p.code
+FROM roles r
+JOIN role_permissions rp ON rp.role_id = r.id
+JOIN permissions p ON p.id = rp.permission_id
+WHERE r.slug = 'admin';
 
-IF @wrongAdminGrants <> 0
+DECLARE @adminMissing int =
+    (SELECT COUNT(*) FROM (SELECT code FROM @expectedAdmin EXCEPT SELECT code FROM @adminGrants) AS m);
+DECLARE @adminExtra int =
+    (SELECT COUNT(*) FROM (SELECT code FROM @adminGrants EXCEPT SELECT code FROM @expectedAdmin) AS e);
+
+IF @adminMissing <> 0 OR @adminExtra <> 0
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: the admin role grants differ from the expected set in '
-          + CAST(@wrongAdminGrants AS varchar(10)) + ' place(s); writing listings must not be among them';
+    PRINT 'FAIL: the admin role grants differ from the expected set: '
+          + CAST(@adminMissing AS varchar(10)) + ' missing, '
+          + CAST(@adminExtra AS varchar(10))
+          + ' extra; writing, deleting or featuring a listing must not be among them';
 END
-ELSE PRINT 'ok: admin holds the six day-to-day permissions and no listing-writing one';
+ELSE PRINT 'ok: admin holds the seven day-to-day permissions, and neither writes nor features a listing';
 
--- 8. The five super-admin-only permissions are not reachable through the ordinary admin role.
+-- 8. The super-admin-only permissions are not reachable through the ordinary admin role. Named
+-- here as well as being absent from the set above, so the one hole that matters is stated twice.
 DECLARE @leaked int = (
     SELECT COUNT(*) FROM roles r
     JOIN role_permissions rp ON rp.role_id = r.id
     JOIN permissions p ON p.id = rp.permission_id
     WHERE r.slug = 'admin'
-      AND p.code IN ('admins.manage', 'plans.manage', 'audit.view', 'analytics.view', 'data.export'));
+      AND p.code IN ('admins.manage', 'plans.manage', 'audit.view', 'analytics.view', 'data.export',
+                     'listings.create', 'listings.edit', 'listings.delete', 'listings.feature'));
 IF @leaked <> 0
 BEGIN
     SET @failed = @failed + 1;
