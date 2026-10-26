@@ -109,7 +109,7 @@ export async function toggleFavouriteAction(
   }
 
   // The listing page shows the pressed state, so it has to be re-rendered.
-  revalidatePath(`/${target.city}/${target.locality}`, "layout");
+  revalidatePath(`/areas/${target.locality}`, "layout");
   revalidatePath("/account/favourites");
   return { saved: !currentlySaved };
 }

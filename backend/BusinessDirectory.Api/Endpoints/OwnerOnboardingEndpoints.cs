@@ -131,7 +131,7 @@ public static class OwnerOnboardingEndpoints
         long listingId;
         try
         {
-            var slug = await ListingWriter.ChooseSlug(conn, tx, locality.Id, validListing.Name, ct);
+            var slug = await ListingWriter.ChooseSlug(conn, tx, validListing.Name, ct);
             var businessId = await ListingWriter.InsertBusiness(conn, tx, validListing.Name, ct);
 
             await using (var member = new SqlCommand(

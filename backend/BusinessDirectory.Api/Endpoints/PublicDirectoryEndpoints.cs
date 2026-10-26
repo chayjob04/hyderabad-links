@@ -93,7 +93,7 @@ public static class PublicDirectoryEndpoints
         group.MapGet("/localities/nearest", GetNearestLocality);
         group.MapGet("/categories", GetCategories);
         group.MapGet("/listings/nearby", GetNearby);
-        group.MapGet("/listings/{citySlug}/{localitySlug}/{slug}", GetListing);
+        group.MapGet("/listings/{parentCategorySlug}/{categorySlug}/{slug}", GetListing);
         return group;
     }
 
@@ -295,7 +295,8 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
 
         await using var command = db.CreateCommand(
             @"SELECT TOP (@max) li.slug, li.name, ci.slug, lo.slug, lo.name, pc.slug, pc.name,
-                     li.location.STDistance(p.pt), li.address_line, li.phone_primary, li.phone_whatsapp
+                     li.location.STDistance(p.pt), li.address_line, li.phone_primary, li.phone_whatsapp,
+                     pcparent.slug AS parent_category_slug
               FROM (SELECT geography::Point(@lat, @lng, 4326) AS pt) p
               -- ST_DWithin(a, b, r) meant within r metres, which is a plain distance comparison
               -- here. The spatial index is still used: SQL Server recognises STDistance() <= value.
@@ -304,6 +305,9 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
               JOIN cities ci ON ci.id = lo.city_id
               JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               JOIN categories pc ON pc.id = lc.category_id
+              -- The parent of the primary category, because a public path starts with it. Inner,
+              -- not left: a listing with no parent category has no page to point a card at.
+              JOIN categories pcparent ON pcparent.id = pc.parent_id
               WHERE (@cat IS NULL OR EXISTS (
                         SELECT 1
                         FROM listing_categories x
@@ -337,13 +341,21 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
                 reader.IsDBNull(8) ? null : reader.GetString(8),
                 reader.GetString(9),
                 reader.IsDBNull(10) ? null : reader.GetString(10),
-                $"/{citySlug}/{localitySlug}/{categorySlug}/{slug}"));
+                PublicUrl.ForListing(reader.GetString(11), categorySlug, slug)!));
         }
         return Results.Ok(results);
     }
 
+    /// <summary>
+    /// One listing, addressed as /parent-category/category/slug.
+    ///
+    /// The slug alone identifies it — S0015 made that unique across the whole directory — so the
+    /// two category segments are verified rather than searched on. That is deliberate: a listing
+    /// refiled under a different category is still found, and the caller is told the path it
+    /// should be using instead of getting a 404 for a page that exists.
+    /// </summary>
     private static async Task<IResult> GetListing(
-        string citySlug, string localitySlug, string slug, SqlDatabase db, IMediaStorage storage, CancellationToken ct)
+        string parentCategorySlug, string categorySlug, string slug, SqlDatabase db, IMediaStorage storage, CancellationToken ct)
     {
         await using var command = db.CreateCommand(
             @"SELECT li.slug, li.name, li.description, li.address_line, li.pincode, li.phone_primary, li.phone_whatsapp,
@@ -351,16 +363,16 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
                      ci.slug, ci.name, lo.slug, lo.name, pc.slug, pc.name, li.id,
                      -- The badge comes from the entitlement view, never from li.plan_slug: that
                      -- column says what was bought, the view says what is still paid for.
-                     e.is_verified
+                     e.is_verified,
+                     pcparent.slug AS parent_category_slug
               FROM listings li
               JOIN dbo.listing_entitlements e ON e.listing_id = li.id
               JOIN localities lo ON lo.id = li.locality_id
               JOIN cities ci ON ci.id = lo.city_id
               JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               JOIN categories pc ON pc.id = lc.category_id
-              WHERE ci.slug = @city AND lo.slug = @locality AND li.slug = @slug AND li.status = 'active'");
-        command.Parameters.AddWithValue("city", citySlug);
-        command.Parameters.AddWithValue("locality", localitySlug);
+              JOIN categories pcparent ON pcparent.id = pc.parent_id
+              WHERE li.slug = @slug AND li.status = 'active'");
         command.Parameters.AddWithValue("slug", slug);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -369,9 +381,20 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
             return Results.NotFound();
         }
 
-        var categorySlug = reader.GetString(14);
+        var actualCategorySlug = reader.GetString(14);
         var listingId = reader.GetInt64(16);
         var isVerified = reader.GetBoolean(17);
+        var actualParentSlug = reader.GetString(18);
+
+        /* The slug found a listing; the path has to agree before it is served. Answering on the
+           wrong category path would give one listing two live URLs, which is the duplicate-content
+           problem canonical tags exist to clean up after. 404 here, and the website turns it into
+           a redirect to the right path using the Url on the DTO it gets from the correct one. */
+        if (!string.Equals(actualCategorySlug, categorySlug, StringComparison.Ordinal) ||
+            !string.Equals(actualParentSlug, parentCategorySlug, StringComparison.Ordinal))
+        {
+            return Results.NotFound();
+        }
 
         // Read the media before the DTO is built, while this reader is still open: it runs on its own
         // connection from the pool, so the two queries do not get in each other's way.
@@ -396,9 +419,9 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
             reader.GetString(11),
             reader.GetString(12),
             reader.GetString(13),
-            categorySlug,
+            actualCategorySlug,
             reader.GetString(15),
-            $"/{reader.GetString(10)}/{reader.GetString(12)}/{categorySlug}/{reader.GetString(0)}",
+            PublicUrl.ForListing(actualParentSlug, actualCategorySlug, reader.GetString(0))!,
             media,
             isVerified,
             links));

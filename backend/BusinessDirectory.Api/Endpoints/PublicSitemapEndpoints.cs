@@ -1,4 +1,5 @@
 using BusinessDirectory.Api.Data;
+using BusinessDirectory.Api.Listings;
 using Microsoft.Data.SqlClient;
 
 namespace BusinessDirectory.Api.Endpoints;
@@ -46,7 +47,7 @@ public static class PublicSitemapEndpoints
             /* TOP (@limit) rather than LIMIT, and a CASE rather than GREATEST, which SQL Server
                does not have. published_at is null until a listing first goes live, and the CASE
                keeps the "whichever is later" meaning including that case. */
-            @"SELECT TOP (@limit) ci.slug, lo.slug, pc.slug, li.slug,
+            @"SELECT TOP (@limit) pcparent.slug, pc.slug, li.slug,
                      CASE WHEN li.published_at IS NULL OR li.updated_at > li.published_at
                           THEN li.updated_at ELSE li.published_at END
               FROM listings li
@@ -54,6 +55,7 @@ public static class PublicSitemapEndpoints
               JOIN cities ci ON ci.id = lo.city_id
               JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               JOIN categories pc ON pc.id = lc.category_id
+              JOIN categories pcparent ON pcparent.id = pc.parent_id
               WHERE li.status = 'active'
               ORDER BY li.updated_at DESC"))
         {
@@ -63,8 +65,8 @@ public static class PublicSitemapEndpoints
             while (await reader.ReadAsync(ct))
             {
                 listings.Add(new SitemapEntryDto(
-                    $"/{reader.GetString(0)}/{reader.GetString(1)}/{reader.GetString(2)}/{reader.GetString(3)}",
-                    reader.IsDBNull(4) ? null : reader.GetFieldValue<DateTimeOffset>(4)));
+                    PublicUrl.ForListing(reader.GetString(0), reader.GetString(1), reader.GetString(2))!,
+                    reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3)));
             }
         }
 
@@ -74,38 +76,47 @@ public static class PublicSitemapEndpoints
             listings.RemoveAt(listings.Count - 1);
         }
 
-        // A locality + category page only exists meaningfully where there is something to show on it,
+        // An area + category page only exists meaningfully where there is something to show on it,
         // so the pairs come from the live listings themselves rather than from every possible
         // combination of 103 areas and 134 categories, which would be thin pages by the thousand.
         var localities = new List<SitemapEntryDto>();
         await using (var command = db.CreateCommand(
-            @"SELECT DISTINCT ci.slug, lo.slug, pc.slug
+            @"SELECT DISTINCT lo.slug, pc.slug
               FROM listings li
               JOIN localities lo ON lo.id = li.locality_id
               JOIN cities ci ON ci.id = lo.city_id
               JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               JOIN categories pc ON pc.id = lc.category_id
               WHERE li.status = 'active'
-              ORDER BY ci.slug, lo.slug, pc.slug"))
+              ORDER BY lo.slug, pc.slug"))
         {
             await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
                 localities.Add(new SitemapEntryDto(
-                    $"/{reader.GetString(0)}/{reader.GetString(1)}/{reader.GetString(2)}",
+                    PublicUrl.ForAreaCategory(reader.GetString(0), reader.GetString(1)),
                     null));
             }
         }
 
-        // Category search pages. Every seeded category is a real page with a real filter behind it.
+        /* Category pages. Both levels are real pages: /food lists its subcategories, /food/cafes
+           lists businesses. They used to be /search?category=..., which search engines treat as one
+           page with a parameter rather than as a page each. */
         var categories = new List<SitemapEntryDto>();
         await using (var command = db.CreateCommand(
-            "SELECT slug FROM categories WHERE is_active = 1 ORDER BY slug"))
+            @"SELECT c.level, p.slug, c.slug
+              FROM categories c
+              LEFT JOIN categories p ON p.id = c.parent_id
+              WHERE c.is_active = 1 AND (c.level = 1 OR p.is_active = 1)
+              ORDER BY c.level, c.slug"))
         {
             await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                categories.Add(new SitemapEntryDto($"/search?category={reader.GetString(0)}", null));
+                var path = reader.GetInt16(0) == 1
+                    ? PublicUrl.ForTopCategory(reader.GetString(2))
+                    : PublicUrl.ForCategory(reader.GetString(1), reader.GetString(2));
+                categories.Add(new SitemapEntryDto(path, null));
             }
         }
 

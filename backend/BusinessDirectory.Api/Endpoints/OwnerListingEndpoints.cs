@@ -45,13 +45,16 @@ public static class OwnerListingEndpoints
     private const string OwnedListingSelect =
         @"SELECT li.id, li.slug, li.name, li.description, li.address_line, li.pincode, li.phone_primary, li.phone_whatsapp,
                  li.website_url, li.location.Lat, li.location.Long,
-                 ci.slug, lo.slug, lo.name, pc.slug, pc.name, li.status, li.review_note, li.reviewed_at
+                 ci.slug, lo.slug, lo.name, pc.slug, pc.name, li.status, li.review_note, li.reviewed_at,
+                 pcparent.slug AS parent_category_slug
           FROM listings li
           JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
           JOIN localities lo ON lo.id = li.locality_id
           JOIN cities ci ON ci.id = lo.city_id
           JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
           JOIN categories pc ON pc.id = lc.category_id
+          -- A public path is /parent/category/slug, so the parent travels with every listing.
+          JOIN categories pcparent ON pcparent.id = pc.parent_id
           WHERE li.status <> 'archived'";
 
     public static RouteGroupBuilder MapOwnerListingEndpoints(this RouteGroupBuilder me)
@@ -153,7 +156,7 @@ public static class OwnerListingEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["categorySlug"] = ["Unknown category."] });
         }
 
-        var slug = await ListingWriter.ChooseSlug(conn, tx, locality.Id, value.Name, ct);
+        var slug = await ListingWriter.ChooseSlug(conn, tx, value.Name, ct);
         var initialStatus = ListingReadiness.IsReadyForReview(value.AddressLine, value.Description)
             ? "pending_review"
             : "draft";
@@ -359,7 +362,7 @@ public static class OwnerListingEndpoints
             r.GetString(16),
             r.IsDBNull(17) ? null : r.GetString(17),
             r.IsDBNull(18) ? null : r.GetFieldValue<DateTimeOffset>(18),
-            $"/{city}/{locality}/{category}/{slug}");
+            PublicUrl.ForListing(r.GetString(19), category, slug)!);
     }
 
     private static async Task<OwnerListingDto?> LoadOwned(SqlConnection conn, SqlTransaction? tx, long userId, long listingId, CancellationToken ct)

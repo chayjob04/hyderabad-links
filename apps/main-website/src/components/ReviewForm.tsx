@@ -3,8 +3,8 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Field, describedBy, fieldClass } from "@/components/ui/Field";
-import { submitReviewAction } from "@/app/[city]/[locality]/[category]/[slug]/actions";
-import { emptyReviewState } from "@/app/[city]/[locality]/[category]/[slug]/review-state";
+import { submitReviewAction } from "@/app/[category]/[subcategory]/[slug]/actions";
+import { emptyReviewState } from "@/app/[category]/[subcategory]/[slug]/review-state";
 
 function SubmitButton() {
   const { pending } = useFormStatus();

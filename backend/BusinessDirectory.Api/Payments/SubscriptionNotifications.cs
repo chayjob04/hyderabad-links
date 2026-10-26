@@ -1,4 +1,5 @@
 using BusinessDirectory.Api.Notifications;
+using BusinessDirectory.Api.Listings;
 using Microsoft.Data.SqlClient;
 
 namespace BusinessDirectory.Api.Payments;
@@ -98,7 +99,7 @@ public static class SubscriptionNotifications
         SqlConnection conn, long listingId, string planSlug, CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            @"SELECT b.name, p.name, ci.slug, lo.slug, pc.slug, li.slug
+            @"SELECT b.name, p.name, ci.slug, lo.slug, pc.slug, li.slug, pcparent.slug
               FROM dbo.listings li
               JOIN dbo.businesses b ON b.id = li.business_id
               JOIN dbo.localities lo ON lo.id = li.locality_id
@@ -106,6 +107,7 @@ public static class SubscriptionNotifications
               JOIN dbo.plans p ON p.slug = @plan
               LEFT JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
+              LEFT JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
               WHERE li.id = @listing", conn);
         command.Parameters.AddWithValue("listing", listingId);
         command.Parameters.AddWithValue("plan", planSlug);
@@ -117,9 +119,8 @@ public static class SubscriptionNotifications
         }
 
         var category = await reader.IsDBNullAsync(4, ct) ? null : reader.GetString(4);
-        var path = category is null
-            ? null
-            : $"/{reader.GetString(2)}/{reader.GetString(3)}/{category}/{reader.GetString(5)}";
+        var parent = await reader.IsDBNullAsync(6, ct) ? null : reader.GetString(6);
+        var path = PublicUrl.ForListing(parent, category, reader.GetString(5));
 
         return new Details(reader.GetString(0), reader.GetString(1), path);
     }

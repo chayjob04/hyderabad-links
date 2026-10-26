@@ -252,7 +252,17 @@ export async function reportListing(
   return { ok: false, message, fieldErrors };
 }
 
-export async function getListing(citySlug: string, localitySlug: string, slug: string): Promise<ListingDetail | null> {
-  const path = [citySlug, localitySlug, slug].map(encodeURIComponent).join("/");
+/**
+ * One listing, addressed the way its public URL reads: /food/cafes/garden-cafe.
+ *
+ * The API finds it by slug alone (unique since S0015) and then checks the two category segments,
+ * so a wrong pair is a 404 rather than a second URL for the same page.
+ */
+export async function getListing(
+  parentCategorySlug: string,
+  categorySlug: string,
+  slug: string,
+): Promise<ListingDetail | null> {
+  const path = [parentCategorySlug, categorySlug, slug].map(encodeURIComponent).join("/");
   return getJson<ListingDetail>(`/api/v1/public/listings/${path}`, 60);
 }

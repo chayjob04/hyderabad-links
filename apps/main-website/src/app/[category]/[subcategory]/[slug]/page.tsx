@@ -15,11 +15,11 @@ import { readTokens } from "@/lib/session";
 import { absoluteUrl, mapsHref, telHref, whatsappHref } from "@/lib/format";
 import type { ListingDetail } from "@/lib/types";
 
-type Props = { params: Promise<{ city: string; locality: string; category: string; slug: string }> };
+type Props = { params: Promise<{ category: string; subcategory: string; slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { city, locality, slug } = await params;
-  const listing = await getListing(city, locality, slug);
+  const { category, subcategory, slug } = await params;
+  const listing = await getListing(category, subcategory, slug);
   if (!listing) return { title: "Not found", robots: { index: false } };
   return {
     title: `${listing.name} - ${listing.categoryName} in ${listing.localityName}, ${listing.cityName}`,
@@ -91,9 +91,15 @@ function factsFor(listing: ListingDetail): { label: string; value: React.ReactNo
 }
 
 export default async function ListingPage({ params }: Props) {
-  const { city, locality, category, slug } = await params;
-  const listing = await getListing(city, locality, slug);
+  const { category, subcategory, slug } = await params;
+  const listing = await getListing(category, subcategory, slug);
   if (!listing) notFound();
+
+  /* The area is no longer in the URL, but reviews, enquiries and reports still address a listing
+     by city + locality + slug on the API. Those come from the listing itself now rather than from
+     the path, which is better anyway: they are what the database says, not what someone typed. */
+  const city = listing.citySlug;
+  const locality = listing.localitySlug;
 
   // Reviews are public, so they are fetched for everyone. Whether this visitor can *write* one
   // depends on a session cookie: readTokens() just reads it, unlike the owner helpers, which
@@ -112,7 +118,7 @@ export default async function ListingPage({ params }: Props) {
   // The category in the URL must be the listing's primary category, otherwise 301 to the canonical URL (decision D4).
   if (category !== listing.categorySlug) permanentRedirect(listing.url);
 
-  const categoryPage = `/${listing.citySlug}/${listing.localitySlug}/${listing.categorySlug}`;
+  const categoryPage = `/${category}/${subcategory}`;
   const facts = factsFor(listing);
   // An older listing has no media at all; a plan may also allow none. Both read as an empty list.
   const media = listing.media ?? [];
@@ -135,7 +141,7 @@ export default async function ListingPage({ params }: Props) {
           </li>
           <li aria-hidden="true">&rsaquo;</li>
           <li>
-            <Link href={`/search?locality=${listing.localitySlug}`} className="font-bold text-brand-700 hover:underline">
+            <Link href={`/areas/${listing.localitySlug}`} className="font-bold text-brand-700 hover:underline">
               {listing.localityName}
             </Link>
           </li>
@@ -230,7 +236,7 @@ export default async function ListingPage({ params }: Props) {
             slug={slug}
             saved={saved}
             signedIn={signedIn}
-            signInHref={`/login?next=${encodeURIComponent(`/${city}/${locality}/${category}/${slug}`)}`}
+            signInHref={`/login?next=${encodeURIComponent(`/${category}/${subcategory}/${slug}`)}`}
           />
         </div>
 
@@ -281,7 +287,7 @@ export default async function ListingPage({ params }: Props) {
         summary={reviews}
         businessName={listing.name}
         signedIn={signedIn}
-        writeHref={`/login?next=${encodeURIComponent(`/${city}/${locality}/${category}/${slug}`)}`}
+        writeHref={`/login?next=${encodeURIComponent(`/${category}/${subcategory}/${slug}`)}`}
       >
         <ReviewForm city={city} locality={locality} slug={slug} />
       </Reviews>

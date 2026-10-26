@@ -89,13 +89,21 @@ public static class AdminListingEndpoints
                  ci.slug, lo.slug, lo.name, pc.slug, pc.name,
                  u.phone_e164, li.created_at, li.updated_at, li.published_at,
                  li.review_note, li.reviewed_at, ra.display_name,
-                 e.is_verified, e.paid_until
+                 e.is_verified, e.paid_until,
+                 -- Appended rather than placed beside pc.slug where it belongs logically: this
+                 -- result set is read by position, and inserting a column in the middle silently
+                 -- shifts every index after it.
+                 pcparent.slug AS parent_category_slug
           FROM listings li
           JOIN dbo.listing_entitlements e ON e.listing_id = li.id
           JOIN localities lo ON lo.id = li.locality_id
           JOIN cities ci ON ci.id = lo.city_id
           LEFT JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
           LEFT JOIN categories pc ON pc.id = lc.category_id
+          -- Left, unlike the public queries: a listing with no category still has to reach a
+          -- reviewer, and a missing category is exactly the kind of thing to reject it for. It
+          -- simply has no public URL until one is set.
+          LEFT JOIN categories pcparent ON pcparent.id = pc.parent_id
           LEFT JOIN users u ON u.id = li.created_by_user_id
           LEFT JOIN admin_users ra ON ra.id = li.reviewed_by_admin_id
           WHERE li.id = @id";
@@ -503,7 +511,7 @@ public static class AdminListingEndpoints
             reader.IsDBNull(22) ? null : reader.GetString(22),
             reader.IsDBNull(23) ? null : reader.GetFieldValue<DateTimeOffset>(23),
             reader.IsDBNull(24) ? null : reader.GetString(24),
-            category is null ? null : $"/{city}/{locality}/{category}/{slug}",
+            PublicUrl.ForListing(reader.IsDBNull(27) ? null : reader.GetString(27), category, slug),
             reader.GetBoolean(25),
             reader.IsDBNull(26) ? null : reader.GetFieldValue<DateTimeOffset>(26));
     }

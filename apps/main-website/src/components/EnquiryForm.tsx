@@ -3,8 +3,8 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Field, describedBy, fieldClass } from "@/components/ui/Field";
-import { sendEnquiryAction } from "@/app/[city]/[locality]/[category]/[slug]/actions";
-import { emptyEnquiryState } from "@/app/[city]/[locality]/[category]/[slug]/enquiry-state";
+import { sendEnquiryAction } from "@/app/[category]/[subcategory]/[slug]/actions";
+import { emptyEnquiryState } from "@/app/[category]/[subcategory]/[slug]/enquiry-state";
 
 function SendButton() {
   const { pending } = useFormStatus();

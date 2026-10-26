@@ -10,7 +10,7 @@ import type { Category } from "@/lib/types";
  *
  * On a wide screen each parent category is a disclosure button that opens a mega-menu panel of its
  * sub-categories; on a narrow one the same tree stacks behind the ☰ toggle. Every entry is a real
- * link into `/search?category={slug}`, including the parent itself ("All <parent>"), because the
+ * link into its own page -- `/food` for the parent, `/food/cafes` for a child -- because the
  * API already treats a parent slug as matching its sub-categories.
  *
  * The buttons are disclosures rather than links so that a keyboard user can reach the
@@ -204,7 +204,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
               {isOpen ? (
                 <div id={panelId} className={PANEL_CLASS}>
                   <Link
-                    href={`/search?category=${parent.slug}`}
+                    href={`/${parent.slug}`}
                     className="text-xs font-black tracking-[0.18em] text-brand-700 uppercase hover:underline"
                   >
                     All {parent.name} &rarr;
@@ -212,7 +212,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
                   <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 md:grid-cols-3 xl:grid-cols-4">
                     {parent.children.map((child) => (
                       <li key={child.slug}>
-                        <Link href={`/search?category=${child.slug}`} className={PANEL_LINK_CLASS}>
+                        <Link href={`/${parent.slug}/${child.slug}`} className={PANEL_LINK_CLASS}>
                           {child.name}
                         </Link>
                       </li>
@@ -250,7 +250,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
               <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 md:grid-cols-3 xl:grid-cols-4">
                 {tree.map((parent) => (
                   <li key={parent.slug}>
-                    <Link href={`/search?category=${parent.slug}`} className={PANEL_LINK_CLASS}>
+                    <Link href={`/${parent.slug}`} className={PANEL_LINK_CLASS}>
                       {parent.name}
                     </Link>
                   </li>
@@ -300,7 +300,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
                   <ul id={panelId} className="pb-3">
                     <li>
                       <Link
-                        href={`/search?category=${parent.slug}`}
+                        href={`/${parent.slug}`}
                         className="block py-2 pl-3 text-sm font-black text-brand-700"
                       >
                         All {parent.name} &rarr;
@@ -308,7 +308,7 @@ export function CategoryNav({ tree }: { tree: Category[] }) {
                     </li>
                     {parent.children.map((child) => (
                       <li key={child.slug}>
-                        <Link href={`/search?category=${child.slug}`} className="block py-2 pl-3 text-sm text-ink">
+                        <Link href={`/${parent.slug}/${child.slug}`} className="block py-2 pl-3 text-sm text-ink">
                           {child.name}
                         </Link>
                       </li>

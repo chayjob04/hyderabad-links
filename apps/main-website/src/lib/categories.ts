@@ -1,4 +1,4 @@
-import type { Category, SearchCategory } from "./types";
+import type { Category, SearchCategory, SubCategory } from "./types";
 
 export function toSearchCategories(tree: Category[]): SearchCategory[] {
   const children = tree.flatMap((p) => p.children.map((c) => ({ slug: c.slug, name: c.name, terms: c.searchTerms })));
@@ -14,6 +14,29 @@ export function findCategory(tree: Category[], slug: string): { slug: string; na
     if (child) return { slug: child.slug, name: child.name };
   }
   return null;
+}
+
+/** A top-level category by slug, with its subcategories. Null when the slug is not one. */
+export function findTopCategory(tree: Category[], slug: string): Category | null {
+  return tree.find((parent) => parent.slug === slug) ?? null;
+}
+
+/**
+ * Resolves /food/cafes: the subcategory *and* the parent it is actually filed under.
+ *
+ * The parent is checked rather than ignored. `findCategory` above finds "cafes" wherever it sits,
+ * which would let /shopping/cafes and /food/cafes both answer with the same page — two URLs for
+ * one thing, which is the duplicate-content problem canonical tags exist to clean up after. Null
+ * when the pair does not match, and the caller sends a 404.
+ */
+export function findSubCategory(
+  tree: Category[],
+  parentSlug: string,
+  subSlug: string,
+): { parent: Category; sub: SubCategory } | null {
+  const parent = findTopCategory(tree, parentSlug);
+  const sub = parent?.children.find((c) => c.slug === subSlug);
+  return parent && sub ? { parent, sub } : null;
 }
 
 /** Turns what the visitor typed ("plumber", "pipe repair") into a category. Exact matches win over partial ones. */

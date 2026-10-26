@@ -15,13 +15,14 @@ const RADIUS_KM = 8;
 const PAGE_SIZE = 20;
 
 type Props = {
-  params: Promise<{ city: string; locality: string; category: string }>;
+  params: Promise<{ locality: string; category: string }>;
   searchParams: Promise<{ page?: string }>;
 };
 
 async function loadPage(params: Props["params"]) {
-  const { city, locality, category } = await params;
-  if (city !== DEFAULT_CITY) return null;
+  const { locality, category } = await params;
+  // The city is no longer a path segment — the directory covers one — so it comes from config.
+  const city = DEFAULT_CITY;
   const [tree, localities] = await Promise.all([getCategories(), getLocalities(city)]);
   const area = localities?.find((l) => l.slug === locality);
   const found = findCategory(tree, category);
@@ -54,7 +55,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
   const pageNo = pageNumber((await searchParams).page);
   const title = `${page.found.name} in ${page.area.name}, ${DEFAULT_CITY_NAME}`;
-  const canonical = absoluteUrl(`/${page.city}/${page.area.slug}/${page.found.slug}`);
+  const canonical = absoluteUrl(`/areas/${page.area.slug}/${page.found.slug}`);
 
   // An area with nothing in it yet is a thin page; keep it out of the index until it has content.
   let isEmpty = true;
@@ -85,7 +86,7 @@ export default async function CategoryInLocalityPage({ params, searchParams }: P
     results = null;
   }
 
-  const basePath = `/${page.city}/${page.area.slug}/${page.found.slug}`;
+  const basePath = `/areas/${page.area.slug}/${page.found.slug}`;
 
   return (
     <main className="mx-auto max-w-5xl px-4 pt-8">

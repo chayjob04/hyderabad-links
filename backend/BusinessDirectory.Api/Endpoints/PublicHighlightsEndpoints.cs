@@ -1,5 +1,6 @@
 using BusinessDirectory.Api.Data;
 using BusinessDirectory.Api.Media;
+using BusinessDirectory.Api.Listings;
 
 namespace BusinessDirectory.Api.Endpoints;
 
@@ -74,7 +75,10 @@ public static class PublicHighlightsEndpoints
         (SELECT m.storage_key FROM dbo.listing_visible_media m
          WHERE m.listing_id = li.id AND m.kind = 'photo'
          ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) AS photo_key,
-        e.is_verified";
+        e.is_verified,
+        -- The parent of the primary category. A public path is /parent/category/slug, so a card
+        -- cannot link anywhere without it. INNER JOIN below, deliberately.
+        catparent.slug AS parent_category_slug";
 
     // The joins every card needs: its locality, its city, and its primary category.
     private const string CardJoins = @"
@@ -83,6 +87,10 @@ public static class PublicHighlightsEndpoints
         JOIN cities c ON c.id = lo.city_id
         JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
         JOIN categories cat ON cat.id = lc.category_id
+        -- Inner, not left: a listing filed directly under a top-level category has no public page
+        -- to link to, so it does not belong on a shelf. Writes only ever file under level 2
+        -- (ListingWriter.FindCategoryId), so this excludes nothing that exists today.
+        JOIN categories catparent ON catparent.id = cat.parent_id
         JOIN listing_entitlements e ON e.listing_id = li.id";
 
     private static async Task<IResult> GetHighlights(
@@ -177,7 +185,7 @@ public static class PublicHighlightsEndpoints
                 reader.IsDBNull(7) ? null : reader.GetString(7),
                 reader.GetString(8),
                 reader.IsDBNull(9) ? null : reader.GetString(9),
-                $"/{citySlug}/{localitySlug}/{categorySlug}/{slug}",
+                PublicUrl.ForListing(reader.GetString(13), categorySlug, slug)!,
                 reader.IsDBNull(10) ? null : storage.PublicUrl(reader.GetString(10)),
                 reader.IsDBNull(11) ? null : storage.PublicUrl(reader.GetString(11)),
                 Verified: reader.GetBoolean(12)));

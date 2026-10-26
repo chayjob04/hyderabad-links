@@ -77,6 +77,7 @@ public static class PublicSearchEndpoints
               SELECT li.slug, li.name, ci.slug AS city_slug,
                      lo.slug AS locality_slug, lo.name AS locality_name,
                      pc.slug AS category_slug, pc.name AS category_name,
+                     pcparent.slug AS parent_category_slug,
                      li.address_line, li.phone_primary, li.phone_whatsapp,
                      -- One logo and one photo per card, from listing_visible_media (S0012) so a
                      -- card can never show a file the listing page itself no longer displays. That
@@ -97,6 +98,12 @@ public static class PublicSearchEndpoints
               JOIN cities ci ON ci.id = lo.city_id
               JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               JOIN categories pc ON pc.id = lc.category_id
+              -- The parent of the primary category: a public path is /parent/category/slug, so a
+              -- result with no parent has nowhere to link to. Inner, not left: writes only ever
+              -- file a listing under a level-2 category (ListingWriter.FindCategoryId), so this
+              -- excludes nothing that can exist, and a left join would hand the reader a null it
+              -- would have to invent a URL for.
+              JOIN categories pcparent ON pcparent.id = pc.parent_id
               {2}
               WHERE (@city IS NULL OR ci.slug = @city)
                 -- Proximity window, used by locality landing pages so a thinly covered area
@@ -125,7 +132,8 @@ public static class PublicSearchEndpoints
           SELECT (SELECT COUNT_BIG(*) FROM matches) AS total,
                  p.slug, p.name, p.city_slug, p.locality_slug, p.locality_name,
                  p.category_slug, p.category_name, p.address_line, p.phone_primary,
-                 p.phone_whatsapp, p.distance_metres, p.logo_key, p.photo_key
+                 p.phone_whatsapp, p.distance_metres, p.logo_key, p.photo_key,
+                 p.parent_category_slug
           FROM (SELECT 1 AS one) AS always_one_row
           LEFT JOIN page p ON 1 = 1
           ORDER BY {1}";
@@ -240,7 +248,7 @@ public static class PublicSearchEndpoints
                 reader.IsDBNull(8) ? null : reader.GetString(8),
                 reader.GetString(9),
                 reader.IsDBNull(10) ? null : reader.GetString(10),
-                $"/{citySlug}/{localitySlug}/{categorySlug}/{slug}",
+                PublicUrl.ForListing(reader.GetString(14), categorySlug, slug)!,
                 reader.IsDBNull(12) ? null : storage.PublicUrl(reader.GetString(12)),
                 reader.IsDBNull(13) ? null : storage.PublicUrl(reader.GetString(13))));
         }

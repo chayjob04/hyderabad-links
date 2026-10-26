@@ -2,8 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { reportListingAction } from "@/app/[city]/[locality]/[category]/[slug]/actions";
-import { emptyReportState } from "@/app/[city]/[locality]/[category]/[slug]/report-state";
+import { reportListingAction } from "@/app/[category]/[subcategory]/[slug]/actions";
+import { emptyReportState } from "@/app/[category]/[subcategory]/[slug]/report-state";
 import { REPORT_REASONS } from "@/lib/api";
 
 function SendButton() {

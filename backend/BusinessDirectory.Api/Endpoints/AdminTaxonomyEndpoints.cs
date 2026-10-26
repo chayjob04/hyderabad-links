@@ -705,7 +705,18 @@ public static class AdminTaxonomyEndpoints
             error = "Include some English letters or digits: the web address is built from them.";
             return false;
         }
+
         slug = SlugGenerator.FromName(name);
+
+        /* `/areas/madhapur` and `/food/cafes` are both two segments, and the first wins when they
+           collide. A top-level category called "Areas" would therefore make every area page
+           unreachable — refused here rather than discovered later as pages that quietly 404. */
+        if (string.Equals(slug, PublicUrl.ReservedFirstSegment, StringComparison.Ordinal))
+        {
+            error = $"'{PublicUrl.ReservedFirstSegment}' is reserved for area pages. Please use a different name.";
+            return false;
+        }
+
         error = string.Empty;
         return true;
     }

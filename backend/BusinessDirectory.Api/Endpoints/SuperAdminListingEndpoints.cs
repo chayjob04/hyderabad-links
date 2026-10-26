@@ -205,7 +205,7 @@ public static class SuperAdminListingEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["categorySlug"] = ["Unknown category."] });
         }
 
-        var slug = await ListingWriter.ChooseSlug(conn, tx, locality.Id, value.Name, ct);
+        var slug = await ListingWriter.ChooseSlug(conn, tx, value.Name, ct);
 
         long listingId;
         try

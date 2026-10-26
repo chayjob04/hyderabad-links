@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { toggleFavouriteAction } from "@/app/[city]/[locality]/[category]/[slug]/actions";
-import type { FavouriteState } from "@/app/[city]/[locality]/[category]/[slug]/report-state";
+import { toggleFavouriteAction } from "@/app/[category]/[subcategory]/[slug]/actions";
+import type { FavouriteState } from "@/app/[category]/[subcategory]/[slug]/report-state";
 
 /**
  * Saves this listing to the signed-in person's list, or takes it off.

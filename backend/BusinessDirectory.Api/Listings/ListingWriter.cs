@@ -40,15 +40,21 @@ public static class ListingWriter
         return result is int id ? id : null;
     }
 
-    /// <summary>Picks a free slug within the area: name, name-2, name-3 ... (slugs are unique per locality).</summary>
-    public static async Task<string> ChooseSlug(SqlConnection conn, SqlTransaction tx, int localityId, string name, CancellationToken ct)
+    /// <summary>
+    /// Picks a free slug: name, name-2, name-3 ...
+    ///
+    /// Across the whole directory, not within the area. A public URL is now
+    /// /category/subcategory/slug, with no locality in it, so two businesses of the same name in
+    /// different areas would otherwise both claim /food/cafes/garden-cafe and only one could
+    /// answer. S0015 added the unique index that makes this a rule rather than a convention.
+    /// </summary>
+    public static async Task<string> ChooseSlug(SqlConnection conn, SqlTransaction tx, string name, CancellationToken ct)
     {
         var baseSlug = SlugGenerator.FromName(name);
         var taken = new HashSet<string>();
         await using (var command = new SqlCommand(
-            "SELECT slug FROM listings WHERE locality_id = @locality AND (slug = @base OR slug LIKE @pattern)", conn, tx))
+            "SELECT slug FROM listings WHERE slug = @base OR slug LIKE @pattern", conn, tx))
         {
-            command.Parameters.AddWithValue("locality", localityId);
             command.Parameters.AddWithValue("base", baseSlug);
             command.Parameters.AddWithValue("pattern", baseSlug + "-%");
             await using var reader = await command.ExecuteReaderAsync(ct);

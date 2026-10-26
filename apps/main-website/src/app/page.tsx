@@ -84,7 +84,7 @@ export default async function HomePage() {
               {quickLinks.map((parent) => (
                 <a
                   key={parent.slug}
-                  href={`/search?category=${parent.slug}`}
+                  href={`/${parent.slug}`}
                   className="flex min-w-[64px] flex-col items-center gap-2 text-[11px] font-bold text-white sm:text-xs"
                 >
                   <span
@@ -119,7 +119,12 @@ export default async function HomePage() {
             />
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
               {tree.slice(0, CATEGORY_CARDS).map((parent) => (
-                <CategoryCard key={parent.slug} title={parent.name} items={parent.children.slice(0, ITEMS_PER_CARD)} />
+                <CategoryCard
+                  key={parent.slug}
+                  title={parent.name}
+                  parentSlug={parent.slug}
+                  items={parent.children.slice(0, ITEMS_PER_CARD)}
+                />
               ))}
             </div>
           </div>
