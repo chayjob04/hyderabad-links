@@ -74,9 +74,11 @@ html {
 }
 
 .category-panel {
-  /* 220ms, not 140ms: the faster version read as the panel appearing rather than opening. Long
-     enough to follow, short enough that it is never in the way of the link you came for. */
-  animation: category-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* 320ms, up from 220 and originally 140. The earlier timings read as the panel appearing rather
+     than opening; this is slow enough to watch and still short enough that it is never in the way
+     of the link you came for. The chevron on the trigger runs on the same easing so the arrow and
+     the menu look like one movement. */
+  animation: category-panel-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /*

@@ -63,10 +63,13 @@ const CLOSE_DELAY_MS = 180;
 
 /**
  * And opening waits a moment too. Without it the panels fire the instant the pointer crosses them,
- * so sweeping the bar on the way to something else flashes three menus open and shut. Short enough
- * that deliberately pointing at a category still feels immediate.
+ * so sweeping the bar on the way to something else flashes three menus open and shut.
+ *
+ * Long enough now to be read as a deliberate pause rather than as lag — but it is only paid once:
+ * hoverOpen skips the wait while a panel is already showing, so moving along the bar still tracks
+ * the pointer.
  */
-const OPEN_DELAY_MS = 110;
+const OPEN_DELAY_MS = 200;
 
 /**
  * Which panel is open, and whether a click put it there.
@@ -101,7 +104,9 @@ function Chevron({ open }: { open: boolean }) {
     <svg
       aria-hidden="true"
       viewBox="0 0 12 8"
-      className={`h-2 w-3 shrink-0 fill-current text-brand-700 transition-transform duration-150 ease-out motion-reduce:transition-none ${
+      /* 300ms on the panel's own easing. At 150ms the arrow had finished flicking over before the
+         menu had begun to open, so the two read as separate events rather than one gesture. */
+      className={`h-2 w-3 shrink-0 fill-current text-brand-700 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
         open ? "rotate-180" : ""
       }`}
     >
