@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
 import { ListingCard } from "@/components/ListingCard";
 import { Pagination } from "@/components/Pagination";
@@ -63,7 +63,18 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
 export default async function SubCategoryPage({ params, searchParams }: Props) {
   const page = await loadPage(params);
-  if (!page) notFound();
+  if (!page) {
+    /* The same courtesy the top-level page extends: /ameerpet/cafes is what someone types when
+       they have dropped the /areas prefix, and that page exists. Only reached once the category
+       pair has failed to resolve, so a real category is never shadowed by an area of the same
+       name. */
+    const { category, subcategory } = await params;
+    const localities = await getLocalities(DEFAULT_CITY);
+    if (localities?.some((l) => l.slug === category)) {
+      permanentRedirect(`/areas/${category}/${subcategory}`);
+    }
+    notFound();
+  }
 
   const pageNo = pageNumber((await searchParams).page);
 

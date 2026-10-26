@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
 import { SearchBox } from "@/components/SearchBox";
-import { getCategories } from "@/lib/api";
-import { DEFAULT_CITY_NAME } from "@/lib/brand";
+import { getCategories, getLocalities } from "@/lib/api";
+import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { findTopCategory, toSearchCategories } from "@/lib/categories";
 import { absoluteUrl } from "@/lib/format";
 
@@ -34,11 +34,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+/**
+ * An area typed without its prefix — /ameerpet rather than /areas/ameerpet — is the obvious thing
+ * for someone to try, and 404 is a poor answer when the page plainly exists. Checked only after
+ * the category lookup has failed, so a category always wins if the two ever share a slug, and
+ * permanent because /areas/ameerpet is where the page actually lives.
+ */
+async function redirectIfItIsAnArea(slug: string): Promise<void> {
+  const localities = await getLocalities(DEFAULT_CITY);
+  if (localities?.some((l) => l.slug === slug)) {
+    permanentRedirect(`/areas/${slug}`);
+  }
+}
+
 export default async function TopCategoryPage({ params }: Props) {
   const { category } = await params;
   const tree = await getCategories();
   const found = findTopCategory(tree, category);
-  if (!found) notFound();
+  if (!found) {
+    await redirectIfItIsAnArea(category);
+    notFound();
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-4 pt-8">
