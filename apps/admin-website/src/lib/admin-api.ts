@@ -73,8 +73,8 @@ export type AdminListing = {
 /** Permission codes used by these screens. They must match BusinessDirectory.Api.Auth.AdminPermissions. */
 export const PERMISSION_VIEW = "listings.view";
 export const PERMISSION_REVIEW = "listings.review";
-export const PERMISSION_CREATE = "listings.create";
-export const PERMISSION_EDIT = "listings.edit";
+/** Categories, subcategories and localities. Adding or editing a listing is super-admin work now. */
+export const PERMISSION_TAXONOMY = "taxonomy.manage";
 /** The seeded description of this one already reads "Handle abuse reports and reviews". */
 export const PERMISSION_REPORTS = "reports.handle";
 
@@ -307,57 +307,66 @@ export function formatWhen(value: string | null): string {
   });
 }
 
-// ---- reference data for the listing form (public endpoints, no token needed)
-export type SubCategory = { slug: string; name: string };
-export type Category = { slug: string; name: string; children: SubCategory[] };
-export type Locality = { slug: string; name: string };
-
-/** The city the directory covers today. Localities are listed per city. */
-export const DEFAULT_CITY = "hyderabad";
-
-async function getPublic<T>(path: string, fallback: T): Promise<T> {
-  const result = await send<T>(path, { method: "GET" });
-  return result.ok ? result.data : fallback;
-}
-
-export const getCategories = () => getPublic<Category[]>("/api/v1/public/categories", []);
-export const getLocalities = () => getPublic<Locality[]>(`/api/v1/public/cities/${DEFAULT_CITY}/localities`, []);
-
-// ---- creating and editing a listing as an admin
-/** What the listing form sends. The API trims and validates every field again. */
-export type ListingFormInput = {
+// ---- the taxonomy: categories, subcategories and Hyderabad's localities
+// These are admin endpoints, not the public ones: they list inactive rows too, because this is the
+// screen where an admin turns one back on, and they carry the listing counts the delete button needs.
+export type AdminCategory = {
+  id: number;
+  level: number;
+  parentId: number | null;
+  slug: string;
   name: string;
-  description: string;
-  categorySlug: string;
-  localitySlug?: string;
-  addressLine: string;
-  pincode: string;
-  phonePrimary: string;
-  phoneWhatsapp: string;
-  websiteUrl: string;
+  sortOrder: number;
+  isActive: boolean;
+  /** Listings on this category right now. Any at all, and it cannot be deleted. */
+  listingCount: number;
+  children: AdminCategory[];
 };
 
-const orNull = (value: string | undefined) => (value && value.trim() !== "" ? value.trim() : null);
+export type AdminCity = { id: number; slug: string; name: string; state: string; isActive: boolean };
 
-function toPayload(input: ListingFormInput) {
-  return {
-    name: orNull(input.name),
-    description: orNull(input.description),
-    categorySlug: orNull(input.categorySlug),
-    localitySlug: orNull(input.localitySlug),
-    addressLine: orNull(input.addressLine),
-    pincode: orNull(input.pincode),
-    phonePrimary: orNull(input.phonePrimary),
-    phoneWhatsapp: orNull(input.phoneWhatsapp),
-    websiteUrl: orNull(input.websiteUrl),
-  };
-}
+export type AdminLocality = {
+  id: number;
+  cityId: number;
+  citySlug: string;
+  slug: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  pincode: string | null;
+  isActive: boolean;
+  listingCount: number;
+};
 
-export const createListing = (input: ListingFormInput) =>
-  authed<AdminListing>("/api/v1/admin/listings", { method: "POST", body: json(toPayload(input)) });
+export const getAdminCategories = () => authed<AdminCategory[]>("/api/v1/admin/categories");
+export const getAdminCities = () => authed<AdminCity[]>("/api/v1/admin/cities");
+export const getAdminLocalities = () => authed<AdminLocality[]>("/api/v1/admin/localities");
 
-export const updateListing = (id: number, input: ListingFormInput) =>
-  authed<AdminListing>(`/api/v1/admin/listings/${id}`, {
-    method: "PUT",
-    body: json(toPayload({ ...input, localitySlug: undefined })),
-  });
+/** The slug is built from the name by the API and never changes afterwards: see AdminTaxonomyEndpoints. */
+export const createCategory = (input: { name: string; parentId: number | null; sortOrder: number }) =>
+  authed<AdminCategory>("/api/v1/admin/categories", { method: "POST", body: json(input) });
+
+/** Any field left out keeps its current value. */
+export const updateCategory = (
+  id: number,
+  input: { name?: string; sortOrder?: number; isActive?: boolean },
+) => authed<void>("/api/v1/admin/categories/" + id, { method: "PUT", body: json(input) });
+
+export const deleteCategory = (id: number) =>
+  authed<void>("/api/v1/admin/categories/" + id, { method: "DELETE" });
+
+export const createLocality = (input: {
+  citySlug: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  pincode: string | null;
+}) => authed<AdminLocality>("/api/v1/admin/localities", { method: "POST", body: json(input) });
+
+export const updateLocality = (
+  id: number,
+  input: { name?: string; latitude?: number; longitude?: number; pincode?: string | null; isActive?: boolean },
+) => authed<void>("/api/v1/admin/localities/" + id, { method: "PUT", body: json(input) });
+
+export const deleteLocality = (id: number) =>
+  authed<void>("/api/v1/admin/localities/" + id, { method: "DELETE" });

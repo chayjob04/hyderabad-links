@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StatusBadge } from "@/components/StatusBadge";
-import { PERMISSION_EDIT, PERMISSION_REVIEW, formatWhen, getAdminProfile, getListing } from "@/lib/admin-api";
+import { PERMISSION_REVIEW, formatWhen, getAdminProfile, getListing } from "@/lib/admin-api";
 import { DecisionForm } from "./DecisionForm";
 import { LiveStatusForm } from "./LiveStatusForm";
 
@@ -45,7 +45,6 @@ export default async function ReviewListingPage({ params, searchParams }: Props)
   const mapsLink = `https://www.google.com/maps?q=${listing.latitude},${listing.longitude}`;
   // The API enforces this; the page only avoids showing a form that would be refused.
   const mayReview = me.ok && me.data.permissions.includes(PERMISSION_REVIEW);
-  const mayEdit = me.ok && me.data.permissions.includes(PERMISSION_EDIT);
 
   return (
     <main className="mx-auto max-w-3xl px-4 pt-8 pb-12">
@@ -60,17 +59,7 @@ export default async function ReviewListingPage({ params, searchParams }: Props)
             {listing.categoryName ?? "No category"} &middot; {listing.localityName}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {mayEdit ? (
-            <Link
-              href={`/listings/${listing.id}/edit`}
-              className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-            >
-              Edit
-            </Link>
-          ) : null}
-          <StatusBadge status={listing.status} />
-        </div>
+        <StatusBadge status={listing.status} />
       </div>
 
       {added ? (

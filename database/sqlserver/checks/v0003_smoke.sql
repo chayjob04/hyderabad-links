@@ -107,26 +107,56 @@ DECLARE @ordinary int = (SELECT COUNT(*) FROM roles r
                          WHERE r.slug = 'admin');
 DECLARE @total int = (SELECT COUNT(*) FROM permissions);
 
-IF @total <> 12
+IF @total <> 14
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: expected 12 permissions, found ' + CAST(@total AS varchar(10));
+    PRINT 'FAIL: expected 14 permissions, found ' + CAST(@total AS varchar(10));
 END
-ELSE PRINT 'ok: 12 permissions exist';
+ELSE PRINT 'ok: 14 permissions exist';
 
-IF @super <> 12
+/* Against @total rather than a number of its own: "super_admin holds everything there is" is the
+   actual rule (R003 grants it by CROSS JOIN), and writing it this way means adding a permission
+   cannot make this assertion stale -- only forgetting to grant it can make it fail. */
+IF @super <> @total
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: super_admin holds ' + CAST(@super AS varchar(10)) + ' permissions, expected 12';
+    PRINT 'FAIL: super_admin holds ' + CAST(@super AS varchar(10)) + ' of ' + CAST(@total AS varchar(10)) + ' permissions';
 END
 ELSE PRINT 'ok: super_admin holds every permission';
 
-IF @ordinary <> 7
+/* The admin role is asserted by *name*, not by count. A count passes when one grant is swapped for
+   another, and the swap that matters here is exactly the one S0014 made: an admin must not hold
+   listings.create, listings.edit or listings.delete, whatever the total happens to be. */
+DECLARE @expectedAdmin TABLE (code varchar(50) PRIMARY KEY);
+INSERT INTO @expectedAdmin (code)
+VALUES ('listings.view'), ('listings.review'), ('listings.verify'),
+       ('reports.handle'), ('users.view'), ('taxonomy.manage');
+
+DECLARE @wrongAdminGrants int = (
+    SELECT COUNT(*) FROM (
+        SELECT p.code
+        FROM roles r
+        JOIN role_permissions rp ON rp.role_id = r.id
+        JOIN permissions p ON p.id = rp.permission_id
+        WHERE r.slug = 'admin'
+        EXCEPT SELECT code FROM @expectedAdmin
+        UNION ALL
+        SELECT code FROM @expectedAdmin
+        EXCEPT
+        SELECT p.code
+        FROM roles r
+        JOIN role_permissions rp ON rp.role_id = r.id
+        JOIN permissions p ON p.id = rp.permission_id
+        WHERE r.slug = 'admin'
+    ) AS difference);
+
+IF @wrongAdminGrants <> 0
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: admin holds ' + CAST(@ordinary AS varchar(10)) + ' permissions, expected 7';
+    PRINT 'FAIL: the admin role grants differ from the expected set in '
+          + CAST(@wrongAdminGrants AS varchar(10)) + ' place(s); writing listings must not be among them';
 END
-ELSE PRINT 'ok: admin holds the seven day-to-day permissions';
+ELSE PRINT 'ok: admin holds the six day-to-day permissions and no listing-writing one';
 
 -- 8. The five super-admin-only permissions are not reachable through the ordinary admin role.
 DECLARE @leaked int = (

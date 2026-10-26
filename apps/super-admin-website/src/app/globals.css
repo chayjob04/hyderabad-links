@@ -1,3 +1,11 @@
 @import "tailwindcss";
 
-/* Design tokens are added in Phase 0b once the palette and typeface are chosen. */
+/* The same brand colours as the public and admin sites, so the three look like one product. The
+   listing form moved here from the admin site and uses them; defining them here rather than
+   rewriting the form keeps one palette across all three. */
+@theme {
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-700: #0f766e;
+  --color-brand-900: #134e4a;
+}

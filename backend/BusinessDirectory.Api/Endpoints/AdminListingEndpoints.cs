@@ -102,172 +102,18 @@ public static class AdminListingEndpoints
 
     public static RouteGroupBuilder MapAdminListingEndpoints(this RouteGroupBuilder admin)
     {
+        /* Read and decide, and nothing else. Adding a business by hand and correcting its details
+           used to live here (POST "" and PUT "/{id}"); they are now SuperAdminListingEndpoints, on
+           the super-admin surface with its own token audience. An admin reviews what owners submit:
+           approve, reject, suspend, reinstate. */
         var group = admin.MapGroup("/listings");
         group.MapGet("", Queue);
-        group.MapPost("", Create);
         group.MapGet("/{id:long}", Get);
-        group.MapPut("/{id:long}", Update);
         group.MapPost("/{id:long}/approve", Approve);
         group.MapPost("/{id:long}/reject", Reject);
         group.MapPost("/{id:long}/suspend", Suspend);
         group.MapPost("/{id:long}/reinstate", Reinstate);
         return group;
-    }
-
-    // ------------------------------------------------------------------ add a listing by hand
-    /// <summary>
-    /// An admin adds a business that phoned in or walked in. It reuses the owner's validation and slug
-    /// rules (ListingValidator, ListingWriter), so a hand-added listing is the same kind of row as one an
-    /// owner created — only `source` differs, and there is no owner account attached to it yet.
-    ///
-    /// It goes live immediately only when the same admin may also approve listings. Otherwise it joins
-    /// the review queue, so "add listings" never becomes a way around "approve listings".
-    /// </summary>
-    private static async Task<IResult> Create(
-        ListingInput input,
-        ClaimsPrincipal principal,
-        HttpContext http,
-        SqlDatabase db,
-        CancellationToken ct)
-    {
-        var admin = await AdminAccess.Load(db, principal, ct);
-        if (admin is null)
-        {
-            return Results.Unauthorized();
-        }
-        if (AdminAccess.Authorize(admin, AdminPermissions.ListingsCreate) is { } refused)
-        {
-            return refused;
-        }
-
-        // No owner account behind this listing, so the phone number has to be typed in: no fallback.
-        var validation = ListingValidator.Validate(input, requireLocality: true, fallbackPhone: null);
-        if (validation.Value is not { } value)
-        {
-            return Results.ValidationProblem(validation.Errors);
-        }
-
-        await using var conn = await db.OpenConnectionAsync(ct);
-        await using var tx = await conn.BeginSqlTransactionAsync(ct);
-
-        var locality = await ListingWriter.FindLocality(conn, tx, value.CitySlug, value.LocalitySlug!, ct);
-        if (locality is null)
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["localitySlug"] = ["Unknown area."] });
-        }
-
-        var categoryId = await ListingWriter.FindCategoryId(conn, tx, value.CategorySlug, ct);
-        if (categoryId is null)
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["categorySlug"] = ["Unknown category."] });
-        }
-
-        var publishNow = admin.Can(AdminPermissions.ListingsReview);
-        var status = publishNow ? "active" : "pending_review";
-        var slug = await ListingWriter.ChooseSlug(conn, tx, locality.Id, value.Name, ct);
-
-        long listingId;
-        try
-        {
-            var businessId = await ListingWriter.InsertBusiness(conn, tx, value.Name, ct);
-            listingId = await ListingWriter.InsertListing(
-                conn, tx, businessId, locality, slug, value, status, source: "admin", createdByUserId: null, ct);
-            await ListingWriter.AddPrimaryCategory(conn, tx, listingId, categoryId.Value, ct);
-        }
-        catch (SqlException ex) when (SqlErrors.IsUniqueViolation(ex))
-        {
-            // Two people picked the same name in the same area at the same moment. Ask the caller to retry.
-            return Results.Problem("That name was just taken in this area. Please try again.", statusCode: StatusCodes.Status409Conflict);
-        }
-
-        if (publishNow)
-        {
-            // Stamping the reviewer makes it clear on the listing who put it live.
-            await using var stamp = new SqlCommand(
-                "UPDATE listings SET reviewed_at = SYSDATETIMEOFFSET(), reviewed_by_admin_id = @admin WHERE id = @id", conn, tx);
-            stamp.Parameters.AddWithValue("id", listingId);
-            stamp.Parameters.AddWithValue("admin", admin.Id);
-            await stamp.ExecuteNonQueryAsync(ct);
-        }
-
-        await WriteAudit(conn, tx, admin.Id, "listing.created_by_admin", listingId, http, new { status }, ct);
-        var dto = await LoadDetail(conn, tx, listingId, ct);
-        await tx.CommitAsync(ct);
-        return Results.Created($"/api/v1/admin/listings/{listingId}", dto);
-    }
-
-    // ------------------------------------------------------------------ edit a listing
-    /// <summary>
-    /// Corrects a listing's details on an owner's behalf. This needs listings.edit, which is a different
-    /// permission from listings.review: correcting a phone number and publishing a business are not the
-    /// same job. Editing never changes the status, so it cannot publish anything.
-    /// </summary>
-    private static async Task<IResult> Update(
-        long id,
-        ListingInput input,
-        ClaimsPrincipal principal,
-        HttpContext http,
-        SqlDatabase db,
-        CancellationToken ct)
-    {
-        var admin = await AdminAccess.Load(db, principal, ct);
-        if (admin is null)
-        {
-            return Results.Unauthorized();
-        }
-        if (AdminAccess.Authorize(admin, AdminPermissions.ListingsEdit) is { } refused)
-        {
-            return refused;
-        }
-
-        // The area is fixed after creation (it is part of the public URL), so it is ignored on edit.
-        // A listing always has a phone number already, so there is no fallback to supply.
-        var validation = ListingValidator.Validate(input, requireLocality: false, fallbackPhone: null);
-        if (validation.Value is not { } value)
-        {
-            return Results.ValidationProblem(validation.Errors);
-        }
-
-        await using var conn = await db.OpenConnectionAsync(ct);
-        await using var tx = await conn.BeginSqlTransactionAsync(ct);
-
-        // Lock the row so an edit and a decision cannot interleave.
-        string status;
-        double latitude;
-        double longitude;
-        await using (var find = new SqlCommand(
-            @"SELECT status, location.Lat, location.Long
-              FROM listings WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE id = @id", conn, tx))
-        {
-            find.Parameters.AddWithValue("id", id);
-            await using var reader = await find.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct))
-            {
-                return Results.NotFound();
-            }
-            status = reader.GetString(0);
-            latitude = reader.GetDouble(1);
-            longitude = reader.GetDouble(2);
-        }
-
-        if (status == "archived")
-        {
-            return Results.Problem("This listing is archived and can no longer be edited.", statusCode: StatusCodes.Status409Conflict);
-        }
-
-        var categoryId = await ListingWriter.FindCategoryId(conn, tx, value.CategorySlug, ct);
-        if (categoryId is null)
-        {
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["categorySlug"] = ["Unknown category."] });
-        }
-
-        await ListingWriter.UpdateListing(conn, tx, id, value, latitude, longitude, ct);
-        await ListingWriter.SetPrimaryCategory(conn, tx, id, categoryId.Value, ct);
-
-        await WriteAudit(conn, tx, admin.Id, "listing.edited_by_admin", id, http, new { status }, ct);
-        var dto = await LoadDetail(conn, tx, id, ct);
-        await tx.CommitAsync(ct);
-        return Results.Ok(dto);
     }
 
     // ------------------------------------------------------------------ the queue
@@ -613,7 +459,11 @@ public static class AdminListingEndpoints
     }
 
     // ------------------------------------------------------------------ helpers
-    private static async Task<AdminListingDto?> LoadDetail(SqlConnection conn, SqlTransaction? tx, long id, CancellationToken ct)
+    /// <summary>
+    /// Internal, not private: SuperAdminListingEndpoints writes the listings this reads, and returns
+    /// the same shape, so both surfaces describe a listing identically.
+    /// </summary>
+    internal static async Task<AdminListingDto?> LoadDetail(SqlConnection conn, SqlTransaction? tx, long id, CancellationToken ct)
     {
         await using var command = new SqlCommand(DetailSelect, conn, tx);
         command.Parameters.AddWithValue("id", id);

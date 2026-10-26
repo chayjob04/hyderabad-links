@@ -27,6 +27,12 @@ export async function AdminChrome({ children }: { children: React.ReactNode }) {
             <Link href="/reports" className="font-semibold text-brand-900">
               Reports
             </Link>
+            <Link href="/categories" className="font-semibold text-brand-900">
+              Categories
+            </Link>
+            <Link href="/locations" className="font-semibold text-brand-900">
+              Locations
+            </Link>
             <span className="text-neutral-700">
               {me.ok ? `${me.data.displayName} (${me.data.roles.join(", ") || "no role"})` : "Signed in"}
             </span>

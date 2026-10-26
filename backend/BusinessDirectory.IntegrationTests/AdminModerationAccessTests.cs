@@ -38,10 +38,17 @@ public class AdminModerationAccessTests(WebApplicationFactory<Program> factory) 
     [InlineData("GET", "/api/v1/admin/listings")]
     [InlineData("GET", "/api/v1/admin/listings?status=active")]
     [InlineData("GET", "/api/v1/admin/listings/1")]
-    [InlineData("POST", "/api/v1/admin/listings")]
-    [InlineData("PUT", "/api/v1/admin/listings/1")]
     [InlineData("POST", "/api/v1/admin/listings/1/approve")]
     [InlineData("POST", "/api/v1/admin/listings/1/reject")]
+    [InlineData("GET", "/api/v1/admin/categories")]
+    [InlineData("POST", "/api/v1/admin/categories")]
+    [InlineData("PUT", "/api/v1/admin/categories/1")]
+    [InlineData("DELETE", "/api/v1/admin/categories/1")]
+    [InlineData("GET", "/api/v1/admin/cities")]
+    [InlineData("GET", "/api/v1/admin/localities")]
+    [InlineData("POST", "/api/v1/admin/localities")]
+    [InlineData("PUT", "/api/v1/admin/localities/1")]
+    [InlineData("DELETE", "/api/v1/admin/localities/1")]
     public async Task Every_admin_route_refuses_an_anonymous_caller(string method, string path)
     {
         var response = await Send(new HttpMethod(method), path, body: new { name = "X" });
@@ -63,17 +70,38 @@ public class AdminModerationAccessTests(WebApplicationFactory<Program> factory) 
     [InlineData("GET", "/api/v1/admin/me")]
     [InlineData("GET", "/api/v1/admin/listings")]
     [InlineData("GET", "/api/v1/admin/listings/1")]
-    [InlineData("POST", "/api/v1/admin/listings")]
-    [InlineData("PUT", "/api/v1/admin/listings/1")]
     [InlineData("POST", "/api/v1/admin/listings/1/approve")]
     [InlineData("POST", "/api/v1/admin/listings/1/reject")]
+    [InlineData("GET", "/api/v1/admin/categories")]
+    [InlineData("POST", "/api/v1/admin/categories")]
+    [InlineData("PUT", "/api/v1/admin/categories/1")]
+    [InlineData("DELETE", "/api/v1/admin/categories/1")]
+    [InlineData("GET", "/api/v1/admin/localities")]
+    [InlineData("POST", "/api/v1/admin/localities")]
     public async Task A_valid_owner_token_is_refused_on_every_admin_route(string method, string path)
     {
         // The token is real and correctly signed; only its audience is wrong. Nothing reaches the
-        // handler, so an owner can never moderate — or add a listing as an admin — with their session.
+        // handler, so an owner can never moderate — or touch the taxonomy — with their session.
         var response = await Send(new HttpMethod(method), path, OwnerToken(), new { name = "X" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // ---------------------------------------------------------------- writing listings has moved
+    [Theory]
+    [InlineData("POST", "/api/v1/admin/listings")]
+    [InlineData("PUT", "/api/v1/admin/listings/1")]
+    [InlineData("DELETE", "/api/v1/admin/listings/1")]
+    public async Task An_admin_cannot_write_a_listing_at_all(string method, string path)
+    {
+        /* These routes used to exist here. An admin reviews what owners submit; adding, correcting
+           and removing a business is super-admin work on /api/v1/super-admin/listings. The route is
+           gone rather than merely refused, so the answer is 404 or 405 and not 401 -- asserted
+           explicitly, because a route quietly reappearing is exactly the regression that would put
+           listing writes back on the admin surface. */
+        var response = await Send(new HttpMethod(method), path, body: new { name = "X" });
+
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
     }
 
     [Fact]

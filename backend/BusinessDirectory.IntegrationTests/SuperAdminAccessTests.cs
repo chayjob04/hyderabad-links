@@ -20,6 +20,8 @@ public class SuperAdminAccessTests(WebApplicationFactory<Program> factory) : ICl
         "/api/v1/super-admin/admins",
         "/api/v1/super-admin/roles",
         "/api/v1/super-admin/audit",
+        "/api/v1/super-admin/listings",
+        "/api/v1/super-admin/listings/1",
     ];
 
     [Theory]
@@ -52,6 +54,37 @@ public class SuperAdminAccessTests(WebApplicationFactory<Program> factory) : ICl
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    // ---------------------------------------------------------------- writing listings
+    // These moved off /api/v1/admin, so the gate that used to be an admin token is now a
+    // super-admin one. Anonymous must get nowhere near any of them.
+    [Fact]
+    public async Task Creating_a_listing_refuses_an_anonymous_caller()
+    {
+        var response = await _client.PostAsJsonAsync("/api/v1/super-admin/listings", new { name = "X" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Editing_a_listing_refuses_an_anonymous_caller()
+    {
+        var response = await _client.PutAsJsonAsync("/api/v1/super-admin/listings/1", new { name = "X" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Archiving_a_listing_refuses_an_anonymous_caller() =>
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.PostAsync("/api/v1/super-admin/listings/1/archive", null)).StatusCode);
+
+    [Fact]
+    public async Task Deleting_a_listing_refuses_an_anonymous_caller() =>
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.DeleteAsync("/api/v1/super-admin/listings/1")).StatusCode);
 
     [Fact]
     public async Task Resetting_an_authenticator_refuses_an_anonymous_caller() =>

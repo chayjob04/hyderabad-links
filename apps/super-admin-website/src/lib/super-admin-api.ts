@@ -179,3 +179,161 @@ export function formatWhen(value: string | null): string {
     minute: "2-digit",
   });
 }
+
+// ---- listings: add, correct, archive, delete
+// These moved off the admin surface: an admin reviews what owners submit, and writing a listing is
+// platform work. Mirrors BusinessDirectory.Api.Endpoints.SuperAdminListingEndpoints.
+export const PERMISSION_LISTINGS_CREATE = "listings.create";
+export const PERMISSION_LISTINGS_EDIT = "listings.edit";
+export const PERMISSION_LISTINGS_DELETE = "listings.delete";
+
+export type ListingRow = {
+  id: number;
+  name: string;
+  slug: string;
+  status: string;
+  localityName: string;
+  categoryName: string | null;
+  phonePrimary: string;
+  /** Paid up right now, from the entitlement view — not what the listing once bought. */
+  isVerified: boolean;
+  paidUntil: string | null;
+  createdAt: string;
+};
+
+export type ListingPage = {
+  items: ListingRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+/** The same shape the admin site reads, because both surfaces describe a listing identically. */
+export type ListingDetail = {
+  id: number;
+  slug: string;
+  name: string;
+  status: string;
+  description: string | null;
+  addressLine: string | null;
+  pincode: string | null;
+  phonePrimary: string;
+  phoneWhatsapp: string | null;
+  email: string | null;
+  websiteUrl: string | null;
+  latitude: number;
+  longitude: number;
+  citySlug: string;
+  localitySlug: string;
+  localityName: string;
+  categorySlug: string | null;
+  categoryName: string | null;
+  submittedByPhone: string | null;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  url: string | null;
+  isVerified: boolean;
+  paidUntil: string | null;
+};
+
+export const LISTING_STATUSES = ["pending_review", "active", "rejected", "draft", "suspended", "archived"] as const;
+
+export function describeStatus(status: string): { label: string; tone: "grey" | "amber" | "green" | "red" } {
+  switch (status) {
+    case "pending_review":
+      return { label: "Waiting for review", tone: "amber" };
+    case "active":
+      return { label: "Live", tone: "green" };
+    case "rejected":
+      return { label: "Rejected", tone: "red" };
+    case "draft":
+      return { label: "Draft", tone: "grey" };
+    case "suspended":
+      return { label: "Suspended", tone: "red" };
+    case "archived":
+      return { label: "Archived", tone: "grey" };
+    default:
+      return { label: status, tone: "grey" };
+  }
+}
+
+export const listListings = (options: { q?: string; status?: string; page?: number } = {}) => {
+  const query = new URLSearchParams();
+  if (options.q) query.set("q", options.q);
+  if (options.status) query.set("status", options.status);
+  query.set("page", String(options.page ?? 1));
+  return authed<ListingPage>(`/api/v1/super-admin/listings?${query.toString()}`);
+};
+
+export const getListing = (id: number) => authed<ListingDetail>(`/api/v1/super-admin/listings/${id}`);
+
+/** Takes a listing off the public site and keeps everything attached to it. Always available. */
+export const archiveListing = (id: number) =>
+  authed<void>(`/api/v1/super-admin/listings/${id}/archive`, { method: "POST" });
+
+/**
+ * Removes the listing outright. The API refuses this while a subscription or payment exists,
+ * because those rows cascade and a financial record must not vanish with a listing.
+ */
+export const deleteListing = (id: number) =>
+  authed<void>(`/api/v1/super-admin/listings/${id}`, { method: "DELETE" });
+
+// ---- reference data for the listing form (public endpoints, no token needed)
+export type SubCategory = { slug: string; name: string };
+export type Category = { slug: string; name: string; children: SubCategory[] };
+export type Locality = { slug: string; name: string };
+
+/** The city the directory covers today. Localities are listed per city. */
+export const DEFAULT_CITY = "hyderabad";
+
+async function getPublic<T>(path: string, fallback: T): Promise<T> {
+  const result = await send<T>(path, { method: "GET" });
+  return result.ok ? result.data : fallback;
+}
+
+export const getCategories = () => getPublic<Category[]>("/api/v1/public/categories", []);
+export const getLocalities = () => getPublic<Locality[]>(`/api/v1/public/cities/${DEFAULT_CITY}/localities`, []);
+
+/** What the listing form sends. The API trims and validates every field again. */
+export type ListingFormInput = {
+  name: string;
+  description: string;
+  categorySlug: string;
+  localitySlug?: string;
+  addressLine: string;
+  pincode: string;
+  phonePrimary: string;
+  phoneWhatsapp: string;
+  websiteUrl: string;
+};
+
+const orNull = (value: string | undefined) => (value && value.trim() !== "" ? value.trim() : null);
+
+function toPayload(input: ListingFormInput) {
+  return {
+    name: orNull(input.name),
+    description: orNull(input.description),
+    categorySlug: orNull(input.categorySlug),
+    localitySlug: orNull(input.localitySlug),
+    addressLine: orNull(input.addressLine),
+    pincode: orNull(input.pincode),
+    phonePrimary: orNull(input.phonePrimary),
+    phoneWhatsapp: orNull(input.phoneWhatsapp),
+    websiteUrl: orNull(input.websiteUrl),
+  };
+}
+
+export const createListing = (input: ListingFormInput) =>
+  authed<ListingDetail>("/api/v1/super-admin/listings", { method: "POST", body: JSON.stringify(toPayload(input)) });
+
+/** The area is fixed after creation — it is part of the public URL — so it is never sent on an edit. */
+export const updateListing = (id: number, input: ListingFormInput) =>
+  authed<ListingDetail>(`/api/v1/super-admin/listings/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(toPayload({ ...input, localitySlug: undefined })),
+  });

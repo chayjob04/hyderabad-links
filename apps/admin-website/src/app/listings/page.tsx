@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Pagination } from "@/components/Pagination";
 import { StatusBadge } from "@/components/StatusBadge";
-import { PERMISSION_CREATE, QUEUE_STATUSES, describeStatus, formatWhen, getAdminProfile, getQueue } from "@/lib/admin-api";
+import { QUEUE_STATUSES, describeStatus, formatWhen, getAdminProfile, getQueue } from "@/lib/admin-api";
 
 export const metadata: Metadata = { title: "Moderation queue" };
 export const dynamic = "force-dynamic";
@@ -17,18 +17,10 @@ export default async function ModerationQueuePage({ searchParams }: Props) {
   const page = Math.max(Number.parseInt(rawPage ?? "1", 10) || 1, 1);
 
   const [result, me] = await Promise.all([getQueue(status, page), getAdminProfile()]);
-  const mayAdd = me.ok && me.data.permissions.includes(PERMISSION_CREATE);
 
   return (
     <main className="mx-auto max-w-5xl px-4 pt-8 pb-12">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Listings</h1>
-        {mayAdd ? (
-          <Link href="/listings/new" className="rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-900">
-            Add a listing
-          </Link>
-        ) : null}
-      </div>
+      <h1 className="text-2xl font-bold">Listings</h1>
       <p className="mt-1 text-neutral-600">
         Owners submit listings for review. Nothing reaches the public site until someone approves it.
       </p>

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { emptyListingFormState, type ListingFormState } from "@/app/listings/form-state";
-import type { Category, Locality } from "@/lib/admin-api";
+import type { Category, Locality } from "@/lib/super-admin-api";
 
 type Props = {
   action: (previous: ListingFormState, formData: FormData) => Promise<ListingFormState>;

@@ -16,8 +16,10 @@ FROM (VALUES
   ('listings.edit',    'Edit any listing'),
   ('listings.review',  'Approve or reject listings'),
   ('listings.verify',  'Mark listings verified'),
+  ('listings.delete',  'Delete a listing outright'),
   ('reports.handle',   'Handle abuse reports and reviews'),
   ('users.view',       'View business owner accounts'),
+  ('taxonomy.manage',  'Manage categories, subcategories and localities'),
   ('analytics.view',   'View analytics dashboards'),
   ('data.export',      'Use the filter explorer and export CSV'),
   ('plans.manage',     'Manage plans, entitlements and pricing'),
@@ -49,12 +51,15 @@ GO
 
 -- The ordinary admin holds the day-to-day ones only. This list is deliberately explicit: a new
 -- permission does not reach an admin until someone adds it here.
+--
+-- listings.create, listings.edit and listings.delete are deliberately absent (S0014). An admin
+-- reviews what owners submit; writing listings is super-admin work on its own surface.
 INSERT INTO dbo.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM dbo.roles r
 JOIN dbo.permissions p ON p.code IN (
-    'listings.view', 'listings.create', 'listings.edit', 'listings.review',
-    'listings.verify', 'reports.handle', 'users.view'
+    'listings.view', 'listings.review', 'listings.verify',
+    'reports.handle', 'users.view', 'taxonomy.manage'
 )
 WHERE r.slug = 'admin'
   AND NOT EXISTS (

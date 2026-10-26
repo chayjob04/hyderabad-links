@@ -20,6 +20,9 @@ export async function SuperAdminChrome({ children }: { children: React.ReactNode
             <Link href="/overview" className="font-semibold text-neutral-900">
               Overview
             </Link>
+            <Link href="/listings" className="font-semibold text-neutral-900">
+              Listings
+            </Link>
             <Link href="/admins" className="font-semibold text-neutral-900">
               Admin accounts
             </Link>

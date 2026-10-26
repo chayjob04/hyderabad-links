@@ -80,6 +80,7 @@ public static class SuperAdminEndpoints
         group.MapPut("/admins/{id:long}/status", SetStatus);
         group.MapPost("/admins/{id:long}/reset-mfa", ResetMfa);
         group.MapGet("/audit", GetAudit);
+        group.MapSuperAdminListingEndpoints();   // add, correct, archive and delete listings
         return group;
     }
 

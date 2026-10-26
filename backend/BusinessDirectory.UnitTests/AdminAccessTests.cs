@@ -19,9 +19,9 @@ public class AdminPermissionsTests
         // without being placed on a surface should fail here rather than be silently unreachable.
         string[] seeded =
         [
-            "listings.view", "listings.create", "listings.edit", "listings.review", "listings.verify",
-            "reports.handle", "users.view", "analytics.view", "data.export", "plans.manage",
-            "admins.manage", "audit.view",
+            "listings.view", "listings.create", "listings.edit", "listings.delete", "listings.review",
+            "listings.verify", "reports.handle", "users.view", "taxonomy.manage", "analytics.view",
+            "data.export", "plans.manage", "admins.manage", "audit.view",
         ];
 
         Assert.Equal(
@@ -35,6 +35,21 @@ public class AdminPermissionsTests
         Assert.False(AdminPermissions.IsAdminSurface(AdminPermissions.AdminsManage));
         Assert.False(AdminPermissions.IsAdminSurface(AdminPermissions.AuditView));
         Assert.True(AdminPermissions.IsAdminSurface(AdminPermissions.ListingsReview));
+    }
+
+    [Fact]
+    public void Writing_a_listing_is_not_reachable_from_the_admin_surface()
+    {
+        /* The point of moving these: an admin reviews what owners submit, and nothing more. Even an
+           account that somehow holds listings.edit cannot use it on /api/v1/admin, because
+           Authorize() refuses any code that is not on the admin surface. */
+        Assert.False(AdminPermissions.IsAdminSurface(AdminPermissions.ListingsCreate));
+        Assert.False(AdminPermissions.IsAdminSurface(AdminPermissions.ListingsEdit));
+        Assert.False(AdminPermissions.IsAdminSurface(AdminPermissions.ListingsDelete));
+
+        // Keeping the taxonomy tidy is day-to-day admin work, so it stays on the admin surface.
+        Assert.True(AdminPermissions.IsAdminSurface(AdminPermissions.TaxonomyManage));
+        Assert.DoesNotContain(AdminPermissions.TaxonomyManage, AdminPermissions.SuperAdminOnly);
     }
 }
 
