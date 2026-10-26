@@ -239,7 +239,17 @@ if (string.Equals(paymentSettings.Provider, "razorpay", StringComparison.Ordinal
        opens a checkout whose result nothing can verify, which ends with a customer charged and no
        subscription. PaymentSettings.IsConfigured already refuses that at request time -- this line
        is so it is visible at deploy time instead of to the first paying customer. */
-    if (!paymentSettings.IsConfigured)
+    if (paymentSettings.LiveModeBlocked)
+    {
+        /* A live key with no approval. Refused rather than used: the owner asked for test mode until
+           they approve live payments, and a live key is the one setting that can charge a real card
+           by accident. Payments stay off until Payments:LiveModeApproved is set. */
+        Console.Error.WriteLine(
+            "WARNING: Payments:KeyId is a LIVE Razorpay key but Payments:LiveModeApproved is not true. "
+            + "Payments are refused. Set a test key (rzp_test_...), or set Payments:LiveModeApproved=true "
+            + "to take real money.");
+    }
+    else if (!paymentSettings.IsConfigured)
     {
         Console.Error.WriteLine(
             "WARNING: Payments:Provider is 'razorpay' but Payments:KeyId and/or Payments:KeySecret are "
@@ -258,12 +268,19 @@ else
     builder.Services.AddSingleton<IPaymentGateway, UnconfiguredPaymentGateway>();
 }
 
-// ---- Media storage (Azure Blob Storage) -----------------------------------------------
-// Configured by connection string only. With none set, uploads are refused rather than accepted
-// and silently dropped (see UnconfiguredMediaStorage).
+// ---- Media storage (Cloudflare R2, or Azure Blob Storage) -----------------------------
+// Media:Provider chooses, and is inferred from whichever credentials are present when unset. With
+// nothing configured, or a provider missing a setting, uploads are refused rather than accepted and
+// silently dropped (see UnconfiguredMediaStorage) — and the reason is logged once, below, because a
+// deploy where photos quietly fail is worse than one that says why on boot.
 var mediaSettings = MediaSettings.Load(builder.Configuration);
 builder.Services.AddSingleton(mediaSettings);
-if (!string.IsNullOrWhiteSpace(mediaSettings.ConnectionString))
+if (mediaSettings.IsUsable && mediaSettings.Provider == MediaProvider.R2)
+{
+    builder.Services.AddSingleton<R2MediaStorage>();
+    builder.Services.AddSingleton<IMediaStorage>(services => services.GetRequiredService<R2MediaStorage>());
+}
+else if (mediaSettings.IsUsable && mediaSettings.Provider == MediaProvider.Azure)
 {
     builder.Services.AddSingleton<BlobMediaStorage>();
     builder.Services.AddSingleton<IMediaStorage>(services => services.GetRequiredService<BlobMediaStorage>());
@@ -349,8 +366,34 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
-// The container has to exist before the first upload. Created here rather than lazily on each
-// upload, so a wrong connection string shows up in the startup log instead of in a user's error.
+// Storage is checked once at startup, so a wrong key or a missing bucket shows up in the boot log
+// rather than in an owner's error the first time they add a photo. None of it is fatal: the site
+// serves listings perfectly well while uploads are down, and uploads say so for themselves.
+if (mediaSettings.ConfigurationError is { } mediaConfigurationError)
+{
+    // A provider was chosen but cannot be built. Loud, because the deploy otherwise looks healthy.
+    app.Logger.LogError("Media storage is not usable: {Reason} Uploads will be refused.", mediaConfigurationError);
+}
+else if (mediaSettings.Provider == MediaProvider.None)
+{
+    app.Logger.LogWarning("No media storage is configured, so uploads will be refused. Set the Media: settings.");
+}
+
+if (app.Services.GetService<R2MediaStorage>() is { } r2Storage)
+{
+    try
+    {
+        await r2Storage.VerifyBucketAsync(CancellationToken.None);
+    }
+    catch (Exception ex)
+    {
+        // Usually a wrong account id, a revoked R2 API token, or a bucket that has not been created
+        // yet. R2MediaStorage.VerifyBucketAsync says why it does not create one.
+        app.Logger.LogError(ex, "Cloudflare R2 could not be reached. Uploads will fail until it can be.");
+    }
+}
+
+// Azure creates its container if it is missing; see EnsureContainerAsync for why R2 does not.
 if (app.Services.GetService<BlobMediaStorage>() is { } blobStorage)
 {
     try
@@ -359,8 +402,6 @@ if (app.Services.GetService<BlobMediaStorage>() is { } blobStorage)
     }
     catch (Exception ex)
     {
-        // Storage being unreachable must not stop the site serving listings; uploads will fail
-        // and say so. (This usually means Media:BlobConnectionString is unset or wrong.)
         app.Logger.LogError(ex, "Media storage container could not be prepared. Uploads will fail until it is reachable.");
     }
 }

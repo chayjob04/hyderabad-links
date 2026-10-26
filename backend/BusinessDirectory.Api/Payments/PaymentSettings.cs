@@ -22,6 +22,15 @@ namespace BusinessDirectory.Api.Payments;
 /// The separate secret Razorpay signs webhook bodies with. It is **not** the key secret, and a
 /// deployment can have one without the other, so the two are checked separately.
 /// </param>
+/// <param name="LiveModeApproved">
+/// Whether live keys are allowed. <b>False by default, and that is the point.</b> Razorpay names its
+/// keys <c>rzp_test_…</c> and <c>rzp_live_…</c>, so which mode a deployment is in is visible in the
+/// key itself — and a live key charges a real card. Until the owner sets this, a live key is refused
+/// and the subscription endpoints answer 503, which costs a lost sale; the alternative is taking real
+/// money through a flow nobody has approved, which costs a refund and a complaint.
+///
+/// Set <c>Payments:LiveModeApproved=true</c> on the day live payments are approved, not before.
+/// </param>
 /// <param name="PlanSlug">
 /// Which plan a payment buys. The only paid plan is <c>verified</c> (S0009); the price and the name
 /// are read from the <c>plans</c> table at request time, never hardcoded here, so changing the price
@@ -36,6 +45,7 @@ public sealed record PaymentSettings(
     string? KeyId,
     string? KeySecret,
     string? WebhookSecret,
+    bool LiveModeApproved,
     string PlanSlug,
     int PeriodMonths)
 {
@@ -44,18 +54,37 @@ public sealed record PaymentSettings(
         configuration["Payments:KeyId"],
         configuration["Payments:KeySecret"],
         configuration["Payments:WebhookSecret"],
+        configuration.GetValue("Payments:LiveModeApproved", false),
         configuration.GetValue("Payments:PlanSlug", "verified")!,
         configuration.GetValue("Payments:PeriodMonths", 12));
+
+    /// <summary>
+    /// Whether the configured key is a live one. Razorpay puts the mode in the key id, so this is
+    /// read from the key rather than from a separate setting that could disagree with it.
+    /// </summary>
+    public bool IsLiveKey => KeyId?.StartsWith("rzp_live", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// A live key that has not been approved. Kept separate from <see cref="IsConfigured"/> so the
+    /// startup warning can say which of the two problems it is, rather than "payments are off".
+    /// </summary>
+    public bool LiveModeBlocked => IsLiveKey && !LiveModeApproved;
 
     /// <summary>
     /// Whether an order can be created and its signature checked. Both halves of the key pair are
     /// required: a key id alone opens a checkout that nothing can then verify, which is the one
     /// outcome worth refusing outright — it ends with a customer charged and no subscription.
+    ///
+    /// A live key without <see cref="LiveModeApproved"/> is refused here too, so an unapproved live
+    /// key cannot take a payment. The endpoints already answer 503 when this is false, so the refusal
+    /// needs no separate path through them: it reaches a customer as "this is not available yet",
+    /// which is true, and never as a real charge nobody approved.
     /// </summary>
     public bool IsConfigured =>
         string.Equals(Provider, "razorpay", StringComparison.OrdinalIgnoreCase)
         && !string.IsNullOrWhiteSpace(KeyId)
-        && !string.IsNullOrWhiteSpace(KeySecret);
+        && !string.IsNullOrWhiteSpace(KeySecret)
+        && !LiveModeBlocked;
 
     /// <summary>
     /// Whether a webhook delivery can be authenticated. Separate from <see cref="IsConfigured"/>:

@@ -67,9 +67,28 @@ npm run dev:super-admin                                # super-admin :3002 (term
 Each website reads its own settings from `apps/<app>/.env.local`; copy `apps/<app>/.env.example` to start one.
 **Never commit `.env` files.** On Vercel the same values come from the project's environment variables.
 
-Media uploads need a storage account. `Media:BlobConnectionString` is empty by default, which makes the
-API refuse uploads with an explanation rather than accepting files it cannot store. Set it to a
-development or test Azure Storage account to work on photos, logos and video:
+Media uploads need somewhere to put the files. Nothing is configured by default, which makes the API
+refuse uploads with an explanation rather than accepting files it cannot store. Two services are
+supported, and `Media:Provider` chooses between them.
+
+**Cloudflare R2** (what production uses). R2 speaks the S3 API, so the AWS S3 client talks to it once
+it is pointed at the account's endpoint. The bucket and its public domain are created in the
+Cloudflare dashboard — see `docs/deployment.md` for that, and for why the API does not create them:
+
+```powershell
+dotnet user-secrets set "Media:Provider" "r2" --project backend/BusinessDirectory.Api
+dotnet user-secrets set "Media:R2AccountId" "<cloudflare account id>" --project backend/BusinessDirectory.Api
+dotnet user-secrets set "Media:R2AccessKeyId" "<r2 access key id>" --project backend/BusinessDirectory.Api
+dotnet user-secrets set "Media:R2SecretAccessKey" "<r2 secret access key>" --project backend/BusinessDirectory.Api
+dotnet user-secrets set "Media:BucketName" "listing-media" --project backend/BusinessDirectory.Api
+dotnet user-secrets set "Media:PublicBaseUrl" "https://<your public r2 domain>" --project backend/BusinessDirectory.Api
+```
+
+`Media:PublicBaseUrl` is **required** for R2 and optional for Azure. An R2 bucket serves nothing
+publicly from its S3 endpoint, so without it every upload would record a URL that resolves to
+nothing. The API says exactly which setting is missing in its startup log.
+
+**Azure Blob Storage** still works unchanged, for a deployment already using it:
 
 ```powershell
 dotnet user-secrets set "Media:BlobConnectionString" "<dev storage connection string>" --project backend/BusinessDirectory.Api

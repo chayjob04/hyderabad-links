@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.*" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.*" />
     <PackageReference Include="dbup-sqlserver" Version="5.*" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />

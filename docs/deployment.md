@@ -20,12 +20,31 @@
   OIDC (no stored passwords), automatic staging deploy, manual approval for production, migrations as a gated step before the API.
 - App Service settings: HTTPS Only on; `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` on the API; Key Vault references for secrets;
   health check path `/health/live` (API) and `/health` (websites); `APP_ENV` = STAGING or PRODUCTION on each website.
-- **Storage for listing media** (needed the moment photos go live). One Storage Account per environment with a blob
-  container (default name `listing-media`). The API creates the container on startup, but it can only make it public-read if
-  the account has **"Allow Blob public access" enabled** — the files are public listing photos, so they are served directly to
-  the browser rather than through the API (decision D33). Settings on the API: `Media__BlobConnectionString` (a secret, so a
-  Key Vault reference), `Media__ContainerName`, and optionally `Media__PublicBaseUrl` when a CDN or custom domain fronts it.
-  With no connection string the API refuses uploads with 503 and never records a row for a file it did not store.
+- **Storage for listing media** (needed the moment photos go live). `Media__Provider` picks the service; with nothing
+  configured the API refuses uploads with 503 and never records a row for a file it did not store. Either way the files are
+  public listing photos, served straight to the browser rather than through the API (decision D33).
+
+  **Cloudflare R2** (`Media__Provider=r2`). Settings on the API: `Media__R2AccountId`, `Media__R2AccessKeyId` and
+  `Media__R2SecretAccessKey` (the last two are secrets, so Key Vault references), `Media__BucketName` (default
+  `listing-media`) and `Media__PublicBaseUrl`, which is **required** here. Four things are done once in the Cloudflare
+  dashboard, and the API deliberately does none of them:
+    1. Create the bucket. R2 gives a new bucket no public hostname, so one created automatically would accept uploads and
+       serve nothing — and a typo in the name would quietly make a second bucket.
+    2. Give it a public address: either a custom domain (`media.hyderabadlinks.com`, the right answer for production) or
+       its `r2.dev` development subdomain. That address is `Media__PublicBaseUrl`, and it cannot be derived from the
+       account id, which is why it is a setting rather than a default.
+    3. Create an R2 API token with **Object Read & Write** on that bucket — not account-wide, and not Admin. Its S3
+       credentials are the access key id and secret above.
+    4. Set the bucket's CORS policy only if a browser will ever upload directly. Today it will not: every upload goes
+       through the API, server to server.
+
+  The API checks all of this on boot by listing one object, and logs what is wrong if it cannot.
+
+  **Azure Blob Storage** (`Media__Provider=azure`, or just a connection string and no provider line) remains supported. One
+  Storage Account per environment with a blob container (default name `listing-media`). The API creates the container on
+  startup, but can only make it public-read if the account has **"Allow Blob public access" enabled**. Settings:
+  `Media__BlobConnectionString` (a secret, so a Key Vault reference), `Media__ContainerName`, and optionally
+  `Media__PublicBaseUrl` when a CDN or custom domain fronts it.
 - **Owner sign-in by SMS (MSG91)** — `MSG91__AuthKey` and `MSG91__TemplateId` on the API, both
   secrets, so Key Vault references. **Nothing else about the site needs them, and nobody can sign in
   without them:** OTP is the only owner login, so an unset or wrong key means every attempt fails.
@@ -59,6 +78,13 @@
   - Use Razorpay's **test keys** (`rzp_test_…`) in staging. Staging and production must not share one
     Razorpay account: a webhook from either would reach whichever endpoint is registered, and the
     other environment's database has no record of that order.
+  - **A live key is refused until it is approved.** Razorpay puts the mode in the key id, so a
+    `rzp_live_…` key is recognised as live and ignored unless `Payments__LiveModeApproved=true` is
+    also set; until then payments answer 503 exactly as if nothing were configured, and the API says
+    so on boot. The flag is permission, not a mode switch: with it on, a test key is still a test
+    key, so switching back to test mode needs no second change. Set it on the day live payments are
+    approved — the cost of forgetting is a lost sale, and the cost of not having it is real money
+    taken through a flow nobody signed off.
   - Nothing in this repository has taken a real payment. The first one to go through should be
     checked against `subscriptions` and `subscription_payments` before the plan is advertised.
 - No paid resource is created without an itemised cost estimate and explicit approval.
