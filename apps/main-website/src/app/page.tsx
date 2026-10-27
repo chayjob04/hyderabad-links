@@ -1,6 +1,7 @@
 import { JsonLd } from "@/components/JsonLd";
 import { SearchBox } from "@/components/SearchBox";
 import { BusinessCard } from "@/components/ui/BusinessCard";
+import { FeaturedBusiness } from "@/components/ui/FeaturedBusiness";
 import { ButtonLink } from "@/components/ui/Button";
 import { CategoryCard } from "@/components/ui/CategoryCard";
 import { CategoryIcon } from "@/components/ui/CategoryIcon";
@@ -139,66 +140,27 @@ export default async function HomePage() {
       </section>
 
       {/*
-        The category tree degrades to an empty list when the API cannot be reached (see
-        getCategories), so this section is skipped rather than left as a heading over an empty grid.
-      */}
-      {tree.length > 0 ? (
-        <section id="most-searched" className={SECTION}>
-          <div className={SHELL}>
-            <SectionHeading
-              mark="&#8981;"
-              kicker="FIND WHAT YOU NEED"
-              title={
-                <>
-                  Most Searched Businesses &amp; Services <span className="text-[#294d56]">in Hyderabad</span>
-                </>
-              }
-            />
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-7 lg:grid-cols-4 lg:gap-10">
-              {tree.slice(0, CATEGORY_CARDS).map((parent) => (
-                <CategoryCard
-                  key={parent.slug}
-                  title={parent.name}
-                  parentSlug={parent.slug}
-                  items={parent.children.slice(0, ITEMS_PER_CARD)}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
+        Featured, directly under the hero: the businesses the team has chosen are the first thing
+        the page says after "what are you looking for". It is a glance, not a grid to study — a
+        circle and a name each — so it introduces the directory without pushing everything else
+        below the fold the way eight full cards did.
 
-      {/*
-        Featured. Chosen by hand rather than by who is paying, so the copy below no longer says
-        "businesses on a Verified plan" — that was true when the shelf was automatic, and saying it
-        of a curated list would describe the wrong thing. A featured business may or may not be
-        paying; its badge comes from the subscription either way.
+        No kicker and no description. The heading is the whole claim.
       */}
       {highlights.featured.length > 0 ? (
-        <section className={`border-t border-brand-100 bg-brand-50/60 ${SECTION}`}>
+        <section className={`border-b border-brand-100 bg-brand-50/60 ${SECTION}`}>
           <div className={SHELL}>
-            <SectionHeading
-              mark="&#10026;"
-              kicker="PICKED BY OUR TEAM"
-              title={
-                <>
-                  Featured <span className="text-[#294d56]">on Hyderabad Links</span>
-                </>
-              }
-            />
-            <p className="mx-auto -mt-2 mb-10 max-w-2xl text-center text-[15px] leading-relaxed text-muted lg:mb-14">
-              Businesses our team has picked out. A verified badge, where you see one, means that
-              business is on a paid Verified plan.
-            </p>
-            <div className={CARD_GRID}>
+            <h2 className="mb-8 border-b border-dashed border-brand-200 pb-4 text-center text-sm font-black tracking-[0.22em] text-brand-700 sm:text-base">
+              FEATURED BUSINESSES
+            </h2>
+            {/* Four across on a phone, eight on a wide screen: one row either way. */}
+            <div className="grid grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6 lg:grid-cols-8 lg:gap-x-8">
               {highlights.featured.map((listing) => (
-                <BusinessCard
+                <FeaturedBusiness
                   key={listing.url}
                   name={listing.name}
-                  categoryName={listing.categoryName}
                   href={listing.url}
                   imageUrl={listing.logoUrl ?? listing.photoUrl}
-                  verified={listing.verified}
                 />
               ))}
             </div>
@@ -238,6 +200,40 @@ export default async function HomePage() {
                   href={listing.url}
                   imageUrl={listing.logoUrl ?? listing.photoUrl}
                   verified={listing.verified}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/*
+        Browsing by category, below both shelves. The shelves answer "show me something"; this
+        answers "I know roughly what I want", which is the slower of the two intents and so belongs
+        after them.
+
+        The category tree degrades to an empty list when the API cannot be reached (see
+        getCategories), so this section is skipped rather than left as a heading over an empty grid.
+      */}
+      {tree.length > 0 ? (
+        <section id="most-searched" className={SECTION}>
+          <div className={SHELL}>
+            <SectionHeading
+              mark="&#8981;"
+              kicker="FIND WHAT YOU NEED"
+              title={
+                <>
+                  Most Searched Businesses &amp; Services <span className="text-[#294d56]">in Hyderabad</span>
+                </>
+              }
+            />
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-7 lg:grid-cols-4 lg:gap-10">
+              {tree.slice(0, CATEGORY_CARDS).map((parent) => (
+                <CategoryCard
+                  key={parent.slug}
+                  title={parent.name}
+                  parentSlug={parent.slug}
+                  items={parent.children.slice(0, ITEMS_PER_CARD)}
                 />
               ))}
             </div>
