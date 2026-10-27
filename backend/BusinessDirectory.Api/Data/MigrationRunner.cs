@@ -15,7 +15,11 @@ namespace BusinessDirectory.Api.Data;
 /// </summary>
 public static class MigrationRunner
 {
-    public static int Run(IConfiguration configuration, string contentRoot)
+    /// <param name="whatIf">
+    /// List the migrations that would be applied and change nothing. The deploy workflow runs this
+    /// first, so whoever approves the gate can read what is about to happen to the database.
+    /// </param>
+    public static int Run(IConfiguration configuration, string contentRoot, bool whatIf = false)
     {
         var connectionString = configuration.GetConnectionString("Default");
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -31,6 +35,13 @@ public static class MigrationRunner
             Console.Error.WriteLine("Migrations folder not found. Set Database:MigrationsPath.");
             return 2;
         }
+
+        /* Which database this is about to change, named before it changes it — the same thing
+           db-check and db-export print, and for the same reason: it is as easy to point this at
+           production as at anything else. Only the server and the catalogue come out of the
+           builder, never the password. */
+        var target = new SqlConnectionStringBuilder(connectionString);
+        Console.WriteLine($"Target: {target.DataSource}/{target.InitialCatalog}");
 
         /* Two passes, because a few things SQL Server will not do inside a transaction.
            CREATE FULLTEXT CATALOG is one of them: attempting it inside one fails outright with
@@ -53,19 +64,27 @@ public static class MigrationRunner
             .LogToConsole()
             .Build();
 
-        var result = transactional.PerformUpgrade();
-        if (!result.Successful)
-        {
-            Console.Error.WriteLine(result.Error);
-            return 1;
-        }
-
         var nonTransactional = DeployChanges.To
             .SqlDatabase(connectionString)
             .WithScriptsFromFileSystem(migrationsPath, IsNonTransactional)
             .WithoutTransaction()
             .LogToConsole()
             .Build();
+
+        var seedsPath = configuration["Database:ReferenceSeedsPath"]
+            ?? FindDirectory(contentRoot, "database", "sqlserver", "seeds", "reference");
+
+        if (whatIf)
+        {
+            return ReportPending(transactional, nonTransactional, seedsPath);
+        }
+
+        var result = transactional.PerformUpgrade();
+        if (!result.Successful)
+        {
+            Console.Error.WriteLine(result.Error);
+            return 1;
+        }
 
         result = nonTransactional.PerformUpgrade();
         if (!result.Successful)
@@ -74,11 +93,48 @@ public static class MigrationRunner
             return 1;
         }
 
-        var seedsPath = configuration["Database:ReferenceSeedsPath"]
-            ?? FindDirectory(contentRoot, "database", "sqlserver", "seeds", "reference");
         ApplySeedFiles(connectionString, seedsPath);
 
         Console.WriteLine("Database is up to date.");
+        return 0;
+    }
+
+    /// <summary>
+    /// Says what `migrate` would do, and does none of it. Reading the journal is the only thing it
+    /// touches the database for.
+    /// </summary>
+    private static int ReportPending(DbUp.Engine.UpgradeEngine transactional, DbUp.Engine.UpgradeEngine nonTransactional, string? seedsPath)
+    {
+        var pending = transactional.GetScriptsToExecute()
+            .Concat(nonTransactional.GetScriptsToExecute())
+            .Select(script => Path.GetFileName(script.Name))
+            .ToList();
+
+        if (pending.Count == 0)
+        {
+            Console.WriteLine("No migrations pending.");
+        }
+        else
+        {
+            Console.WriteLine($"{pending.Count} migration(s) would be applied:");
+            foreach (var name in pending)
+            {
+                Console.WriteLine($"  {name}");
+            }
+        }
+
+        /* The seeds are not journalled: every run applies all of them, which is why each one is
+           written to be idempotent. Listing them here keeps that visible, because "no migrations
+           pending" does not mean "nothing will run". */
+        if (seedsPath is not null && Directory.Exists(seedsPath))
+        {
+            Console.WriteLine("Reference seeds, re-applied on every run:");
+            foreach (var file in Directory.GetFiles(seedsPath, "*.sql").OrderBy(f => f, StringComparer.Ordinal))
+            {
+                Console.WriteLine($"  {Path.GetFileName(file)}");
+            }
+        }
+
         return 0;
     }
 

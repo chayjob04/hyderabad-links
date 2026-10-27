@@ -143,18 +143,29 @@ export async function sendAlertAction(
  */
 export async function setFeaturedAction(listingId: number, formData: FormData): Promise<void> {
   const featuring = formData.get("intent") === "feature";
+
+  /* Where to go back to. The same control appears on the listings list, on a listing page and on
+     the Featured page, and sending someone from the list to a detail page every time they toggled
+     one row would make curating a shelf of eight a tour of eight pages. Only a path within this
+     site is accepted: a returnTo read from the form is caller-supplied, and following an arbitrary
+     one would be an open redirect. */
+  const raw = String(formData.get("returnTo") ?? "");
+  const returnTo = raw.startsWith("/") && !raw.startsWith("//") ? raw : `/listings/${listingId}`;
+  const joiner = returnTo.includes("?") ? "&" : "?";
+
   const result = featuring ? await featureListing(listingId) : await unfeatureListing(listingId);
 
   if (!result.ok) {
     // A full shelf and a listing that is not live are both refused with a reason worth reading.
-    redirect(`/listings/${listingId}?error=${encodeURIComponent(result.message)}`);
+    redirect(`${returnTo}${joiner}error=${encodeURIComponent(result.message)}`);
   }
 
   await revalidatePublicPages(["/"]);
+  revalidatePath("/listings");
   revalidatePath("/listings/" + listingId);
   revalidatePath("/featured");
   redirect(
-    `/listings/${listingId}?done=${encodeURIComponent(
+    `${returnTo}${joiner}done=${encodeURIComponent(
       featuring ? "On the homepage Featured shelf." : "Off the Featured shelf.",
     )}`,
   );

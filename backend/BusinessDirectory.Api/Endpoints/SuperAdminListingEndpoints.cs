@@ -39,7 +39,10 @@ public static class SuperAdminListingEndpoints
         string PhonePrimary,
         bool IsVerified,
         DateTimeOffset? PaidUntil,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+
+        /// <summary>When this listing was put on the homepage Featured shelf, or null (S0017).</summary>
+        DateTimeOffset? FeaturedAt);
 
     public sealed record ListingPageDto(
         IReadOnlyList<ListingRowDto> Items, int Page, int PageSize, int Total, int TotalPages);
@@ -107,7 +110,7 @@ public static class SuperAdminListingEndpoints
             @"WITH matched AS (
                 SELECT li.id, li.name, li.slug, li.status, lo.name AS locality_name,
                        pc.name AS category_name, li.phone_primary, li.created_at,
-                       e.is_verified, e.paid_until,
+                       e.is_verified, e.paid_until, li.featured_at,
                        COUNT_BIG(*) OVER () AS total
                 FROM dbo.listings li
                 JOIN dbo.listing_entitlements e ON e.listing_id = li.id
@@ -118,7 +121,7 @@ public static class SuperAdminListingEndpoints
                   AND (@q IS NULL OR li.name LIKE '%' + @q + '%' OR li.slug LIKE '%' + @q + '%')
               )
               SELECT id, name, slug, status, locality_name, category_name, phone_primary,
-                     is_verified, paid_until, created_at, total
+                     is_verified, paid_until, created_at, featured_at, total
               FROM matched
               ORDER BY created_at DESC
               OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY");
@@ -143,8 +146,9 @@ public static class SuperAdminListingEndpoints
                     reader.GetString(6),
                     reader.GetBoolean(7),
                     reader.IsDBNull(8) ? null : reader.GetFieldValue<DateTimeOffset>(8),
-                    reader.GetFieldValue<DateTimeOffset>(9)));
-                total = reader.GetInt64(10);
+                    reader.GetFieldValue<DateTimeOffset>(9),
+                    reader.IsDBNull(10) ? null : reader.GetFieldValue<DateTimeOffset>(10)));
+                total = reader.GetInt64(11);
             }
         }
 

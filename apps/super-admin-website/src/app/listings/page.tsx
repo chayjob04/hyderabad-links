@@ -3,16 +3,18 @@ import Link from "next/link";
 import {
   LISTING_STATUSES,
   PERMISSION_LISTINGS_CREATE,
+  PERMISSION_LISTINGS_FEATURE,
   describeStatus,
   formatWhen,
   getProfile,
   listListings,
 } from "@/lib/super-admin-api";
+import { FeatureToggle } from "./FeatureToggle";
 
 export const metadata: Metadata = { title: "Listings" };
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ q?: string; status?: string; page?: string; done?: string }> };
+type Props = { searchParams: Promise<{ q?: string; status?: string; page?: string; done?: string; error?: string }> };
 
 const TONES: Record<string, string> = {
   grey: "bg-neutral-100 text-neutral-700",
@@ -22,8 +24,16 @@ const TONES: Record<string, string> = {
 };
 
 export default async function ListingsPage({ searchParams }: Props) {
-  const { q, status, page: rawPage, done } = await searchParams;
+  const { q, status, page: rawPage, done, error } = await searchParams;
   const page = Number.parseInt(rawPage ?? "1", 10);
+
+  /* Where the Feature toggle sends you back to: this same page, with the search, filter and page
+     intact, so curating the shelf does not lose your place in a list of hundreds. */
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (status) params.set("status", status);
+  if (rawPage) params.set("page", rawPage);
+  const returnTo = params.size > 0 ? `/listings?${params}` : "/listings";
 
   const [result, me] = await Promise.all([
     listListings({ q, status, page: Number.isSafeInteger(page) && page > 0 ? page : 1 }),
@@ -31,6 +41,7 @@ export default async function ListingsPage({ searchParams }: Props) {
   ]);
 
   const mayAdd = me.ok && me.data.permissions.includes(PERMISSION_LISTINGS_CREATE);
+  const mayFeature = me.ok && me.data.permissions.includes(PERMISSION_LISTINGS_FEATURE);
 
   return (
     <main className="mx-auto max-w-5xl px-4 pt-8 pb-12">
@@ -53,6 +64,14 @@ export default async function ListingsPage({ searchParams }: Props) {
       {done ? (
         <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">
           {done}
+        </p>
+      ) : null}
+
+      {/* Featuring is refused when the shelf is full or the listing is not live, and the reason is
+          worth reading rather than swallowing into a toggle that silently did not move. */}
+      {error ? (
+        <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+          {error}
         </p>
       ) : null}
 
@@ -115,6 +134,14 @@ export default async function ListingsPage({ searchParams }: Props) {
                       <p className="mt-1 text-xs text-neutral-500">Added {formatWhen(listing.createdAt)}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {mayFeature ? (
+                        <FeatureToggle
+                          listingId={listing.id}
+                          featured={listing.featuredAt !== null}
+                          live={listing.status === "active"}
+                          returnTo={returnTo}
+                        />
+                      ) : null}
                       {listing.isVerified ? (
                         <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-900">
                           Verified

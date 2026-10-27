@@ -199,6 +199,8 @@ export type ListingRow = {
   isVerified: boolean;
   paidUntil: string | null;
   createdAt: string;
+  /** When a super admin put this on the homepage Featured shelf, or null (S0017). */
+  featuredAt: string | null;
 };
 
 export type ListingPage = {

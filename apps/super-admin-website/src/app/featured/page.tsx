@@ -33,9 +33,22 @@ export default async function FeaturedPage({ searchParams }: Props) {
   return (
     <SuperAdminChrome>
       <main className="mx-auto max-w-4xl px-4 pt-8 pb-16">
-        <h1 className="text-2xl font-bold">Homepage Featured shelf</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold">Homepage Featured shelf</h1>
+          {/* The way in. Adding happens from the listings page, where each row has a Feature
+              toggle, so this page needs to say where that is rather than leaving someone looking
+              for an "add" button that is deliberately not here. */}
+          <Link
+            href="/listings?status=active"
+            className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700"
+          >
+            Add listings &rarr;
+          </Link>
+        </div>
         <p className="mt-2 text-sm text-neutral-600">
-          Chosen by hand, newest choice first. Featuring a listing again moves it to the front.
+          Chosen by hand, newest choice first. Featuring a listing again moves it to the front. To
+          add one, open <strong>Listings</strong> and use the <strong>Feature</strong> toggle on any
+          live listing.
         </p>
 
         {done ? (
@@ -66,13 +79,11 @@ export default async function FeaturedPage({ searchParams }: Props) {
               <div className="mt-6 rounded-xl border border-neutral-200 bg-white p-6 text-sm text-neutral-600 shadow-sm">
                 <p className="font-semibold text-neutral-900">Nothing is featured yet.</p>
                 <p className="mt-2">
-                  The homepage shows no Featured section until something is on this shelf. Open a
-                  live listing and use &quot;Put on the homepage&quot;.
-                </p>
-                <p className="mt-2">
+                  The homepage shows no Featured section until something is on this shelf. Open{" "}
                   <Link href="/listings?status=active" className="font-medium text-brand-700 underline-offset-2 hover:underline">
-                    Browse live listings
-                  </Link>
+                    Listings
+                  </Link>{" "}
+                  and switch <strong>Feature</strong> on for any live business.
                 </p>
               </div>
             ) : (

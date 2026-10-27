@@ -18,9 +18,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
 // `dotnet run --project backend/BusinessDirectory.Api -- migrate` applies migrations and seeds, then exits.
+// `-- migrate --what-if` lists what it would apply and changes nothing.
 if (args.Contains("migrate"))
 {
-    Environment.Exit(MigrationRunner.Run(builder.Configuration, builder.Environment.ContentRootPath));
+    Environment.Exit(MigrationRunner.Run(builder.Configuration, builder.Environment.ContentRootPath, args.Contains("--what-if")));
 }
 
 // `-- seed-dev` loads clearly labelled sample data. It refuses to run outside the Development environment.
