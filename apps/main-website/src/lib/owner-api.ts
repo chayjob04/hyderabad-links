@@ -547,3 +547,54 @@ export function describeStatus(status: string): { label: string; tone: "grey" | 
       return { label: status, tone: "grey", help: "" };
   }
 }
+
+// ---------------------------------------------------------------- opening hours
+/** `dayOfWeek` is 0 for Monday through 6 for Sunday; times are "HH:mm" in Hyderabad. */
+export type OpeningInterval = { dayOfWeek: number; opens: string; closes: string };
+
+export type OpeningWeek = { intervals: OpeningInterval[] };
+
+export const getOpeningHours = (id: number) =>
+  authed<OpeningWeek>(`/api/v1/me/listings/${id}/hours`);
+
+/** The whole week replaces what was there: hours are edited as a week, not a row at a time. */
+export const saveOpeningHours = (id: number, intervals: OpeningInterval[]) =>
+  authed<OpeningWeek>(`/api/v1/me/listings/${id}/hours`, {
+    method: "PUT",
+    body: json({ intervals }),
+  });
+
+// ---------------------------------------------------------------- FAQs and content sections
+export type ListingFaq = { id: number; question: string; answer: string; sortOrder: number };
+
+export type ListingContentSection = { id: number; heading: string; body: string; sortOrder: number };
+
+/**
+ * `limit` is what the current plan allows and `used` how many exist — including any over the
+ * allowance, which are kept and hidden rather than deleted when a plan lapses.
+ */
+export type OwnerCollection<T> = { items: T[]; limit: number; used: number; planName: string };
+
+export const getListingFaqs = (id: number) =>
+  authed<OwnerCollection<ListingFaq>>(`/api/v1/me/listings/${id}/faqs`);
+
+export const addListingFaq = (id: number, question: string, answer: string) =>
+  authed<ListingFaq>(`/api/v1/me/listings/${id}/faqs`, {
+    method: "POST",
+    body: json({ question, answer }),
+  });
+
+export const deleteListingFaq = (id: number, faqId: number) =>
+  authed<void>(`/api/v1/me/listings/${id}/faqs/${faqId}`, { method: "DELETE" });
+
+export const getListingContent = (id: number) =>
+  authed<OwnerCollection<ListingContentSection>>(`/api/v1/me/listings/${id}/content`);
+
+export const addListingContent = (id: number, heading: string, body: string) =>
+  authed<ListingContentSection>(`/api/v1/me/listings/${id}/content`, {
+    method: "POST",
+    body: json({ heading, body }),
+  });
+
+export const deleteListingContent = (id: number, sectionId: number) =>
+  authed<void>(`/api/v1/me/listings/${id}/content/${sectionId}`, { method: "DELETE" });

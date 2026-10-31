@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { EnquiryForm } from "@/components/EnquiryForm";
+import { ListingContent, ListingFaqs } from "@/components/ListingFaqs";
+import { OpeningHoursPanel } from "@/components/OpeningHoursPanel";
 import { ReviewForm } from "@/components/ReviewForm";
 import { Reviews } from "@/components/Reviews";
 import { FavouriteButton } from "@/components/FavouriteButton";
@@ -317,6 +319,19 @@ export default async function ListingPage({ params }: Props) {
         Call and WhatsApp reach the owner immediately but leave no record. This form does: it
         becomes an enquiry in the owner's dashboard, so a missed call is not a lost customer.
       */}
+      {/* Hours, the business's own description sections and its FAQs, before the enquiry form.
+          Someone deciding whether to get in touch reads these first; putting them after the form
+          would mean answering questions the visitor had already given up on. */}
+      {listing.openingHours.length > 0 || listing.contentSections.length > 0 || listing.faqs.length > 0 ? (
+        <div className="mt-10 grid gap-5 lg:grid-cols-[1fr_320px] lg:items-start">
+          <div className="grid gap-5">
+            <ListingContent sections={listing.contentSections} />
+            <ListingFaqs faqs={listing.faqs} businessName={listing.name} />
+          </div>
+          <OpeningHoursPanel hours={listing.openingHours} status={listing.openStatus} />
+        </div>
+      ) : null}
+
       <section
         id="enquiry"
         aria-labelledby="enquiry-heading"

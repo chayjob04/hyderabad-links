@@ -1,4 +1,6 @@
 import type {
+  BlogPage,
+  BlogPost,
   Category,
   Highlights,
   ListingDetail,
@@ -265,4 +267,29 @@ export async function getListing(
 ): Promise<ListingDetail | null> {
   const path = [parentCategorySlug, categorySlug, slug].map(encodeURIComponent).join("/");
   return getJson<ListingDetail>(`/api/v1/public/listings/${path}`, 60);
+}
+
+/**
+ * Published blog posts, newest first.
+ *
+ * Revalidated every ten minutes rather than on every request: a blog changes when somebody
+ * publishes, not continuously, and the index page is a likely landing page from search.
+ */
+export async function getBlogPage(page: number): Promise<BlogPage | null> {
+  return getJson<BlogPage>(`/api/v1/public/blog?page=${page}`, 600);
+}
+
+/** One published post. A draft answers 404, exactly as a post that does not exist does. */
+export async function getBlogPost(slug: string): Promise<BlogPost | null> {
+  return getJson<BlogPost>(`/api/v1/public/blog/${encodeURIComponent(slug)}`, 600);
+}
+
+/**
+ * The search box placeholders staff have configured.
+ *
+ * An empty list is a valid answer and means "use the built-in text" — the search box must never
+ * render an empty placeholder because nobody has filled this in.
+ */
+export async function getSearchPlaceholders(): Promise<string[]> {
+  return (await getJson<string[]>("/api/v1/public/search-placeholders", 600)) ?? [];
 }

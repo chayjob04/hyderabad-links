@@ -27,6 +27,9 @@ export async function AdminChrome({ children }: { children: React.ReactNode }) {
             <Link href="/reports" className="font-semibold text-brand-900">
               Reports
             </Link>
+            <Link href="/blog" className="font-semibold text-brand-900">
+              Blog
+            </Link>
             <Link href="/categories" className="font-semibold text-brand-900">
               Categories
             </Link>

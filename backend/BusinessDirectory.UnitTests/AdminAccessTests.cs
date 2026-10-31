@@ -21,7 +21,8 @@ public class AdminPermissionsTests
         [
             "listings.view", "listings.create", "listings.edit", "listings.delete", "listings.review",
             "listings.verify", "listings.alert", "listings.feature",
-            "reports.handle", "users.view", "taxonomy.manage", "analytics.view",
+            "reports.handle", "users.view", "taxonomy.manage",
+            "seo.manage", "blog.manage", "analytics.view",
             "data.export", "plans.manage", "admins.manage", "audit.view",
         ];
 

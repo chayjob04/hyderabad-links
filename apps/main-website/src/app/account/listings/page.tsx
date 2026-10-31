@@ -166,6 +166,12 @@ export default async function MyListingsPage({ searchParams }: Props) {
                   >
                     {listing.status === "draft" || listing.status === "rejected" ? "Finish and send for review" : "Edit"}
                   </Link>
+                  <Link
+                    href={`/account/listings/${listing.id}/hours`}
+                    className="text-sm font-black text-brand-700 hover:underline"
+                  >
+                    Opening hours
+                  </Link>
                   {listing.status === "active" ? (
                     <Link href={listing.url} className="text-sm font-black text-brand-700 hover:underline">
                       View public page <span aria-hidden="true">&rarr;</span>

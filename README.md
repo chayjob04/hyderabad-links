@@ -57,6 +57,7 @@ whatever it is pointed at.
 ```powershell
 npm install                      # installs all three websites (npm workspaces)
 npm run db:migrate                                     # apply migrations + reference seeds (safe to re-run)
+npm run db:migrate -- --what-if                        # list what would be applied, and change nothing
 npm run db:seed-dev                                    # optional: sample listings for local testing (Development only)
 dotnet run --project backend/BusinessDirectory.Api     # API on :5080   (terminal 1)
 npm run dev:main                                       # main site :3000 (terminal 2)

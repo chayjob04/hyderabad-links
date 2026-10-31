@@ -16,8 +16,29 @@
   (`dotnet run --project backend/BusinessDirectory.Api -- migrate`), never from the running API, and
   the runner never creates the database. Nothing here has yet been pointed at a real Azure SQL
   database: that is untested.
-- GitHub Actions: one CI workflow per deployable with path filters (exists). Deploy workflows arrive in Phase 9: Azure sign-in via
-  OIDC (no stored passwords), automatic staging deploy, manual approval for production, migrations as a gated step before the API.
+- GitHub Actions: one CI workflow per deployable with path filters, and one deploy workflow for the
+  API (`.github/workflows/main_hyderabad-links-api.yml`): build and publish, then **migrate**, then
+  deploy to App Service over OIDC with no stored password. The three websites are built by Vercel
+  from the same repository and have no workflow here.
+
+  **The migrate job is written and switched off**, so today the API still ships without its
+  migrations being applied. Three things switch it on, and all three are deliberate:
+    1. A GitHub **environment** named `production-database`. Add required reviewers to it — that is
+       what makes this the gated step, and the approval prompt is where someone reads the list of
+       pending migrations the job prints before it applies anything.
+    2. The secret `DATABASE_CONNECTION_STRING` **on that environment**. It needs rights to create
+       and alter this project's objects, which the API's own login neither needs nor should have.
+    3. The repository variable `RUN_MIGRATIONS` set to `true`.
+
+  Schema first, code second: the migrations are forward-only and additive, so the running (old)
+  code is unaffected by a schema ahead of it, while new code against an old schema is not. A failed
+  migration stops the deployment. `migrate --what-if` lists what would be applied and changes
+  nothing, which is also the safe way to check this by hand.
+
+  **Untested.** The database is on shared hosting rather than Azure SQL and may only accept
+  allow-listed addresses, which a GitHub-hosted runner does not have. If that is how it is
+  configured, this needs a self-hosted runner or an allow-list entry, and `npm run db:migrate` from
+  a trusted machine stays the fallback.
 - App Service settings: HTTPS Only on; `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` on the API; Key Vault references for secrets;
   health check path `/health/live` (API) and `/health` (websites); `APP_ENV` = STAGING or PRODUCTION on each website.
 - **Storage for listing media** (needed the moment photos go live). `Media__Provider` picks the service; with nothing

@@ -89,6 +89,8 @@ public static class OwnerListingEndpoints
         group.MapOwnerLinkEndpoints();    // website and social links, capped by the plan's allowance
         group.MapOwnerSubscriptionEndpoints();   // buying and renewing the Verified plan, per listing
         group.MapOwnerAlertEndpoints();   // staff requests to correct something, and marking them read
+        group.MapOwnerOpeningHoursEndpoints();   // when the business is open
+        group.MapOwnerListingContentEndpoints();  // FAQs and content sections, capped by the plan
         return group;
     }
 

@@ -11,6 +11,8 @@ BEGIN
         photo_limit = 0,
         video_limit = 0,
         logo_limit = 0,
+        faq_limit = 0,
+        content_section_limit = 0,
         grants_verified_badge = 0,
         media_limits_confirmed = 1,
         sort_order = 0,
@@ -22,9 +24,10 @@ ELSE
 BEGIN
     INSERT INTO dbo.plans
         (slug, name, price_paise, photo_limit, video_limit, logo_limit,
+         faq_limit, content_section_limit,
          grants_verified_badge, media_limits_confirmed, sort_order, is_active)
     VALUES
-        ('free', 'Free', 0, 0, 0, 0, 0, 1, 0, 1);
+        ('free', 'Free', 0, 0, 0, 0, 0, 0, 0, 1, 0, 1);
 END;
 
 -- Configure the single paid plan.
@@ -36,6 +39,8 @@ BEGIN
         photo_limit = 10,
         video_limit = 2,
         logo_limit = 1,
+        faq_limit = 10,
+        content_section_limit = 5,
         grants_verified_badge = 1,
         media_limits_confirmed = 1,
         sort_order = 1,
@@ -47,9 +52,10 @@ ELSE
 BEGIN
     INSERT INTO dbo.plans
         (slug, name, price_paise, photo_limit, video_limit, logo_limit,
+         faq_limit, content_section_limit,
          grants_verified_badge, media_limits_confirmed, sort_order, is_active)
     VALUES
-        ('verified', 'Verified', 39900, 10, 3, 1, 1, 1, 1, 1);
+        ('verified', 'Verified', 39900, 10, 2, 1, 10, 5, 1, 1, 1, 1);
 END;
 
 /* Free and Verified are the whole subscription structure. The three old tiers were removed by

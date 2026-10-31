@@ -402,3 +402,44 @@ export const sendListingAlert = (id: number, reason: string, message: string) =>
     method: "POST",
     body: json({ reason, message }),
   });
+
+// ---------------------------------------------------------------- blog
+export const PERMISSION_BLOG = "blog.manage";
+export const PERMISSION_SEO = "seo.manage";
+
+export type BlogSummary = {
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  coverImageUrl: string | null;
+  authorName: string;
+  publishedAt: string | null;
+  status: string;
+};
+
+export type BlogPost = BlogSummary & { bodyMarkdown: string };
+
+export type BlogPage = { items: BlogSummary[]; page: number; totalPages: number; total: number };
+
+export const getBlogPosts = (page: number) =>
+  authed<BlogPage>(`/api/v1/admin/blog?page=${page}`);
+
+export const getBlogPost = (id: number) => authed<BlogPost>(`/api/v1/admin/blog/${id}`);
+
+export const createBlogPost = (input: {
+  title: string;
+  excerpt: string;
+  bodyMarkdown: string;
+  coverImageUrl: string;
+  publish: boolean;
+}) => authed<{ id: number; slug: string }>("/api/v1/admin/blog", { method: "POST", body: json(input) });
+
+/** The slug is never changed by an edit: a published post whose URL moves is a broken link. */
+export const updateBlogPost = (
+  id: number,
+  input: { title: string; excerpt: string; bodyMarkdown: string; coverImageUrl: string },
+) => authed<void>(`/api/v1/admin/blog/${id}`, { method: "PUT", body: json({ ...input, publish: false }) });
+
+export const setBlogPostPublished = (id: number, published: boolean) =>
+  authed<void>(`/api/v1/admin/blog/${id}/${published ? "publish" : "unpublish"}`, { method: "POST" });

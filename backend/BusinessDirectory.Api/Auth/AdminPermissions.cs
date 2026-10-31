@@ -32,6 +32,16 @@ public static class AdminPermissions
     /// </summary>
     public const string ListingsAlert = "listings.alert";
 
+    /// <summary>
+    /// Page titles, descriptions and indexing (S0021). Admin work: writing a page title is the same
+    /// kind of editorial judgement an admin already applies to categories and localities, and making
+    /// every title change wait on a super admin would mean most of them never happen.
+    /// </summary>
+    public const string SeoManage = "seo.manage";
+
+    /// <summary>Writing and publishing blog posts (S0023). Editorial work, so admin.</summary>
+    public const string BlogManage = "blog.manage";
+
     // ---- super-admin only (listed so the separation is visible in one place; not checked here)
     /* Writing listings lives here rather than on the admin surface. An admin reviews what owners
        submit and nothing more -- approve, reject, suspend, reinstate. Adding a business by hand,
@@ -60,7 +70,7 @@ public static class AdminPermissions
     public static readonly string[] AdminSurface =
     [
         ListingsView, ListingsReview, ListingsVerify, ListingsAlert,
-        ReportsHandle, UsersView, TaxonomyManage,
+        ReportsHandle, UsersView, TaxonomyManage, SeoManage, BlogManage,
     ];
 
     /// <summary>Permissions reserved for the super-admin surface.</summary>

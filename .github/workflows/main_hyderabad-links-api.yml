@@ -6,11 +6,19 @@ on:
       - main
     paths:
       - 'backend/**'
+      # A migration that nothing else touches still has to reach the database, and this workflow is
+      # the only thing that applies one. The redeploy it also triggers ships identical code.
+      - 'database/sqlserver/**'
       - '.github/workflows/main_hyderabad-links-api.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# One deployment at a time, and never cancel one that may be part way through a migration.
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -40,9 +48,72 @@ jobs:
           name: hyderabad-links-api
           path: ./publish/
 
-  deploy:
+  # Applies database/sqlserver/migrations and the reference seeds before the new code ships.
+  #
+  # Schema first is the safe order. The migrations are forward-only and additive, so the running
+  # (old) code is unaffected by a schema that has moved ahead of it, while new code against an old
+  # schema is not. It runs after `build` so a deployment that cannot even compile never reaches the
+  # database.
+  #
+  # It is OFF until the owner switches it on, so adding it changes nothing about today's deploy:
+  #   1. Create a `production-database` environment and add required reviewers to it, which is what
+  #      makes this the gated step `docs/deployment.md` asks for.
+  #   2. Add the secret DATABASE_CONNECTION_STRING to that environment. It needs rights to create
+  #      and alter this project's objects, which the API's own login does not need and should not
+  #      have.
+  #   3. Set the repository variable RUN_MIGRATIONS to `true`.
+  # Until then S0009-S0017's successors keep being applied by hand, which is what this closes.
+  #
+  # Unverified from here: the database is on shared hosting rather than Azure SQL, so it may only
+  # accept connections from allow-listed addresses, and a GitHub-hosted runner's address is not
+  # fixed. If that is how it is configured, this needs a self-hosted runner or an allow-list entry,
+  # and `npm run db:migrate` from a trusted machine stays the fallback.
+  migrate:
+    if: vars.RUN_MIGRATIONS == 'true'
     runs-on: ubuntu-latest
     needs: build
+    timeout-minutes: 15
+    environment: production-database
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      # Said plainly here rather than left to surface as a connection error further down.
+      - name: Check the connection string is configured
+        env:
+          CONNECTION_STRING: ${{ secrets.DATABASE_CONNECTION_STRING }}
+        run: |
+          if [ -z "$CONNECTION_STRING" ]; then
+            echo "::error::DATABASE_CONNECTION_STRING is not set on the production-database environment."
+            exit 1
+          fi
+
+      # What it is about to do, before it does it. This half is read-only — it reads the journal and
+      # nothing else — and it names the server and database, so the job log is a record of what ran
+      # and where.
+      - name: List what would be applied
+        env:
+          ConnectionStrings__Default: ${{ secrets.DATABASE_CONNECTION_STRING }}
+        run: dotnet run --project backend/BusinessDirectory.Api --no-launch-profile -- migrate --what-if
+
+      - name: Apply migrations and reference seeds
+        env:
+          ConnectionStrings__Default: ${{ secrets.DATABASE_CONNECTION_STRING }}
+        run: dotnet run --project backend/BusinessDirectory.Api --no-launch-profile -- migrate
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build, migrate]
+    # `migrate` is skipped while RUN_MIGRATIONS is unset, and a skipped job would otherwise skip
+    # this one with it. A *failed* migration must still stop the deployment: shipping code whose
+    # schema was not applied is the thing this ordering exists to prevent.
+    if: ${{ !cancelled() && needs.build.result == 'success' && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped') }}
 
     permissions:
       contents: read

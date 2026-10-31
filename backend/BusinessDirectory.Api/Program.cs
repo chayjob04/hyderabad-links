@@ -454,6 +454,8 @@ publicApi.MapPublicEnquiryEndpoints();   // customers contacting a business thro
 publicApi.MapPublicReviewEndpoints();     // approved reviews and the rating average
 publicApi.MapPublicSitemapEndpoints();    // every page the public site should list for search engines
 publicApi.MapPublicReportEndpoints();     // anyone reporting a listing or a review
+publicApi.MapPublicBlogEndpoints();       // published posts; drafts answer 404 like anything else
+publicApi.MapPublicSearchTuningEndpoints();  // the search box placeholder, as data
 
 app.MapPaymentWebhookEndpoints();   // /api/v1/webhooks/razorpay: the path that does not need a browser
 

@@ -22,7 +22,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
    * a contradiction — the sitemap says "this is worth your time", the page says the opposite.
    * The category and area pages below are the real browse pages, and they are indexable.
    */
-  const fixed: MetadataRoute.Sitemap = [{ url: absoluteUrl("/"), changeFrequency: "daily", priority: 1 }];
+  const fixed: MetadataRoute.Sitemap = [
+    { url: absoluteUrl("/"), changeFrequency: "daily", priority: 1 },
+    { url: absoluteUrl("/blog"), changeFrequency: "weekly", priority: 0.6 },
+  ];
 
   const data = await getSitemap();
   if (!data) {

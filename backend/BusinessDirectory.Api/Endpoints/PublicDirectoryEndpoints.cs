@@ -79,7 +79,32 @@ public static class PublicDirectoryEndpoints
         /// allowance is part of the paid plan -- and empty again once that plan lapses, since the
         /// query below is gated on the same entitlement that drives the badge.
         /// </summary>
-        List<PublicLinkDto> Links);
+        List<PublicLinkDto> Links,
+
+        /// <summary>
+        /// The week's opening hours, in day order, and whether the business is open at this moment.
+        /// Free as well as paid: this is for the visitor, who is not the one paying.
+        /// </summary>
+        List<OpeningHoursDto> OpeningHours,
+        OpenStatusDto? OpenStatus,
+
+        /// <summary>
+        /// FAQs and content sections the plan allows right now. Read through
+        /// listing_visible_faqs and listing_visible_content, so anything over a lapsed plan's
+        /// allowance disappears here while staying in the database (D10).
+        /// </summary>
+        List<PublicFaqDto> Faqs,
+        List<PublicContentDto> ContentSections);
+
+    /// <param name="DayOfWeek">0 = Monday … 6 = Sunday.</param>
+    public sealed record OpeningHoursDto(int DayOfWeek, string DayName, string Opens, string Closes);
+
+    /// <param name="OpensAt">When it next opens, if closed now. Null when it is open.</param>
+    public sealed record OpenStatusDto(bool IsOpenNow, string? ClosesAt, string? OpensAt, string? OpensDay);
+
+    public sealed record PublicFaqDto(string Question, string Answer);
+
+    public sealed record PublicContentDto(string Heading, string Body);
 
     /// <param name="Url">Always http or https: enforced on the way in by the API and again by
     /// listing_links_url_shape, so this can be put in an href without further checking.</param>
@@ -403,6 +428,9 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
         // Only a listing that is paid up shows its links. Gating the read rather than filtering
         // afterwards means a lapsed listing's links never leave the database at all.
         var links = isVerified ? await ReadPublicLinks(db, listingId, ct) : [];
+        var (hours, openStatus) = await ReadOpeningHours(db, listingId, ct);
+        var faqs = await ReadPublicFaqs(db, listingId, ct);
+        var contentSections = await ReadPublicContent(db, listingId, ct);
 
         return Results.Ok(new ListingDetailDto(
             reader.GetString(0),
@@ -424,7 +452,101 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
             PublicUrl.ForListing(actualParentSlug, actualCategorySlug, reader.GetString(0))!,
             media,
             isVerified,
-            links));
+            links,
+            hours,
+            openStatus,
+            faqs,
+            contentSections));
+    }
+
+    /// <summary>
+    /// The week's hours and whether the business is open right now.
+    ///
+    /// The status is worked out here rather than in the browser so every visitor gets Hyderabad's
+    /// answer: these are wall-clock times, and a phone in another timezone would otherwise decide
+    /// a shop was shut because of where its owner is standing.
+    /// </summary>
+    private static async Task<(List<OpeningHoursDto> Week, OpenStatusDto? Status)> ReadOpeningHours(
+        SqlDatabase db, long listingId, CancellationToken ct)
+    {
+        await using var command = db.CreateCommand(
+            @"SELECT day_of_week, opens_at, closes_at
+              FROM dbo.listing_opening_hours
+              WHERE listing_id = @listing
+              ORDER BY day_of_week, opens_at");
+        command.Parameters.AddWithValue("listing", listingId);
+
+        var week = new List<OpeningHoursDto>();
+        var intervals = new List<Listings.OpeningHours.Interval>();
+
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                var day = reader.GetByte(0);
+                var opens = TimeOnly.FromTimeSpan(reader.GetTimeSpan(1));
+                var closes = TimeOnly.FromTimeSpan(reader.GetTimeSpan(2));
+
+                week.Add(new OpeningHoursDto(
+                    day, Listings.OpeningHours.DayNames[day], opens.ToString("HH:mm"), closes.ToString("HH:mm")));
+                intervals.Add(new Listings.OpeningHours.Interval(day, opens, closes));
+            }
+        }
+
+        if (intervals.Count == 0)
+        {
+            // No hours set is not the same as closed, so no status is reported at all and the page
+            // simply says nothing rather than claiming the business is shut.
+            return (week, null);
+        }
+
+        var status = Listings.OpeningHours.StatusAt(intervals, DateTimeOffset.UtcNow);
+        return (week, new OpenStatusDto(
+            status.IsOpenNow,
+            status.ClosesAt?.ToString("HH:mm"),
+            status.OpensAt?.ToString("HH:mm"),
+            status.OpensDayName));
+    }
+
+    /// <summary>
+    /// FAQs within the plan's current allowance. Read from listing_visible_faqs, so a lapsed plan
+    /// hides them without anything being deleted and a renewal brings them straight back.
+    /// </summary>
+    private static async Task<List<PublicFaqDto>> ReadPublicFaqs(
+        SqlDatabase db, long listingId, CancellationToken ct)
+    {
+        await using var command = db.CreateCommand(
+            @"SELECT question, answer FROM dbo.listing_visible_faqs
+              WHERE listing_id = @listing ORDER BY sort_order, id");
+        command.Parameters.AddWithValue("listing", listingId);
+
+        var faqs = new List<PublicFaqDto>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            faqs.Add(new PublicFaqDto(reader.GetString(0), reader.GetString(1)));
+        }
+
+        return faqs;
+    }
+
+    /// <summary>Content sections within the plan's current allowance. Same rule as the FAQs.</summary>
+    private static async Task<List<PublicContentDto>> ReadPublicContent(
+        SqlDatabase db, long listingId, CancellationToken ct)
+    {
+        await using var command = db.CreateCommand(
+            @"SELECT heading, body FROM dbo.listing_visible_content
+              WHERE listing_id = @listing ORDER BY sort_order, id");
+        command.Parameters.AddWithValue("listing", listingId);
+
+        var sections = new List<PublicContentDto>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            sections.Add(new PublicContentDto(reader.GetString(0), reader.GetString(1)));
+        }
+
+        return sections;
     }
 
     /// <summary>

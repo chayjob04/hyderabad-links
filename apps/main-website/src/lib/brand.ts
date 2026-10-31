@@ -12,11 +12,17 @@ export const SUPPORT_EMAIL = "hello@hyderabadlinks.com";
  *
  * Fill these in with the real handles; they are deliberately blank rather than guessed.
  */
+/*
+ * The real accounts, taken from the original Hyderabad Links site's own footer rather than
+ * invented. An empty href is filtered out, so an account that does not exist yet simply does not
+ * appear — which is why YouTube and LinkedIn are listed but blank rather than deleted.
+ */
 export const SOCIAL_LINKS: { label: string; href: string }[] = [
-  { label: "Instagram", href: "" },
-  { label: "Facebook", href: "" },
+  { label: "Instagram", href: "https://www.instagram.com/hyderabad_links" },
+  { label: "Facebook", href: "https://www.facebook.com/hydlinks" },
+  { label: "X", href: "https://x.com/hyderabadlinks" },
+  { label: "WhatsApp", href: "https://wa.me/918019180101" },
   { label: "YouTube", href: "" },
-  { label: "X", href: "" },
   { label: "LinkedIn", href: "" },
 ].filter((link) => link.href !== "");
 

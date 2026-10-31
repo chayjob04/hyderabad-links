@@ -43,7 +43,46 @@ export type ListingDetail = {
    * to hide them.
    */
   links: ListingLink[];
+  /**
+   * The week's hours, in day order. Free as well as paid — this is for the visitor, not a feature
+   * sold to the owner. Empty when nobody has filled them in.
+   */
+  openingHours: OpeningHours[];
+  /**
+   * Whether the business is open at this moment, worked out by the API in Hyderabad time so that
+   * a visitor in another timezone gets the shop's answer rather than their own phone's. Null when
+   * no hours are recorded, which is different from being closed.
+   */
+  openStatus: OpenStatus | null;
+  /**
+   * FAQs and content sections the plan currently covers. Like `links`, the API sends none at all
+   * on a free or lapsed listing rather than relying on this page to hide them.
+   */
+  faqs: ListingFaq[];
+  contentSections: ListingContentSection[];
 };
+
+/** `dayOfWeek` is 0 for Monday through 6 for Sunday. Times are "HH:mm" in Hyderabad. */
+export type OpeningHours = {
+  dayOfWeek: number;
+  dayName: string;
+  opens: string;
+  closes: string;
+};
+
+export type OpenStatus = {
+  isOpenNow: boolean;
+  /** When it closes, if open now. */
+  closesAt: string | null;
+  /** When it next opens, if closed now. */
+  opensAt: string | null;
+  /** "today", "tomorrow", or a weekday name. */
+  opensDay: string | null;
+};
+
+export type ListingFaq = { question: string; answer: string };
+
+export type ListingContentSection = { heading: string; body: string };
 
 /** One website or social link on a public listing page. The URL is always http or https. */
 export type ListingLink = {
@@ -143,4 +182,26 @@ export type Highlights = {
   trending: HighlightListing[];
   /** How many days back "trending" measured, so the heading can say it without hard-coding it. */
   trendingWindowDays: number;
+};
+
+/** A published blog post, as the public list shows it. */
+export type BlogSummary = {
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  coverImageUrl: string | null;
+  authorName: string;
+  publishedAt: string | null;
+  status: string;
+};
+
+/** `bodyMarkdown` is the source as written. The site renders it; the API never sends HTML. */
+export type BlogPost = BlogSummary & { bodyMarkdown: string };
+
+export type BlogPage = {
+  items: BlogSummary[];
+  page: number;
+  totalPages: number;
+  total: number;
 };

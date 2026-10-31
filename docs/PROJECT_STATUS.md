@@ -1,22 +1,134 @@
 # Project status and handoff
 
-**Updated:** 2026-10-20. Read this first, then `CLAUDE.md`. It replaces re-auditing the repository.
+**Updated:** 2026-10-27. Read this first, then `CLAUDE.md`. It replaces re-auditing the repository.
 
-> **Newer than this file: `docs/REPAIR_STATUS.md` (2026-10-25).** It covers the repair of the shared
-> company database the platform now runs on (`hyderab3_workingmodel`, SQL Server 2022 Express, two
-> applications in one database), the five bugs that repair found, and the two passes that followed:
-> the Verified plan's links, and the paid path that makes the plan buyable. Where the two disagree,
-> REPAIR_STATUS is the later record. In particular:
->
-> - There are now **two plans, not four** — Free and Verified (₹399 a year), with `basic`,
->   `advanced` and `premium` deactivated by `S0009`. Everything below about four tiers and
->   provisional media allowances is superseded: the allowances are confirmed, and the paid plan does
->   grant the badge.
-> - Entitlement is **computed from the subscription period against the clock** through the
->   `listing_entitlements` view, never read from `listings.plan_slug`.
-> - Payments are implemented behind `IPaymentGateway` and refuse to run unconfigured. **No payment
->   has ever been taken, and the provider choice is still the owner's** (decision D45).
-> - The local SQL Server container described below is gone; development runs against a real database.
+## How to read this file
+
+It is cumulative, and the project has moved faster than its prose. Three rules settle any
+disagreement inside it:
+
+1. **This section, "Where the project is today" and "What changed since 2026-10-25" are the current
+   record.** Where anything further down contradicts them, they are wrong and these are right.
+2. **`docs/REPAIR_STATUS.md` (2026-10-25)** is the record of the production database repair and the
+   four passes that followed it, and is still accurate on the database, the paid path, and what the
+   owner has to supply.
+3. **A section headed with a date is history.** "Verified on 2026-10-20" and "SQL Server conversion"
+   are both that. Their results stand as the record of what was run on the day, but they describe
+   public URLs and an owner flow that the 26 October changes replaced, so do not read them as a
+   description of today's site.
+
+## Where the project is today
+
+- **The platform runs on one shared SQL Server database** (`hyderab3_workingmodel`), which holds an
+  unrelated application as well. Migrations `S0001`–`S0017` are applied to it and the 17
+  transactional checks in `database/sqlserver/checks/` pass against it. See `REPAIR_STATUS.md` for
+  how that database was adopted and what it cost.
+- **Two plans, not four.** Free, and **Verified at ₹399 a year**: 10 photos, 2 videos, 1 logo, 5
+  links and the badge (`S0016`; the three old tiers were deleted by `S0011`). Entitlement is
+  computed from the subscription period against the clock through the `listing_entitlements` view,
+  never read from `listings.plan_slug`, and the allowance is applied at read time by
+  `dbo.listing_visible_media`, so a lapsed plan hides media instead of deleting it.
+- **Public URLs are category-first** — `/food`, `/food/cafes`, `/food/cafes/garden-cafe`, with areas
+  at `/areas/madhapur` and `/areas/madhapur/cafes`. This replaced the locality-first
+  `/{city}/{locality}/{category}/{slug}` scheme on 26 October and **supersedes D22**, which
+  `docs/decisions.md` does not yet say. The **API** still addresses a listing as
+  `{city}/{locality}/{slug}`; only the websites' URLs changed.
+- **An admin reviews; a super admin writes.** Approve, reject, suspend, reinstate, the review and
+  report queues, correction requests and the taxonomy are the admin surface. Creating, editing,
+  archiving and deleting a listing, and curating Featured, are super-admin only. The write routes
+  are *absent* from `/api/v1/admin` rather than merely refused, and a test asserts they answer 404
+  or 405.
+- **Saving an owner listing sends it to review**, and so does every later edit — including an edit
+  to a live listing, which leaves the public site until a moderator approves the change. Onboarding
+  is the one exception and stays a draft, because it collects no address or description.
+- **Nothing that costs money is configured.** No payment has ever been taken, no media file has ever
+  been stored in a real bucket, and no email or SMS has been delivered outside Development. Each of
+  those integrations refuses to pretend: the paying routes answer 503, uploads answer 503, and a
+  notification is recorded as `failed` rather than reported as sent.
+- **`Auth:DummyOtpEnabled` is an authentication bypass** that makes every owner login code `123456`.
+  It is off by default, announced on every start and logged on every code issued. It exists because
+  MSG91 delivery is still unproven and the owner journey is untestable without it. **Turn it off
+  before anyone else can reach the site.**
+- **The deployed sites are the three Vercel projects**, not `hyderabadlinks.com` — that domain still
+  answers from the other application. See `REPAIR_STATUS.md`.
+
+## What changed since 2026-10-25
+
+`REPAIR_STATUS.md` ends with its fourth pass. These are the 22 commits after it, which no other
+document records; each commit message carries the full reasoning.
+
+**26 October — the shape of the public site.**
+
+- **Category-first URLs** (`e44396a`). Category browsing used to be `/search?category=cafes`, which
+  a search engine reads as one page with a parameter rather than as a page each. The two shapes
+  cannot coexist — `/food/cafes/garden-cafe` and `/hyderabad/madhapur/dentists` are both three
+  segments, so the router would read "food" as a city — so the city/locality shape went rather than
+  sitting alongside. Areas moved under `/areas`, and that word is now reserved: a category slugged
+  `areas` would make every area page unreachable, so the taxonomy endpoints refuse it.
+- **A redirect loop that made every listing page unreachable** (`076957c`), caused by that move and
+  fixed the same day: the canonical check compared the *parent* category with the listing's
+  subcategory, so every listing redirected to itself. It now compares whole paths, which cannot
+  loop.
+- **The admin / super-admin split** (`2b9acaa`). Admins review and manage the taxonomy; super admins
+  write listings. A slug is never editable after creation, because public URLs are built from it and
+  these tables have no slug history, and retiring a category sets `is_active = 0` rather than
+  deleting it, so the listings on it keep working.
+- **Saving sends a listing to review** (`5d00039`), and so does every edit. A listing used to sit as
+  a draft until the owner found a button nobody had told them about, and a live listing could be
+  rewritten without any moderator seeing the change.
+- **Search became about finding a business rather than narrowing a list** (`2f7de67`, `738e0ef`,
+  `b6d4221`). Choosing an area no longer filters: it supplies a point and orders by distance from
+  it, because on a directory this size a hard area filter almost always returns nothing (Habsiguda
+  went from 0 results to both businesses, nearest first). Typed text becomes a category filter only
+  when it *is* a category, so "Dental Delights" is no longer hidden by the Dentists filter. "All" is
+  now an explicit choice in both pickers instead of a blank first option.
+- **Chrome and content** (`85d8d85`, `5fd05ec`, `e99892c`, `4f26b02`, `077e26f`, `7a8cb16`): an
+  account menu in place of the LogIn button for someone already signed in, a reworked footer, a
+  category bar that no longer overlaps the logo, and `/help`, `/terms` and `/privacy`, which exist
+  now.
+- **MSG91 finished** (`903d4df`): a failed send no longer burns the owner's five-codes-an-hour
+  allowance, an outage answers 503 instead of 500, and MSG91's own words travel with the failure —
+  an unapproved template, a wrong auth key and an empty balance were previously indistinguishable.
+- **The dummy OTP switch** (`c67ca32`) — see "Where the project is today".
+
+**27 October — the plan, the media store, and what staff can do.**
+
+- **The Verified plan allows two videos** (`3ae7f7b`, `S0016`), the one number that differed from
+  the plan the owner confirmed. Existing media is untouched and does not need to be:
+  `listing_visible_media` applies the allowance at read time, so a listing with three videos shows
+  two and keeps the third.
+- **Link previews** (`3ae7f7b`). The site had no Open Graph or Twitter metadata at all, so a listing
+  shared into WhatsApp — which this directory tells people to use to reach a business — arrived as a
+  bare URL. The homepage also carries `Organization` and `WebSite` structured data, and `/search`
+  left the sitemap, because that page sets `noindex` and listing it was a contradiction.
+- **`Server: Kestrel` is off** (`a7a579b`). The rest of that response audit was clean.
+- **Media can be stored in Cloudflare R2** (`4914ff1`, D49), through the AWS S3 client behind the
+  `IMediaStorage` seam that was already there; Azure Blob Storage still works and `Media:Provider`
+  chooses. Unlike the Azure path, the API does not create the bucket: an R2 bucket serves nothing
+  until a domain is bound to it in the dashboard, so one created automatically would accept uploads
+  and serve nothing.
+- **A `rzp_live_` key is refused** unless `Payments:LiveModeApproved` is true (`4914ff1`, D50), on
+  the owner's instruction to keep test mode until live payments are approved.
+- **Featured is curated by a super admin** (`3225bc3`, D51). It used to mean "has a paid Verified
+  period running", which made the shelf a list of whoever had bought the plan rather than a
+  recommendation anybody had made. It starts **empty**. Trending is untouched and stays computed
+  from enquiries, favourites and approved reviews over 30 days, at read time, with no screen
+  anywhere, because the earned shelf only works if nobody can touch it.
+- **Staff can send an owner a correction request** (`3225bc3`, D52, `listing_alerts`). The only
+  thing an admin could do about a wrong phone number was suspend the business, which punishes the
+  customer looking for them more than the owner who mistyped a digit. It has its own table rather
+  than reusing `notifications`, which records delivery *attempts*, so a bounced address cannot lose
+  the message.
+- **The permission catalogue is asserted by name** (`4c5d2aa`), not by count, and the admin-role
+  check now looks both ways: written as one `EXCEPT … UNION ALL … EXCEPT` chain it could only see a
+  *missing* grant and never an extra one, which is the half that exists to catch an admin holding
+  `listings.create`.
+
+**Verified on 2026-10-27:** `npm run verify` **passes** — migration check, 19 script tests,
+typecheck, three production builds, .NET build with 0 warnings, **534 unit and 185 integration
+tests**. `npm run db:check` was last run by the commit that needed it (`4c5d2aa`): **17 checks
+against the live database**. It was not re-run while this file was written, because it runs against
+whatever `ConnectionStrings:Default` points at, which is the shared production database.
 
 ## SQL Server conversion — DONE for the application (2026-10-20 to 2026-10-21)
 
@@ -158,9 +270,13 @@ No ORM; raw parameterized SQL via `Microsoft.Data.SqlClient`.
 > "Decisions needed" below. Nothing currently blocks feature work either way: the API is already
 > organised by audience, so the split would mostly move folders.
 
-## Verified on 2026-10-20
+## Verified on 2026-10-20 (history)
 
-All run locally and observed, not assumed:
+All of this was run locally and observed rather than assumed — **on that day**. Several of the
+browser walks below describe `/{city}/{locality}/{category}/{slug}` URLs and the draft → "Submit for
+review" flow, both of which the 26 October changes replaced, and the media walks describe the four
+old plans. They are kept as the record of what was actually run, not as a description of today's
+site.
 
 | Check | Result |
 |---|---|
@@ -265,8 +381,11 @@ only survives while the API keeps running; signing in again simply walks the set
   descriptions using SQL Server full-text search, tolerates misspellings
   through trigram similarity, and matches service words through the
   `category_search_terms` table. Filters by category (a parent slug also
-  matches its sub-categories), locality (including listings that merely
-  *serve* that area), and proximity. Sorts by relevance, distance or name.
+  matches its sub-categories) and by proximity. The API can also filter by locality, including
+  listings that merely *serve* that area, but **the website no longer uses it as a filter**: since
+  2026-10-26 a chosen area supplies a point and orders the results by distance from it, because on
+  a directory this size a hard area filter almost always returns nothing. Sorts by relevance,
+  distance or name.
   Results are paginated with the total number of matches. Every filter lives
   in the URL, so results are shareable. Empty, error and past-the-end-page
   states are all handled.
@@ -291,9 +410,9 @@ only survives while the API keeps running; signing in again simply walks the set
   It goes through two route handlers under `src/app/api/localities/`, because this lookup happens
   while the visitor types and so cannot be done during server rendering; the browser still never
   touches the API directly.
-- Locality + category SEO pages (`/hyderabad/{locality}/{category}`): real listings within 8 km,
-  closest first, paginated, with `ItemList` structured data and a canonical URL. Areas with no
-  listings are marked `noindex` so the site does not publish thin pages.
+- Area + category pages (`/areas/{locality}/{category}`): real listings within 8 km, closest first,
+  paginated, with `ItemList` structured data and a canonical URL. Areas with no listings are marked
+  `noindex` so the site does not publish thin pages.
 - Listing detail pages with the correct record, structured data and canonical URLs.
 - **Listing detail, redesigned to the reference (pass 5) — with today's fields only.** A breadcrumb
   that follows the URL's own segments (Home → area → category → this business, every crumb a page
@@ -305,8 +424,10 @@ only survives while the API keeps running; signing in again simply walks the set
   none of them have tables — `factsFor()` is the one place to extend when they do. The owner's
   disclaimer from the reference is kept. The D4 canonical-category redirect, the canonical URL and
   the `LocalBusiness` structured data are unchanged.
-- Owner screens: phone-OTP sign-in (`/login`), then `/account/listings` to create, edit and submit
-  listings for review.
+- Owner screens: phone-OTP sign-in (`/login`), then `/account/listings` to create and edit
+  listings. **Saving is what sends a listing to review** — a complete listing is created as
+  `pending_review` and every later edit returns it there, including an edit to a live one, which
+  leaves the public site until a moderator approves the change.
 - **Owner screens, redesigned to the reference (pass 4).** `/account/listings` now opens with four
   counts — Live, In review, Drafts, Needs changes — worked out from the listings the API returns,
   then the listings themselves as cards with their status badge, the reviewer's reason when there
@@ -346,7 +467,9 @@ only survives while the API keeps running; signing in again simply walks the set
   (`localities_name_trgm_idx`, `localities_center_gix`), so neither needed a migration — and
   nearest stands in for a paid reverse geocoder while D14 is open.
 - Owner auth: OTP request/verify, refresh, logout. Short-lived JWT plus a rotating refresh token.
-- Owner listings: list, create, read, update, submit for review — all ownership-checked server-side.
+- Owner listings: list, create, read, update — all ownership-checked server-side. A complete listing
+  is created as `pending_review` and every later edit returns it there, so nothing reaches the
+  public site without a moderator seeing it.
 - Security baseline: security headers, deny-by-default CORS, per-IP rate limiting, stricter
   database-backed OTP limits, generic error responses, startup refusal of wildcard CORS outside
   Development.
@@ -358,9 +481,11 @@ only survives while the API keeps running; signing in again simply walks the set
 - `/listings/{id}`: everything a reviewer needs (contact details, map point, who submitted it, the
   last decision) plus Approve and Reject with a reason the owner will read. Approving publishes the
   listing immediately; rejecting sends it back to the owner, who can edit and resubmit.
-- `/listings/new` and `/listings/{id}/edit`: adding a business that phoned in, and correcting a
-  listing on an owner's behalf. Both use the same form as the owner's screens, and both only appear
-  for an admin who holds the matching permission — which the API checks again regardless.
+- `/categories` and `/locations`: the taxonomy an admin may manage (`taxonomy.manage`). A slug is
+  never editable after creation, because public URLs are built from it; retiring a row sets
+  `is_active = 0`, and delete is offered only for a row nothing points at. Adding and correcting
+  **listings** moved to the super-admin site on 2026-10-26: reviewing and writing are different
+  jobs.
 - The session lives in httpOnly cookies on the admin site's own origin, and `proxy.ts` swaps an
   expired access token for a fresh pair — the same scheme as the public site.
 
@@ -368,13 +493,14 @@ only survives while the API keeps running; signing in again simply walks the set
 - Admin auth: `POST /api/v1/auth/admin/login|refresh|logout`. PBKDF2-SHA256 passwords, lockout after
   5 wrong attempts for 15 minutes, one generic failure message, and a rotating refresh token whose
   reuse revokes the whole family.
-- Moderation: `GET /api/v1/admin/me`, `GET /listings`, `POST /listings`, `GET /listings/{id}`,
-  `PUT /listings/{id}`, `POST /listings/{id}/approve`, `POST /listings/{id}/reject`.
-  See `docs/api-specification.md`.
-- Adding and editing are separate permissions from approving (`listings.create`, `listings.edit`,
-  `listings.review`). A hand-added listing goes live at once only when that admin may also approve
-  listings; otherwise it joins the queue, so adding is never a way around reviewing. Editing never
-  changes a listing's status.
+- Moderation: `GET /api/v1/admin/me`, `GET /listings`, `GET /listings/{id}`,
+  `POST /listings/{id}/approve`, `POST /listings/{id}/reject`, `/suspend`, `/reinstate`, and
+  `POST /listings/{id}/alerts`. See `docs/api-specification.md`.
+- **Writing a listing is not on this surface.** `POST /listings` and `PUT /listings/{id}` are absent
+  from `/api/v1/admin` rather than refused, and `listings.create` and `listings.edit` are
+  super-admin permissions that `Authorize()` will not accept here even for an account that holds
+  them. An integration test asserts those routes answer 404 or 405, so they cannot quietly
+  reappear.
 - Admin tokens carry the audience `admin` and are validated by their own authentication scheme, so an
   owner token never reaches an admin route (and vice versa). Permissions are read from the database on
   every request — removing a role or disabling an account takes effect on the next call, which was
@@ -393,26 +519,6 @@ carries a WhatsApp number and a website (`https://example.com/...`, a reserved d
 domain), added on 2026-10-18 so the optional WhatsApp and website branches on the detail page and
 the result cards can actually be seen while developing. It is a re-runnable `UPDATE` at the end of
 `D001_sample_listings.sql`, so `npm run db:seed-dev` stays safe to repeat.
-
-### Business owner dashboard
-
-`GET /api/v1/me/overview` returns the owner's listing counts by state (total, active, pending
-review, draft, rejected, suspended; archived excluded) and a six-step profile-completion checklist.
-Every figure is counted from that owner's own rows through `business_members`, so one owner's
-dashboard can never show another's.
-
-**Listing views and leads are deliberately absent** — there are no tables for either, and the brief
-forbids inventing figures. They appear when those tables do.
-
-The dashboard *shell* (sidebar, top bar, account menu, breadcrumbs) is **not built yet**: it waits on
-the reference UI redesign so it can use the real design system rather than being restyled twice.
-Agreed sidebar for the first version: Overview, My Listings, Add New Listing, Business Profile,
-Account Settings, Logout. Leads & Enquiries and Subscription & Plans are **left out until their
-tables exist**, so that every item leads to a working page.
-
-There is no separate Business Owner application and none is needed. The owner's live site serves it
-from a path (`/BO/Dashboard`) on one domain; this repository does the same at `/account/*` inside
-`apps/main-website`.
 
 ### Header category navigation
 
@@ -451,9 +557,10 @@ six items below that, active-navigation states, and a bar showing who is signed 
 `apps/main-website` — there is no separate Business Owner application and none is needed, exactly as
 the owner's own live site serves theirs from `/BO/` on one domain.
 
-Sidebar: Overview, My Listings, Add New Listing, Business Profile, Account Settings, Logout. **Leads
-& Enquiries and Subscription & Plans are deliberately absent** until their tables exist, so every
-item reaches a working page.
+Sidebar: Overview, My Listings, Add New Listing, Enquiries, Saved, Plans & Payment, Business
+Profile, Account Settings. Every figure on it is counted from that owner's own rows through
+`business_members`, so one owner's dashboard can never show another's. **Listing views are
+deliberately absent** — no table records them, and the brief forbids inventing figures.
 
 - **Overview** (`/account`) renders `GET /api/v1/me/overview`: total, live, in review, drafts and
   needs-changes counts, a suspended card only when there is one, and the six-step completion
@@ -568,25 +675,31 @@ D11 required phone-verified reviewers plus moderation, and both are enforced rat
 moderator currently needs to call them directly. Abuse reporting (flagging a published review) is
 also still absent.
 
-### Listing media and plans (V0008, decisions D32–D34)
+### Listing media and plans (S0005, S0009, S0012, S0016; decisions D32–D34, D48–D49)
 
-Photos, a logo and video for a listing, with the plan's allowance enforced in the API.
+Photos, a logo and video for a listing, with the plan's allowance enforced in the API and applied
+again at read time.
 
-- **`plans`** holds the four tiers from D23 with their prices in paise and their photo / video / logo
-  allowances as columns. `media_limits_confirmed` is **false** on every row, because D23 approved the
-  prices but not the allowances: the numbers loaded are the ones in `requirements.md` (Free 0/0,
-  Basic 4/0, Advanced 4/2, Premium 16/4 — "Advanced" carrying what that document called "Gold"), and
-  every screen that shows them says they are not final. Changing one is an `UPDATE`, not a deploy,
-  and `R004_plans.sql` deliberately never overwrites an allowance once it has been confirmed.
-  **No plan grants a verified badge**; `grants_verified_badge` is false everywhere.
-- **`listings.plan_slug`** — per listing, following D5. Every existing listing became Free, which is
-  the no-cost default and changes nothing about any of them.
-- **`listing_media`** keeps the metadata; the bytes live in Blob Storage. `storage_key` is unique
-  across the table, and `is_hidden` is there for D10, so a downgrade can hide media without deleting
-  anybody's file.
-- **`IMediaStorage`** (`Media/MediaStorage.cs`) is the one seam between the API and storage: an
-  Azure Storage account, chosen by connection string alone (a dev or test account in development). With none configured
-  the API answers **503 and writes no row**, rather than recording a file it never stored.
+- **`plans`** holds exactly two rows: **Free** (no media) and **Verified**, ₹399 a year for 10
+  photos, 2 videos, 1 logo, 5 links and the badge. `media_limits_confirmed` is true on both — the
+  owner settled the structure on 2026-10-25 (D48) and the video count on 2026-10-27 (`S0016`).
+  Changing an allowance is still an `UPDATE` rather than a deploy.
+- **A listing is Verified only while a paid subscription period covers today.** `listings.plan_slug`
+  records what was bought; what is *in force* comes from the `listing_entitlements` view, which
+  compares the period with the clock. Nothing stores "expired" and no job sets it, so a lapsed plan
+  needs nothing to run in order to lapse.
+- **`listing_media`** keeps the metadata; the bytes live in object storage. `storage_key` is unique
+  across the table. `dbo.listing_visible_media` (S0012) is the one definition of what a listing may
+  show *now*: each kind capped at the plan's current allowance, oldest first, so a downgrade keeps
+  an explainable subset rather than an arbitrary one. Media over the allowance is kept and hidden,
+  never deleted, so renewing restores everything untouched.
+- **`IMediaStorage`** (`Media/`) is the one seam between the API and storage, with two
+  implementations: **Cloudflare R2** through the AWS S3 client (D49, the current choice) and
+  **Azure Blob Storage** (D33). `Media:Provider` chooses and is inferred when unset. With nothing
+  configured the API answers **503 and writes no row**, rather than recording a file it never
+  stored, and a provider missing a setting says which one on boot. The API does not create an R2
+  bucket, because a new one serves nothing until a domain is bound to it in the dashboard; it lists
+  one object at startup to prove the credentials and the bucket instead.
 - **`GET|POST /api/v1/me/listings/{id}/media`, `DELETE .../{mediaId}`** — the upload enforces three
   things, each of them in the API and not in the UI:
   - **ownership**, through the same `business_members` join the rest of the owner endpoints use, so
@@ -598,15 +711,17 @@ Photos, a logo and video for a listing, with the plan's allowance enforced in th
     name is `listings/{id}/{kind}/{random}`, so nothing the caller sent reaches the path.
   The row is reserved first, the bytes are stored next, and only then is the transaction committed —
   a failure in between rolls the row back, so a gallery never lists a file that is not in storage.
-- **Owner screen** `/account/listings/{id}/photos` — one section per kind, each showing what the plan
-  allows and what is used, with the "not final yet" notice and the API's own refusal messages.
-- **Public listing page** — the logo replaces the monogram, and photos and video render in a gallery.
-  Hidden media is left out of the public response entirely, so it cannot leak. The photo URLs also go
-  into the `LocalBusiness` `image` array for search engines.
+- **Owner screens** — `/account/listings/{id}/photos` for media and `/account/listings/{id}/links`
+  for the Verified plan's five links, each showing what the plan allows and what is used, with the
+  API's own refusal messages.
+- **Public listing page** — the logo replaces the monogram, and photos and video render in a
+  gallery. Everything public reads through `listing_visible_media`, so a lapsed or reduced plan
+  cannot leak media the listing may no longer show. The photo URLs also go into the `LocalBusiness`
+  `image` array for search engines.
 
-**Not built around it:** no cropping or generated thumbnails, and nothing sets `is_hidden` yet,
-because the downgrade that would trigger it needs billing. Ordering and card logos are now built —
-see below.
+**Not built around it:** no cropping, no generated thumbnails, and no sweeper for an orphaned blob.
+**Nothing has ever been stored in a real bucket** — no R2 or Azure credentials are configured, so
+the whole media feature is unexercised outside Development.
 
 ### Logos and thumbnails on the cards
 
@@ -661,9 +776,9 @@ is one row, enforced by the primary key rather than by a check in the API. A fav
 stops being live is kept but marked unavailable, and shown without a link, because hiding it would
 just look like the site had lost it.
 
-### Platform administration (super-admin, decisions D39–D40)
+### Platform administration (super-admin, decisions D39–D40, D51)
 
-`apps/super-admin-website` is no longer a placeholder. It runs on port 3002 and has:
+`apps/super-admin-website` runs on port 3002 and has:
 
 - **Sign-in.** The same staff password and the same authenticator as the admin site, because it is
   the same account. What differs is the token it keeps: only an account holding `admins.manage` is
@@ -671,8 +786,15 @@ just look like the site had lost it.
   plainly that they have no platform access instead of being let into a site whose every request
   would be refused.
 - **Overview** — businesses, owner accounts, admin accounts, new enquiries, reviews waiting, reports
-  open, and listings broken down by status and by plan. Every figure is a count of rows that exist;
-  there is no "visits" or "revenue" tile, because nothing records either.
+  open, and listings broken down by status and by **effective** plan, read through the entitlement
+  view so a lapsed subscription is never reported as Verified. Every figure is a count of rows that
+  exist; there is no "visits" or "revenue" tile, because nothing records either.
+- **Listings** — adding a business by hand, correcting one, archiving and deleting. These moved here
+  from the admin site on 2026-10-26. Delete needed care, because every table pointing at `listings`
+  cascades, `subscriptions` and `subscription_payments` included.
+- **Featured** — the homepage shelf, curated by hand and capped at the eight the homepage shows
+  (D51). `featured_at` is both the ordering and the record of when; `featured_by_admin_id` is the
+  record of who. `S0017` throws if the admin role is ever granted `listings.feature`.
 - **Admin accounts** — the roles each account holds (as tick boxes; saving replaces the set),
   enabling and disabling an account, and clearing a lost authenticator. Disabling also revokes that
   account's sessions, so its existing token stops working on the next request. The API refuses the
@@ -681,11 +803,12 @@ just look like the site had lost it.
 
 The two gates are the audience and the permission, both server-side. `AdminPermissions` keeps the
 two surfaces' permissions in separate lists and `AdminAccess.Authorize` / `AuthorizeSuper` each
-refuse the other surface's permissions, even to an account that holds them; unit tests guard that.
+refuse the other surface's permissions, even to an account that holds them; unit tests and
+`v0003_smoke` both guard that, the check now naming every permission that must not leak.
 
-**Not there:** creating an account and resetting a password (D40 — both need email), oversight of
-individual listings and businesses beyond the counts, and editing plans (`plans.manage` is seeded
-and unused; the `plans` table is edited with SQL, which is what D32 intended).
+**Not there:** creating an account and resetting a password (D40 — both need email), and editing
+plans (`plans.manage` is seeded and unused; the `plans` table is edited with SQL, which is what D32
+intended).
 
 ### Notifications (V0010, decisions D41–D42)
 
@@ -747,38 +870,48 @@ UI — the only reader of the table today is SQL.
 
 ## Not built yet
 
-Ordered by what unblocks the most.
+Ordered by what unblocks the most. The first four need the owner rather than code.
 
-1. **Admin account management.** Mandatory TOTP MFA is **built** (D28–D31). What is still missing is
-   the management around it: inviting admins, assigning roles and changing passwords have no screens,
-   so an account is still created or reset with the `create-admin` command.
-2. **The rest of admin moderation.** Approve, reject, add, edit, **suspend/reinstate**, **review
-   moderation** and **abuse reports** are all built, with screens. What is left: marking a business
-   *verified* (the `listings.verify` permission is seeded and unused), and there is still no screen
-   for inviting admins or assigning roles — `create-admin` on the command line is the only way.
-3. **Super-admin website** — **built**: sign-in, overview, admin accounts and the audit log, on
-   `/api/v1/super-admin` behind its own token audience (decision D39). What is still absent there:
-   creating an account and resetting a password (both need email, decision D40), platform-level
-   listing and business oversight beyond the counts, and plan editing (`plans.manage` is seeded and
-   unused — the `plans` table is edited with SQL).
-4. **Media** — **built** (V0008). See "Listing media and plans" under "What works today". What is
-   still missing around it: no reordering, no cropping or resizing, no thumbnails on the search
-   cards, and nothing yet hides over-allowance media when a plan is downgraded (the `is_hidden`
-   column and the public filter exist; the job that sets it does not, because there is no billing
-   to trigger it).
-5. **Subscriptions and payments** — no tables, no Razorpay integration, no entitlement checks.
-6. **Notifications** — **partly built** (V0010). An enquiry, an approval and a rejection now send an
-   email to the owner, recorded in `notifications`; see "Notifications" under "What works today".
-   What is still missing: **a provider** (nothing is delivered outside Development), retries, SMS,
-   anything for a review decision, a report outcome or a suspension, and any owner-facing view of
-   what was sent.
-7. **OpenAPI documentation** — the API publishes none. The brief requires it, and
+1. **The first super-admin account.** `create-admin` on the command line is still the only way to
+   make one, and until one exists on the live database the admin and super-admin sites can only be
+   tested as far as their sign-in screens.
+2. **A payment provider.** The Razorpay adapter is written, refuses to run unconfigured, and refuses
+   a live key without `Payments:LiveModeApproved` (D45, D50). No account exists and no payment has
+   ever been taken, so the integration is unverified end to end.
+3. **An email provider.** The abstraction, the templates and the recording are built; D14's Resend
+   has never been confirmed, so no adapter was written. See "What email still needs, exactly". It
+   also holds up the correction-request email (D52) and the payment receipt (`S0013`).
+4. **A media bucket.** R2 or Azure (D49). Until one is configured every upload answers 503 and the
+   Verified plan's photos, videos and logo cannot be used at all.
+5. **Switching on automated migrations.** The deploy workflow now has a gated `migrate` job that
+   applies the migrations and the reference seeds before the API ships, but it is **off**: it needs
+   a `production-database` environment holding `DATABASE_CONNECTION_STRING`, and the repository
+   variable `RUN_MIGRATIONS` set to `true`. Until then every migration is applied by hand, as
+   `S0009`–`S0017` were. **It has never run.** The database is on shared hosting rather than Azure
+   SQL, so it may only accept allow-listed addresses, and a GitHub runner has no fixed one; if that
+   is how it is configured this needs a self-hosted runner, and `npm run db:migrate` from a trusted
+   machine stays the fallback.
+6. **End-to-end tests.** `tests/e2e/` is empty and Playwright is not set up. Every critical journey
+   has been walked by hand in a browser and recorded here; nothing re-walks them.
+7. **A nonce-based CSP.** `'unsafe-inline'` on `script-src` is the remaining weakness, and closing
+   it means a per-request nonce through middleware and re-verifying every page.
+8. **OpenAPI documentation** — the API publishes none, the brief requires it, and
    `packages/api-client` is an empty placeholder waiting for a generated client.
-8. ~~**Sitemap**~~ — **built**. `/sitemap.xml` on the public site, from `/api/v1/public/sitemap`.
-9. **Branches** — decision D3 models a branch as a second listing. No branch-specific UI exists.
-10. **Real OTP delivery** — see "Missing credentials".
-11. **End-to-end tests** — `tests/e2e/` is empty; Playwright is not set up.
-12. **Azure infrastructure as code** — `infrastructure/azure/` holds only a README.
+9. **Admin account management** — inviting admins, assigning roles and changing passwords have no
+   screens, and an admin who loses both authenticator and recovery codes needs a direct database
+   edit (D40: both need email).
+10. **Editing plans from the super-admin site.** `plans.manage` is seeded and unused.
+11. **Marking a business verified by hand.** `listings.verify` is seeded and unused. The badge now
+    comes from a paid period, so a manual grant would be an override of that and needs a rule first.
+12. **Branches** — decision D3 models a branch as a second listing; no branch-specific UI exists.
+13. **Notification follow-ups** — no retry for a `failed` row, no SMS notifications, nothing for a
+    review decision, a report outcome or a suspension, and no owner-facing view of what was sent.
+14. **Media housekeeping** — no cropping, no generated thumbnails, and no sweeper for an orphaned
+    blob.
+15. **Azure infrastructure as code** — `infrastructure/azure/` holds only a README.
+16. **A staging API and database.** There is none, which is why preview deployments are deliberately
+    left unreachable: a preview pointed at `API_BASE_URL` would talk to the production API and the
+    production database. See `REPAIR_STATUS.md`.
 
 ## Known limitations in what *is* built
 
@@ -825,17 +958,10 @@ migration chain into a brand-new database, not only by altering the dev one.
 - **The prototype's sign-in page rotates three marketing slides in a carousel.** The same three
   messages are shown as a static list instead, because a carousel would mean a JavaScript library
   for decoration alone.
-- **Two test owners exist in the local dev database** from walking the OTP journey: "Redesign Test
-  Owner" / "Redesign Test Plumbing" on `+919000000123` (one **draft** in Gachibowli), and
-  "Redesign Test Owner Two" / "Redesign Test Bakery" on `+919000000124` (one listing in Madhapur,
-  now **pending review**). The second exists because the first number had used up its five codes
-  for the hour. Neither is public — a draft is not published, and the pending one is waiting in the
-  admin queue, where it will show up for whoever is testing moderation. Both are left in place
-  rather than deleted, because deleting data needs the owner's say-so; the dev seed data itself is
-  untouched.
-- **The header still shows a "LogIn" button to an owner who is already signed in.** That markup is
-  in `SiteChrome.tsx`, which another session is working on, so it was left alone deliberately
-  rather than edited concurrently. It wants an account link instead once that work lands.
+- **The live database holds a handful of test rows** from proving sign-in and the owner journey, all
+  listed in `REPAIR_STATUS.md` under "Left behind, needs the owner". There is no local development
+  database any more: development runs against the same shared server, which is why
+  `npm run db:check` prints the server and database before it does anything.
 - **Submitting the search form leaves empty parameters in the URL** (`/search?page=1&q=&category=plumbers&locality=&sort=`).
   That is how a plain GET form behaves, and the page ignores empty values, so the results and the
   filter chips are correct. Tidying it would mean handling the submit in JavaScript, which would
@@ -844,30 +970,25 @@ migration chain into a brand-new database, not only by altering the dev one.
 - **The category filter on `/search` is still one `<select>` of about 150 options.** It works, it is
   accessible, and it is grouped by parent category, but the header's mega-menu is now the better
   pattern for it.
-- **The home page has no "trending" or "featured" section, because nothing in the database can
-  rank listings.** There is no view count, rating or featured flag, so the dark band is headed
-  "Businesses on Hyderabad Links" and shows published listings by name. Inventing a ranking would
-  have meant inventing data. A real "featured" section needs either a flag on the listing or a
-  popularity signal; both are small schema additions and neither is decided.
-- **Every business card shows a monogram rather than a logo**, because there is no media table
-  (see "Not built yet" item 4). `initialsOf()` in `src/components/ui/BusinessCard.tsx` is the one
-  place to change when logos exist.
-- **The header and footer only link to pages that exist.** The reference carries About, Membership,
-  Contact, Terms of Use and Privacy Policy, and the footer carries social icons; none of those
-  routes or accounts exist here, so they are left out rather than shipped as dead links. They are
-  easy to add once there is something to point at.
+- **The homepage's Featured shelf is empty until a super admin picks something** (D51). That is
+  deliberate: it is a curated list, and `S0017` did not inherit the automatic membership it
+  replaced. Trending is computed from enquiries, favourites and approved reviews over 30 days and
+  needs no curation.
+- **A business card shows its logo when the listing has one**, and a monogram otherwise.
+  `initialsOf()` in `src/components/ui/BusinessCard.tsx` draws the fallback, and the card reads
+  through `listing_visible_media`, so it can never show a file the listing page no longer displays.
+- **The header and footer only link to pages that exist.** `/help`, `/terms` and `/privacy` exist
+  now; About, Membership, Contact and the social accounts do not, so they are still left out rather
+  than shipped as dead links.
 - **The brand is set in type, not a logo.** The reference loads a logo from the live site; this
   repository has no logo file, so `SiteChrome.tsx` draws "Hyderabad **Links**" with a round HL mark.
 - **The number of categories on the navigation bar is a fixed five.** Category names come from the
   database, so a much longer name could still crowd the bar at 1280 px. It is checked at seven
   widths with today's names.
 
-- **Full-text search does not stem.** `listings.search_vector` is built with the `simple`
-  PostgreSQL text configuration, so "plumbers" does not match "plumber" through full-text search.
-  Trigram matching and the category `search_terms` cover most of the gap in practice. Moving to the
-  `english` configuration means a migration that drops and recreates the generated column, and the
-  migration safety checker treats that as destructive — so it is a deliberate decision, not a
-  drive-by change.
+- **Full-text search does not stem.** The SQL Server full-text index over `name` and `description`
+  matches words as written, so "plumbers" does not reach "plumber" through full-text alone. Trigram
+  matching (D42) and the `category_search_terms` table cover most of the gap in practice.
 - **`/api/v1/public/listings/nearby` now has no frontend caller.** `listings/search` with
   `sort=distance` does everything it does. The endpoint and its tests remain because the brief wants
   the listings API reusable by other applications. Decide whether to keep it when the API surface is
@@ -885,11 +1006,13 @@ migration chain into a brand-new database, not only by altering the dev one.
   and sort, just not filter by area from this form (a `locality=` already in the URL still applies).
 - **Page size on `/search` is fixed** at the API default of 20; `pageSize` in the URL is ignored by
   the page on purpose, so visitors cannot ask for huge pages.
-- **Admin sign-in has no MFA yet.** See "Not built yet" item 1. Password strength is judged by length
-  only (12 characters minimum), and nothing forces a password change.
-- **An owner is not told when their listing is decided on.** The status and the rejection reason are
-  on their listings screen the next time they look; there is no SMS or email, because no notification
-  channel exists yet.
+- **Admin password strength is judged by length only** (12 characters minimum), and nothing forces a
+  password change. MFA itself is built and mandatory (D28–D31).
+- **An owner is told by email when their listing is decided on** — and when an enquiry arrives, when
+  staff ask for a correction, and when a subscription is activated. **No email provider is
+  configured**, so outside Development every one of those is recorded as a `failed` notification
+  rather than delivered. The status and the reviewer's reason are on the owner's listings screen
+  either way.
 - **A hand-added listing has no owner account attached.** `created_by_user_id` is null, so the
   business cannot manage it until someone links it to an owner — there is no screen for that yet.
 - **Public pages refresh on approval only when `REVALIDATE_TOKEN` and `MAIN_SITE_URL` are set** on
@@ -902,9 +1025,11 @@ migration chain into a brand-new database, not only by altering the dev one.
 
 ## Recently decided (2026-10-17)
 
-- **D22 — public URL scheme.** The locality-first `/{city}/{locality}/{category}/{slug}` scheme stays.
-  The live site's category-first URLs are served by 301 redirects rather than adopted, so no
-  three-level taxonomy migration is needed and the city segment survives for a second city.
+- **D22 — public URL scheme.** ~~The locality-first `/{city}/{locality}/{category}/{slug}` scheme
+  stays.~~ **Superseded on 2026-10-26**: public URLs are category-first
+  (`/food/cafes/garden-cafe`), with areas under `/areas/{locality}`. `docs/decisions.md` still
+  records the old scheme and needs a new row. The API's own addressing
+  (`{city}/{locality}/{slug}`) did not change.
 - **D23 — subscription tiers.** ~~Free ₹0 / Basic ₹699 / Advanced ₹6999 / Premium ₹36999~~
   **Superseded.** The owner confirmed on 2026-10-25 that the structure is **Free and Verified
   (₹399) only**, with no Gold or Premium. `S0009` deactivated the three old tiers and `S0011`
@@ -939,25 +1064,28 @@ that, and the redesign changes no URL.
 
 ## Decisions needed from the owner
 
-1. **One API or two?** See the architecture note above. Nothing is blocked while this is open.
-2. **Per-tier media allowance, and the verified badge.** D23 settled the tiers and prices but not how
-   many photos and videos each one allows. Separately, the prototype grants a verified badge with
-   paid Basic, while the earlier requirement was that a paid plan must never auto-grant one. **This
-   no longer blocks media work**: the allowances live in the `plans` table with the documented
-   numbers loaded (Free 0/0, Basic 4/0, Advanced 4/2, Premium 16/4 — "Advanced" carrying what the
-   requirements called "Gold"), `media_limits_confirmed` is false on every row, and the owner screens
-   say the numbers are not final. **Answering it is an UPDATE, not a deploy.** No plan grants a badge.
-   Billing still needs the answer, and so does the billing period, which is documented nowhere.
-3. **OTP provider.** The prototype uses Twilio Verify; this API's code comments name MSG91. Only one
-   should be registered for DLT, so pick before starting that paperwork.
-4. **Maps provider** (D14) — still open, and now demonstrably avoidable for the moment:
-   `/public/localities/nearest` resolves coordinates against the 103 rows with PostGIS, with no
-   provider or key, and that is what the website uses. A real geocoder is only needed for places
-   outside that dataset — street addresses rather than areas.
+1. **The payment provider** (D45). The adapter is written against Razorpay and nothing is
+   configured. Confirming the provider, and then approving live mode explicitly (D50), is what turns
+   the ₹399 plan from code into revenue.
+2. **The email provider** (D14, D42). Resend is *assumed*, never approved. Nothing the platform
+   sends reaches anybody until this is settled and a sending domain is verified in DNS.
+3. **One API or two?** The brief asks for two; D1 records the single modular API as approved.
+   Nothing is blocked while it is open — the API is already organised by audience, so the split
+   would mostly move folders.
+4. **Maps provider** (D14) — still open and still avoidable: `/public/localities/nearest` resolves
+   coordinates against the 103 seeded areas with no provider and no key. A real geocoder is only
+   needed for street addresses rather than areas.
 5. **Edge protection and private networking** (D13) — before production launch.
-6. **Locality coverage.** 103 localities is partial for Hyderabad, and this is now the limiting
-   factor on the location autocomplete: an area that is missing cannot be typed or resolved to.
-   Extending the dataset is a reference-data job, not a code one.
+6. **Locality coverage.** 103 areas is partial for Hyderabad and is the limiting factor on the
+   location autocomplete: an area that is missing cannot be typed or resolved to. Extending the
+   dataset is a reference-data job, not a code one.
+7. **Preview deployments.** Making them work means letting an unreviewed branch talk to the
+   production database, because there is no staging. See `REPAIR_STATUS.md`.
+
+**Settled since this list was last written:** the plan structure and its allowances (D48, `S0016`),
+the verified badge (a paid period grants it and nothing else does), the OTP provider (MSG91 —
+integrated and diagnosable, delivery still unproven), the media store (D49) and live payment mode
+(D50).
 
 ## Missing credentials and configuration
 
@@ -965,14 +1093,15 @@ None of these are in the repository, and none should be.
 
 | What | Configuration key | Status |
 |---|---|---|
-| OTP / SMS delivery | an `ISmsSender` implementation + its provider keys | **Not configured.** Development prints the code to the API console (`ConsoleSmsSender`). Outside Development the API uses `UnconfiguredSmsSender`, which refuses to pretend. MSG91 is the intended provider. |
+| OTP / SMS delivery | `MSG91:AuthKey`, `MSG91:TemplateId` | **Code is wired up and finished** (`Msg91SmsSender`). Not configured: Development prints the code to the API console (`ConsoleSmsSender`), and outside Development a missing key is announced as a startup warning rather than a refusal, because search and every listing page work without SMS. **No real code has ever been delivered**, and the template variable names are unproven — one real send is the only way to know. |
 | JWT signing key | `Auth:JwtSigningKey` | Development generates one. Production must supply it. |
 | OTP HMAC key | `Auth:OtpHmacKey` | As above. |
 | TOTP encryption key | `Auth:TotpEncryptionKey` | **Required in production** (base64, ≥32 bytes; only the first 32 are used). Development generates a random one per start, which invalidates enrolled authenticators on every restart. Rotating it in production forces every admin to re-enroll. |
 | Database | `ConnectionStrings:Default` | `dotnet user-secrets` locally, App Service settings in Azure. Never `appsettings.Development.json`, which is tracked. |
 | Email delivery (D14, D42) | `Email:Provider`, `Email:ApiKey`, `Email:FromAddress`, `Email:ReplyTo`, `Email:SiteBaseUrl` | **Code is wired up; no provider is configured.** See the paragraph below for exactly what is outstanding. |
-| Razorpay | not wired up | Not configured. |
-| Azure Blob Storage | `Media:BlobConnectionString`, `Media:ContainerName`, `Media:PublicBaseUrl` | **Code is wired up and used.** Set it to a dev or test Azure Storage account locally; empty disables uploads (in `appsettings.Development.json`; the emulator's own well-known account, not a secret). Production needs a real connection string from Key Vault and an account that allows blob public access — see `docs/deployment.md`. With none set the API refuses uploads with 503 rather than pretending. |
+| Razorpay | `Payments:Provider`, `Payments:KeyId`, `Payments:KeySecret`, `Payments:WebhookSecret` | **Code is wired up** behind `IPaymentGateway` (D45). Not configured: every paying route answers 503 and writes nothing. A key id without its secret counts as unconfigured, and an `rzp_live_` key is refused unless `Payments:LiveModeApproved` is true (D50). No payment has ever been taken. |
+| Media storage | `Media:Provider`; R2: `Media:R2AccountId`, `Media:R2AccessKeyId`, `Media:R2SecretAccessKey`, `Media:BucketName`, `Media:PublicBaseUrl`; Azure: `Media:BlobConnectionString`, `Media:ContainerName`, `Media:PublicBaseUrl` | **Code is wired up and used** for both (D49, D33). Nothing is configured, so uploads answer 503 rather than pretending. `Media:PublicBaseUrl` is **required** for R2, because a bucket serves nothing until a domain is bound to it in the dashboard. Secrets belong in user-secrets or Key Vault — `README.md` lists every key each provider needs. |
+| Dummy OTP | `Auth:DummyOtpEnabled` | **An authentication bypass**, off by default. With it on, every owner login code is `123456` and no SMS is sent, which is the only way to test the owner journey while MSG91 delivery is unproven. It is announced on every start and logged on every code issued. Turn it off before anyone else can reach the site. |
 
 ### What email still needs, exactly
 
@@ -1004,88 +1133,36 @@ Once a provider is configured, the thing to re-verify is that `notifications` ro
 against the real provider, and that a deliberately bad recipient reaches `failed` with a usable
 reason. Until that has actually been run, **nothing should claim email delivery works.**
 
-## Suggested next step
+## The next step
 
-**Last finished (2026-10-20):** notifications (V0010, D41–D42) — an `IEmailSender` abstraction with
-a console sender for Development and an unconfigured one everywhere else, plain-text and HTML
-templates, a `notifications` table that makes a delivery failure visible, and sending on the three
-events that already existed (a new enquiry, an approval, a rejection). Verified against the running
-API in Development and, for the failure path, against a Staging instance — see the table at the top.
-**No provider is configured, so nothing is delivered outside Development**, and nothing claims it is.
+**Last finished (2026-10-27):** the curated Featured shelf and staff correction requests (`S0017`,
+D51–D52), with the permission catalogue now asserted by name rather than by count. Earlier the same
+day: the two-video correction to the Verified plan (`S0016`), link previews, Cloudflare R2 media
+storage (D49) and the live-payment-key refusal (D50). `npm run verify` passes — 534 unit and 185
+integration tests, three production builds, no warnings.
 
-Before that: card logos and thumbnails, media reordering, the sitemap, admin
-review moderation, listing suspend/reinstate, abuse reports, favourites, and the whole super-admin
-website. Everything in that list was verified against the running API and, where it has a screen, in
-a real browser — see the table at the top.
+Everything that remains is listed in "Not built yet", in the order that unblocks the most. Its first
+four items are the owner's to unblock, and until the first one lands — **the first super-admin
+account** — a large part of the product cannot be tested at all.
 
-What genuinely remains, in the order that unblocks the most:
+The most useful code-side work, in order:
 
-1. **Finish notifications** (the abstraction, the templates, the recording and the three events are
-   **built** — V0010, D41–D42). What is left is not code: confirm the **email provider** with the
-   owner (D14 assumes Resend and has never been approved), verify a sending domain in DNS, and set
-   the `Email:` keys. See "What email still needs, exactly". After that, the code-side follow-ups
-   worth doing are a retry for `failed` rows, notifications for a review decision and a suspension,
-   and SMS through the existing `ISmsSender` once MSG91 is configured.
-2. **Subscriptions and payments.** The plans, the entitlements and the quota enforcement are built
-   and working. What is missing is the subscription lifecycle (a `subscriptions` table, expiry,
-   upgrade and downgrade), Razorpay order creation and **server-side** signature and webhook
-   verification, and billing history. Still blocked on two owner decisions: the **billing period**
-   for the three paid tiers, and the **verified-badge policy**. The policy-independent parts (the
-   tables, the idempotent webhook handling, the entitlement checks) can be built before either is
-   settled; nothing may enable a paid entitlement until the server has verified a payment.
-3. **Marking a business verified.** `listings.verify` is seeded and unused. It needs the badge
-   policy settled first, because a badge is exactly what it grants.
-4. **Editing plans from the super-admin site** (`plans.manage`), which would let the owner settle the
-   provisional media allowances without SQL.
-5. **End-to-end tests.** `tests/e2e/` is still empty and Playwright is not set up. The critical
-   journeys have all been walked by hand in a browser and recorded above, but nothing re-walks them
-   automatically.
-6. **OpenAPI documentation**, which the brief asks for and the API still does not publish.
+1. **Switch on the `migrate` job** in `.github/workflows/main_hyderabad-links-api.yml`, which was
+   written on 2026-10-27 and has never run. Nine migrations were applied by hand, and code shipping
+   ahead of its schema is the likeliest cause of a production incident here. Switching it on is
+   three settings (item 5 of "Not built yet"); proving it is one deployment with nothing pending,
+   which `migrate --what-if` reports without changing anything.
+2. **End-to-end tests** for the journeys that have only ever been walked by hand: owner sign-in →
+   listing → review → publish, and the paid path as far as an unconfigured provider allows.
+3. **A nonce-based CSP**, the last known weakness from the security pass.
+4. **OpenAPI**, which the brief asks for and which `packages/api-client` is waiting on.
 
-The earlier plan, kept for context:
+### The redesign (history — finished 2026-10-18)
 
-**The redesign is finished.** Every public page and every owner screen now uses the shared design
-system, and each one was verified in a browser before the next was started.
-
-What that leaves, in the order that unblocks the most:
-
-1. **The decisions still open**, several of which now block design rather than only code — above
-   all the per-tier media allowance and the verified badge (item 2 below). Media is the biggest:
-   it is what turns the monograms on the cards and the detail page into real logos, and it gates
-   the listing detail sections that were left out.
-2. **Admin MFA** (D18), which gates exposing the admin site at all.
-3. **A sitemap**, now that every public page has its final shape.
-4. **The listing detail page's missing sections** — rating, opening hours, services, languages
-   spoken, contact person, social links. `factsFor()` in the detail page is where they go once
-   there are tables behind them.
-
-The redesign was done one page at a time, each one verified in a browser before the next was
-started. All seven steps are complete:
-
-1. ~~**Design system and chrome**~~ — **done**. Tokens, buttons, section headings, cards, header,
-   mega-menu and footer; see "What works today".
-2. ~~**Location autocomplete**~~ — **done**. Both endpoints and the combobox are built and verified;
-   see "What works today". The redesign restyled the combobox through the shared tokens rather than
-   editing it.
-3. ~~**Homepage**~~ — **done**, and approved by the owner on 2026-10-18.
-4. ~~**Search results**~~ — **done**. It added `ActiveFilters`, `EmptyState` and a loading skeleton
-   to the design system, and restyled `ListingCard`, which the locality + category pages share.
-5. ~~**Login and onboarding screens**~~ — **done**. Added `AuthLayout` and `Field` to the design
-   system; no authentication logic was touched.
-6. ~~**Owner account and listing screens**~~ — **done**. `/account/listings`, the add and edit
-   pages, `ListingForm`, `StatusBadge` and `SubmitForReview`; no owner logic was touched.
-7. ~~**Listing detail**~~ — **done**, built from today's fields only, on the owner's instruction
-   of 2026-10-18. The missing data (rating, hours, services, languages, contact person, social
-   links, logo) is still missing; it was left out rather than faked.
-
-The two smaller things the owner's brief asked for alongside the search page are now **done**: the
-locality field starts on "Choose a location" and has a visible clear button. The category `<select>`
-is still a long list — see "Known limitations".
-
-Blocked until decided or built: the listing detail page in the references shows a Google rating,
-opening hours, a services list, languages spoken, a contact person, social links and a logo. **None
-of these have tables.** Media is the biggest piece and also gates the circular logo cards on the
-search results page, so a placeholder is needed until it exists.
-
-Still command-line only on the admin side: admin MFA (D18 — the admin site must not be exposed
-publicly before it exists), inviting admins and assigning roles.
+The redesign was done one page at a time, each page verified in a browser before the next was
+started, and all seven steps are complete: the design system and chrome, the location autocomplete,
+the homepage (approved by the owner on 2026-10-18), search results, the login and onboarding
+screens, the owner account and listing screens, and the listing detail page. The detail page was
+built from the fields that existed, on the owner's instruction: the reference's rating, opening
+hours, services, languages, contact person and social links were left out rather than faked, and
+`factsFor()` is still the one place to add them.

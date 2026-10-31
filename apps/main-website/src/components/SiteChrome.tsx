@@ -24,14 +24,11 @@ export async function SiteHeader() {
           Search
         </Link>
 
-        <a
-          href="https://hyderabadlinks.com/blog"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm font-bold hover:opacity-70"
-        >
+        {/* Was an outbound link to the old site, which took visitors off this one and gave the
+            traffic away. The blog now lives here. */}
+        <Link href="/blog" className="text-sm font-bold hover:opacity-70">
           Blog
-        </a>
+        </Link>
 
         <Link
           href="/account/listings"
@@ -135,6 +132,9 @@ export function SiteFooter() {
             Privacy policy
           </Link>
 
+          <Link href="/blog" className="hover:opacity-70">
+            Blog
+          </Link>
           <Link href="/help" className="hover:opacity-70">
             Help &amp; feedback
           </Link>
