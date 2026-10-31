@@ -28,7 +28,11 @@
   --color-line: #d9e8eb;
   --color-night: #050708; /* the dark band behind the business cards */
 
-  --font-sans: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  /* Mulish for body copy and Capriola for headings, as the original Hyderabad Links used. The
+     system stack stays behind them: it is what renders while the webfont loads, and what renders
+     if it never does. */
+  --font-sans: var(--font-mulish), "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --font-display: var(--font-capriola), var(--font-mulish), "Segoe UI", system-ui, sans-serif;
 }
 
 /*
@@ -116,5 +120,54 @@ button,
   button,
   [role="button"] {
     transition-duration: 0ms;
+  }
+}
+
+/*
+ * Headings in Capriola, as the original Hyderabad Links set them.
+ *
+ * Applied here rather than as a class on every heading: there are headings in a dozen components,
+ * and a rule somebody has to remember to add is a rule that gets forgotten. Anything that needs
+ * the body face back can still say `font-sans`, since a utility class beats an element selector.
+ *
+ * Capriola has a single weight, so `font-weight` is left alone — asking a one-weight face for bold
+ * makes the browser synthesise it, which looks like a smudge rather than a bolder letter.
+ */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+}
+
+/*
+ * The scrolling strip. The track holds two identical copies of the list, so moving it left by
+ * exactly half its width lands the second copy where the first began — the loop has no seam and
+ * no JavaScript.
+ *
+ * 40s is slow enough to read a word as it passes. Faster looks busy; slower reads as broken.
+ */
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  animation: marquee-scroll 40s linear infinite;
+}
+
+/* Pausing on hover lets somebody actually click a link they just saw go past. */
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Not slowed — stopped. Perpetual motion is a genuine problem for some readers, and the strip
+     is still perfectly usable as a static row of links. */
+  .marquee-track {
+    animation: none;
   }
 }

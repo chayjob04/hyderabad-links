@@ -9,6 +9,11 @@ import type { SearchCategory } from "@/lib/types";
 type Props = {
   categories: SearchCategory[];
   initialQuery?: string;
+  /**
+   * Hint text staff have configured, in their order. Empty is the normal state and keeps the
+   * built-in wording below -- an empty search box would be worse than an opinionated one.
+   */
+  placeholders?: string[];
 };
 
 /**
@@ -26,7 +31,10 @@ type Props = {
 /** The entry that means "do not narrow this at all". Matched case-insensitively on submit. */
 const ALL_CATEGORIES = "All";
 
-export function SearchBox({ categories, initialQuery = "" }: Props) {
+/** The wording used when staff have not configured any. */
+const DEFAULT_PLACEHOLDER = "Enter a business name or category";
+
+export function SearchBox({ categories, initialQuery = "", placeholders = [] }: Props) {
   const router = useRouter();
   const listId = useId();
   const [query, setQuery] = useState(initialQuery);
@@ -111,7 +119,7 @@ export function SearchBox({ categories, initialQuery = "" }: Props) {
             list={listId}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Enter a business name or category"
+            placeholder={placeholders[0] ?? DEFAULT_PLACEHOLDER}
             autoComplete="off"
 className="w-full rounded-lg border border-neutral-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-500 caret-slate-900 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100"          />
           <datalist id={listId}>

@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/PageHero";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -5,7 +6,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { ListingCard } from "@/components/ListingCard";
 import { Pagination } from "@/components/Pagination";
 import { SearchBox } from "@/components/SearchBox";
-import { getCategories, getLocalities, searchListings } from "@/lib/api";
+import { getCategories, getLocalities, getPageMeta, searchListings, withPageMeta } from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { toSearchCategories } from "@/lib/categories";
 import { absoluteUrl } from "@/lib/format";
@@ -61,11 +62,19 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     // A failed lookup must not break metadata; fall back to not indexing.
   }
 
+  const applied = withPageMeta(
+    {
+      title: pageNo > 1 ? `${title} - page ${pageNo}` : title,
+      description: `Local businesses in and near ${page.area.name}, ${DEFAULT_CITY_NAME}. Call or WhatsApp them directly.`,
+    },
+    await getPageMeta("locality", page.area.slug),
+  );
+
   return {
-    title: pageNo > 1 ? `${title} - page ${pageNo}` : title,
-    description: `Local businesses in and near ${page.area.name}, ${DEFAULT_CITY_NAME}. Call or WhatsApp them directly.`,
+    ...applied,
     alternates: { canonical: absoluteUrl(`/areas/${page.area.slug}`) },
-    robots: isEmpty || pageNo > 1 ? { index: false, follow: true } : undefined,
+    // An override saying noindex wins; otherwise a thin or paged view stays out of the index.
+    robots: applied.robots ?? (isEmpty || pageNo > 1 ? { index: false, follow: true } : undefined),
   };
 }
 
@@ -85,12 +94,19 @@ export default async function AreaPage({ params, searchParams }: Props) {
   const basePath = `/areas/${page.area.slug}`;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-8 pb-16">
-      <SearchBox categories={toSearchCategories(page.tree)} />
+    <>
+      <PageHero
+        crumbs={[{ label: "Home", href: "/" }, { label: page.area.name }]}
+        title={
+          <>
+            Businesses in <span className="text-[#42d0dc]">{page.area.name}</span>
+          </>
+        }
+        subtitle={DEFAULT_CITY_NAME}
+      />
 
-      <h1 className="mt-8 text-2xl font-bold">
-        Businesses in {page.area.name}, {DEFAULT_CITY_NAME}
-      </h1>
+      <main className="mx-auto max-w-5xl px-5 pt-8 pb-16 sm:px-8">
+        <SearchBox categories={toSearchCategories(page.tree)} />
 
       {/* Narrowing by category from here is the common next step, so the links are on the page
           rather than only in the search box. */}
@@ -146,6 +162,7 @@ export default async function AreaPage({ params, searchParams }: Props) {
           />
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }

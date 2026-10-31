@@ -1,0 +1,1803 @@
+﻿
+========== .\apps\main-website\src\app\page.tsx ==========
+
+import { SearchBox } from "@/components/SearchBox";
+import { BusinessCard } from "@/components/ui/BusinessCard";
+import { ButtonLink } from "@/components/ui/Button";
+import { CategoryCard } from "@/components/ui/CategoryCard";
+import { CategoryIcon } from "@/components/ui/CategoryIcon";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { getCategories, searchListings } from "@/lib/api";
+import { DEFAULT_CITY } from "@/lib/brand";
+import { toSearchCategories } from "@/lib/categories";
+
+// Fetches live data, so it must render per request (never at build time).
+export const dynamic = "force-dynamic";
+
+/** How many of each thing the homepage shows. Enough to fill the grids, not enough to be a listing page. */
+const CATEGORY_CARDS = 8;
+const ITEMS_PER_CARD = 4;
+const BUSINESS_CARDS = 8;
+
+export default async function HomePage() {
+  const tree = await getCategories();
+
+  // Real listings, not a curated set: there is no "featured" or "trending" flag in the database
+  // yet, so the homepage shows published businesses by name rather than inventing a ranking.
+  const businesses = await searchListings({ city: DEFAULT_CITY, sort: "name", pageSize: BUSINESS_CARDS });
+
+  const quickLinks = tree.slice(0, 7);
+
+  return (
+    <main>
+      <section className="flex h-8 items-center gap-3 overflow-hidden bg-[#050505] px-5 text-[11px] whitespace-nowrap text-white sm:justify-center sm:text-[13px]">
+        <span>Everything about a business, and all its digital profiles, in one place</span>
+        <b className="text-brand-400">&bull;</b>
+        <span>Chat directly with businesses on WhatsApp</span>
+        <b className="text-brand-400">&bull;</b>
+        <span>Find businesses that can help you in your language</span>
+      </section>
+
+      {/* Hero. The illustration is drawn in CSS - gradients and a faint grid - so it costs no image. */}
+      <section className="relative isolate overflow-hidden bg-[linear-gradient(110deg,#00242c_0%,#003a47_55%,#062a34_100%)] px-5 py-14 text-white sm:py-16">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_35%,#0d7b8c55,transparent_30%),radial-gradient(ellipse_at_80%_30%,#12647755,transparent_33%)]"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 opacity-15 [background-image:linear-gradient(90deg,transparent_0_48px,#2bb3c2_49px,transparent_50px),linear-gradient(0deg,transparent_0_48px,#2bb3c2_49px,transparent_50px)] [background-size:50px_50px] [mask-image:linear-gradient(to_bottom,transparent,#000_30%,#000_85%,transparent)]"
+        />
+
+        <div className="mx-auto w-full max-w-[1050px] text-center">
+          <p className="text-[11px] font-black tracking-[0.22em] text-brand-400">YOUR CITY. YOUR BUSINESSES.</p>
+          <h1 className="mt-3 text-4xl leading-[1.06] font-black tracking-tight sm:text-5xl lg:text-6xl">
+            Discover Hyderabad.
+            <br />
+            <span className="text-[#42d0dc]">Connect locally.</span>
+          </h1>
+          <p className="mx-auto mt-4 max-w-xl text-base text-brand-100 sm:text-[17px]">
+            Find local businesses, services and professionals across Hyderabad &mdash; all in one place.
+          </p>
+
+          <div className="mx-auto mt-7 max-w-3xl text-left">
+            <SearchBox categories={toSearchCategories(tree)} />
+          </div>
+
+          {quickLinks.length > 0 ? (
+            <nav aria-label="Popular categories" className="mt-9 flex flex-wrap justify-center gap-x-6 gap-y-4">
+              {quickLinks.map((parent) => (
+                <a
+                  key={parent.slug}
+                  href={`/search?category=${parent.slug}`}
+                  className="flex min-w-[64px] flex-col items-center gap-2 text-[11px] font-bold text-white sm:text-xs"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="grid h-10 w-10 place-items-center rounded-full border border-brand-300/70 bg-white/5 text-lg font-black text-[#7de3e9] transition hover:-translate-y-0.5 hover:bg-brand-500 hover:text-white sm:h-11 sm:w-11"
+                  >
+                    <CategoryIcon slug={parent.slug} name={parent.name} className="h-5 w-5 sm:h-[22px] sm:w-[22px]" />
+                  </span>
+                  {parent.name}
+                </a>
+              ))}
+            </nav>
+          ) : null}
+        </div>
+      </section>
+
+      {/*
+        The category tree degrades to an empty list when the API cannot be reached (see
+        getCategories), so this section is skipped rather than left as a heading over an empty grid.
+      */}
+      {tree.length > 0 ? (
+        <section id="most-searched" className="px-5 py-14 sm:px-8 lg:px-16 lg:py-[68px]">
+          <SectionHeading
+            mark="&#8981;"
+            kicker="FIND WHAT YOU NEED"
+            title={
+              <>
+                Most Searched Businesses &amp; Services <span className="text-[#294d56]">in Hyderabad</span>
+              </>
+            }
+          />
+          <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-7">
+            {tree.slice(0, CATEGORY_CARDS).map((parent) => (
+              <CategoryCard key={parent.slug} title={parent.name} items={parent.children.slice(0, ITEMS_PER_CARD)} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {businesses.items.length > 0 ? (
+        <section className="bg-night px-5 py-14 text-white sm:px-8 lg:px-16 lg:py-[68px]">
+          <SectionHeading
+            onDark
+            mark="&#9832;"
+            kicker="LOCAL BUSINESSES, BIG POSSIBILITIES"
+            title={
+              <>
+                Businesses <span className="text-brand-200">on Hyderabad Links</span>
+              </>
+            }
+          />
+          <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-x-3 gap-y-6 lg:grid-cols-4 lg:gap-8">
+            {businesses.items.map((listing) => (
+              <BusinessCard
+                key={listing.url}
+                tone="dark"
+                name={listing.name}
+                categoryName={listing.categoryName}
+                href={listing.url}
+                imageUrl={listing.logoUrl ?? listing.photoUrl}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="flex flex-col items-start justify-between gap-6 border-t border-brand-200 bg-brand-50 px-6 py-10 sm:flex-row sm:items-center sm:px-10 lg:px-24">
+        <div>
+          <p className="text-[11px] font-black tracking-[0.22em] text-muted">ARE YOU A BUSINESS OWNER?</p>
+          <h2 className="mt-2 text-2xl font-black text-brand-800 sm:text-3xl">
+            Make your business easier to discover.
+          </h2>
+          <p className="mt-2 text-muted">
+            Bring your business details and digital profiles together on Hyderabad Links.
+          </p>
+        </div>
+        <ButtonLink tone="cta" href="/login" className="shrink-0">
+          List your business <span aria-hidden="true">&rarr;</span>
+        </ButtonLink>
+      </section>
+    </main>
+  );
+}
+
+========== .\apps\main-website\src\components\ui\BusinessCard.tsx ==========
+
+import Link from "next/link";
+
+/**
+ * Initials for the circular logo, used for a business that has not uploaded one.
+ */
+export function initialsOf(name: string): string {
+  const words = name
+    .split(/\s+/)
+    .map((word) => word.replace(/[^A-Za-z0-9]/g, ""))
+    .filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
+  return words
+    .slice(0, 3)
+    .map((word) => word.charAt(0))
+    .join("")
+    .toUpperCase();
+}
+
+type Props = {
+  name: string;
+  categoryName: string;
+  href: string;
+  /** The uploaded logo or first photo. Null or missing falls back to the monogram. */
+  imageUrl?: string | null;
+  /** `dark` is the band with the near-black background; `light` is a white section. */
+  tone?: "dark" | "light";
+};
+
+/**
+ * The circular-logo business card from the reference. The homepage uses it today and the search
+ * results page is meant to adopt it, so the name ribbon and the monogram live here rather than on
+ * either page.
+ */
+export function BusinessCard({ name, categoryName, href, imageUrl, tone = "light" }: Props) {
+  const onDark = tone === "dark";
+  return (
+    <Link
+      href={href}
+      className="flex min-w-0 flex-col items-center px-2 pt-2.5 pb-4 text-center transition hover:-translate-y-1.5"
+    >
+      <div
+        className={`grid aspect-square w-[min(38vw,170px)] place-items-center rounded-full lg:w-[clamp(145px,17vw,235px)] ${
+          onDark
+            ? "border-[6px] border-[#14272b] bg-[radial-gradient(circle,#fff_0_61%,#d8e6e8_62%_100%)] shadow-[0_0_0_1px_#21454b,0_0_26px_#0d819333] lg:border-8"
+            : "border-[6px] border-white bg-[radial-gradient(circle_at_32%_25%,#fff,#e7f2f3)] shadow-[0_5px_24px_#0b4c5b26] lg:border-8"
+        }`}
+      >
+        {imageUrl ? (
+          /* Decorative: the business name is printed directly below the card. */
+          <img
+            src={imageUrl}
+            alt=""
+            loading="lazy"
+            className="h-[65%] w-[65%] rounded-full border-2 border-brand-200 bg-white object-cover"
+          />
+        ) : (
+          <span
+            className={`grid h-[65%] w-[65%] place-items-center rounded-full border-2 border-brand-200 text-3xl font-black tracking-tighter lg:text-[clamp(32px,4vw,54px)] ${
+              onDark ? "bg-white text-[#153c44]" : "bg-brand-50 text-brand-700"
+            }`}
+          >
+            {initialsOf(name)}
+          </span>
+        )}
+      </div>
+      <h3
+        className={`mt-4 text-sm leading-snug font-black lg:mt-5 lg:text-base ${
+          onDark ? "text-white" : "text-ink"
+        }`}
+      >
+        {name}
+      </h3>
+      {/* The ribbon's pointed ends are drawn with borders, as in the reference stylesheet. */}
+      <span className="relative mt-2 min-w-[120px] bg-brand-700 px-4 py-1 text-[11px] font-extrabold text-white lg:min-w-[145px] lg:px-5 lg:text-[13px] before:absolute before:top-0 before:-left-2.5 before:h-0 before:w-0 before:border-y-[14px] before:border-l-[10px] before:border-y-brand-700 before:border-l-transparent before:content-[''] after:absolute after:top-0 after:-right-2.5 after:h-0 after:w-0 after:border-y-[14px] after:border-r-[10px] after:border-y-brand-700 after:border-r-transparent after:content-['']">
+        {categoryName}
+      </span>
+    </Link>
+  );
+}
+
+========== .\apps\main-website\src\app\account\listings\new\page.tsx ==========
+
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ListingForm } from "@/components/ListingForm";
+import { getCategories, getLocalities } from "@/lib/api";
+import { DEFAULT_CITY } from "@/lib/brand";
+import { saveListingAction } from "../../actions";
+
+export const metadata: Metadata = { title: "Add your business" };
+
+export default async function NewListingPage() {
+  const [categories, localities] = await Promise.all([getCategories(), getLocalities(DEFAULT_CITY)]);
+
+  return (
+    <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
+      <Link href="/account/listings" className="text-sm font-bold text-brand-700 hover:underline">
+        <span aria-hidden="true">&larr;</span> Back to my listings
+      </Link>
+
+      <div className="mt-4 border-b border-line pb-5">
+        <p className="text-[11px] font-black tracking-[0.22em] text-muted">BUSINESS OWNER</p>
+        <h1 className="mt-1 text-3xl font-black tracking-tight text-brand-800">Add your business</h1>
+        <p className="mt-2 text-muted">
+          Start with the basics. It stays private as a draft until you submit it for review.
+        </p>
+      </div>
+
+      <div className="mt-6">
+        <ListingForm
+          action={saveListingAction.bind(null, null)}
+          categories={categories}
+          localities={localities ?? []}
+          initialValues={{}}
+          submitLabel="Save draft"
+        />
+      </div>
+    </main>
+  );
+}
+
+========== .\apps\main-website\src\app\account\listings\[id]\photos\page.tsx ==========
+
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { MediaUploader } from "@/components/account/MediaUploader";
+import { MoveMediaButton } from "@/components/account/MoveMediaButton";
+import { RemoveMediaButton } from "@/components/account/RemoveMediaButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { getListingMedia, getMyListing, type ListingMediaItem } from "@/lib/owner-api";
+
+export const metadata: Metadata = { title: "Photos and video" };
+
+type Props = { params: Promise<{ id: string }> };
+
+/**
+ * The owner's photos, logo and video for one listing.
+ *
+ * Plain <img> and <video> rather than next/image: these files live in Blob Storage under a host that
+ * differs per environment, and the optimiser would need that host registered in next.config for each
+ * one. The sizes are small and already capped by the API.
+ */
+export default async function ListingPhotosPage({ params }: Props) {
+  const { id: rawId } = await params;
+  if (!/^\d{1,15}$/.test(rawId)) notFound();
+  const id = Number(rawId);
+
+  const [listingResult, mediaResult] = await Promise.all([getMyListing(id), getListingMedia(id)]);
+  if (!listingResult.ok || !mediaResult.ok) {
+    const failed = !listingResult.ok ? listingResult : mediaResult;
+    if (failed.ok === false && failed.status === 404) notFound();   // also what another owner's listing looks like
+    return (
+      <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
+        <EmptyState tone="error" mark="&#9888;" title="We could not load your photos">
+          <p>{failed.ok === false ? failed.message : ""}</p>
+        </EmptyState>
+      </main>
+    );
+  }
+
+  const listing = listingResult.data;
+  const { allowance, items } = mediaResult.data;
+  const of = (kind: ListingMediaItem["kind"]) => items.filter((item) => item.kind === kind);
+
+  const sections = [
+    {
+      kind: "logo" as const,
+      title: "Logo",
+      blurb: "Your shop or brand mark. Shown beside the business name.",
+      used: allowance.logosUsed,
+      limit: allowance.logoLimit,
+      accept: "image/jpeg,image/png,image/webp",
+      maxLabel: "JPEG, PNG or WebP, up to 8 MB.",
+    },
+    {
+      kind: "photo" as const,
+      title: "Photos",
+      blurb: "Pictures of the place, the work or the products.",
+      used: allowance.photosUsed,
+      limit: allowance.photoLimit,
+      accept: "image/jpeg,image/png,image/webp",
+      maxLabel: "JPEG, PNG or WebP, up to 8 MB each.",
+    },
+    {
+      kind: "video" as const,
+      title: "Video",
+      blurb: "A short clip. MP4 only.",
+      used: allowance.videosUsed,
+      limit: allowance.videoLimit,
+      accept: "video/mp4",
+      maxLabel: "MP4, up to 64 MB.",
+    },
+  ];
+
+  return (
+    <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8">
+      <Link href={`/account/listings/${id}/edit`} className="text-sm font-bold text-brand-700 hover:underline">
+        <span aria-hidden="true">&larr;</span> Back to {listing.name}
+      </Link>
+
+      <div className="mt-4 border-b border-line pb-5">
+        <p className="text-[11px] font-black tracking-[0.22em] text-muted">PHOTOS AND VIDEO</p>
+        <h1 className="mt-1 text-3xl leading-tight font-black tracking-tight text-brand-800">{listing.name}</h1>
+        <p className="mt-2 text-muted">
+          How much you can add depends on your plan. This listing is on <span className="font-bold text-ink">{allowance.planName}</span>.
+        </p>
+      </div>
+
+      {!allowance.limitsConfirmed ? (
+        // Never present a provisional number as settled: the API says whether it has been confirmed.
+        <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          These allowances are not final yet. They may change before the paid plans go on sale.
+        </p>
+      ) : null}
+
+      {!allowance.uploadsAvailable ? (
+        <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+          Uploads are temporarily unavailable. Anything already added is safe and still shown.
+        </p>
+      ) : null}
+
+      {sections.map((section) => {
+        const own = of(section.kind);
+        const remaining = section.limit - section.used;
+        return (
+          <section key={section.kind} className="mt-8">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-xl font-black text-brand-800">{section.title}</h2>
+              <p className="text-sm font-bold text-muted">
+                {section.limit === 0 ? "Not included in this plan" : `${section.used} of ${section.limit} used`}
+              </p>
+            </div>
+            <p className="mt-1 text-sm text-muted">{section.blurb}</p>
+
+            {own.length > 0 ? (
+              <ul className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+                {own.map((item, index) => (
+                  <li key={item.id} className="rounded-xl border border-line bg-white p-3">
+                    {item.kind === "video" ? (
+                      <video src={item.url} controls preload="metadata" className="aspect-video w-full rounded-lg bg-black" />
+                    ) : (
+                      <img
+                        src={item.url}
+                        alt=""
+                        loading="lazy"
+                        className="aspect-square w-full rounded-lg bg-surface object-cover"
+                      />
+                    )}
+                    {item.isHidden ? (
+                      <p className="mt-2 text-xs font-bold text-amber-700">
+                        Hidden &mdash; over what your current plan allows.
+                      </p>
+                    ) : null}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <RemoveMediaButton listingId={id} mediaId={item.id} what={section.kind} />
+                      {/* Order is only worth changing when there is more than one of a kind. */}
+                      {own.length > 1 ? (
+                        <span className="flex gap-1">
+                          <MoveMediaButton listingId={id} mediaId={item.id} direction="up" disabled={index === 0} />
+                          <MoveMediaButton
+                            listingId={id}
+                            mediaId={item.id}
+                            direction="down"
+                            disabled={index === own.length - 1}
+                          />
+                        </span>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {section.limit === 0 ? (
+              <p className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-muted">
+                The {allowance.planName} plan does not include {section.title.toLowerCase()}.
+              </p>
+            ) : remaining <= 0 ? (
+              <p className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-muted">
+                You have used all {section.limit} on this plan. Remove one to add another.
+              </p>
+            ) : allowance.uploadsAvailable ? (
+              <MediaUploader
+                listingId={id}
+                kind={section.kind}
+                label={`Add ${section.kind === "photo" ? "a photo" : section.kind === "logo" ? "your logo" : "a video"}`}
+                accept={section.accept}
+                maxLabel={section.maxLabel}
+              />
+            ) : null}
+          </section>
+        );
+      })}
+    </main>
+  );
+}
+
+========== .\apps\main-website\src\lib\owner-api.ts ==========
+
+import { redirect } from "next/navigation";
+import { readTokens } from "./session";
+import type { SessionTokens } from "./session-cookies";
+
+// Server-side only. The browser never calls the API: server components and server actions do,
+// attaching the owner's token from the httpOnly cookie.
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.API_BASE_URL ??
+  "http://localhost:5080";
+export type OwnerListing = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string | null;
+  addressLine: string | null;
+  pincode: string | null;
+  phonePrimary: string;
+  phoneWhatsapp: string | null;
+  websiteUrl: string | null;
+  latitude: number;
+  longitude: number;
+  citySlug: string;
+  localitySlug: string;
+  localityName: string;
+  categorySlug: string;
+  categoryName: string;
+  status: string;
+  /** Why a reviewer rejected it. Shown to the owner so they know what to fix. */
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  url: string;
+};
+
+/** `needsOnboarding` is the API's own rule (an owner with no name has not registered yet), not ours. */
+export type OwnerProfile = {
+  id: number;
+  phone: string;
+  name: string | null;
+  email: string | null;
+  needsOnboarding: boolean;
+};
+
+/**
+ * The dashboard's figures. Every number is counted from the owner's own rows; there is deliberately
+ * nothing here about views, leads or ratings, because no table records them.
+ */
+export type OwnerOverview = {
+  listings: {
+    total: number;
+    active: number;
+    pendingReview: number;
+    draft: number;
+    rejected: number;
+    suspended: number;
+  };
+  profile: {
+    completed: number;
+    total: number;
+    steps: { key: string; label: string; done: boolean }[];
+  };
+};
+
+/** What the one-time registration form sends. */
+export type OnboardingInput = {
+  name: string;
+  email: string;
+  businessName: string;
+  localitySlug: string;
+  categorySlug: string;
+};
+
+/** `created` is false when the request was a repeat and the account already existed. */
+export type OnboardingResult = { name: string; email: string; listingId: number | null; created: boolean };
+
+/** What the listing form sends. The API trims and validates everything again. */
+export type ListingFormInput = {
+  name: string;
+  description: string;
+  categorySlug: string;
+  localitySlug?: string;
+  addressLine: string;
+  pincode: string;
+  phonePrimary: string;
+  phoneWhatsapp: string;
+  websiteUrl: string;
+};
+
+export type ApiFailure = { ok: false; status: number; message: string; fieldErrors: Record<string, string> };
+export type ApiResult<T> = { ok: true; data: T } | ApiFailure;
+
+async function toFailure(response: Response): Promise<ApiFailure> {
+  let message = "Something went wrong. Please try again.";
+  const fieldErrors: Record<string, string> = {};
+  try {
+    const body = (await response.json()) as { detail?: unknown; errors?: Record<string, unknown> };
+    if (body.errors && typeof body.errors === "object") {
+      for (const [field, messages] of Object.entries(body.errors)) {
+        if (Array.isArray(messages) && typeof messages[0] === "string") fieldErrors[field] = messages[0];
+      }
+      message = "Please fix the fields marked below.";
+    } else if (typeof body.detail === "string") {
+      message = body.detail;
+    }
+  } catch {
+    // Not JSON: keep the generic message.
+  }
+  return { ok: false, status: response.status, message, fieldErrors };
+}
+
+async function send<T>(path: string, init: RequestInit, accessToken?: string): Promise<ApiResult<T>> {
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+  if (init.body) headers.set("Content-Type", "application/json");
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, cache: "no-store" });
+  } catch {
+    return { ok: false, status: 0, message: "We could not reach the server. Please try again in a moment.", fieldErrors: {} };
+  }
+  if (!response.ok) return toFailure(response);
+  if (response.status === 204) return { ok: true, data: undefined as T };
+  return { ok: true, data: (await response.json()) as T };
+}
+
+/** Calls an owner endpoint with the signed-in owner's token. No token or a rejected token sends the person to sign in again. */
+async function authed<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
+  const { access } = await readTokens();
+  if (!access) redirect("/login/reset");
+  const result = await send<T>(path, init, access);
+  if (!result.ok && result.status === 401) redirect("/login/reset");
+  return result;
+}
+
+const json = (value: unknown): string => JSON.stringify(value);
+const orNull = (value: string | undefined) => (value && value.trim() !== "" ? value.trim() : null);
+
+function toPayload(input: ListingFormInput) {
+  return {
+    name: orNull(input.name),
+    description: orNull(input.description),
+    categorySlug: orNull(input.categorySlug),
+    localitySlug: orNull(input.localitySlug),
+    addressLine: orNull(input.addressLine),
+    pincode: orNull(input.pincode),
+    phonePrimary: orNull(input.phonePrimary),
+    phoneWhatsapp: orNull(input.phoneWhatsapp),
+    websiteUrl: orNull(input.websiteUrl),
+  };
+}
+
+// ---- sign in (no token needed)
+export const requestOtp = (phone: string) =>
+  send<{ expiresInSeconds: number; resendAfterSeconds: number }>("/api/v1/auth/owner/otp/request", {
+    method: "POST",
+    body: json({ phone }),
+  });
+
+export const verifyOtp = (phone: string, code: string) =>
+  send<SessionTokens>("/api/v1/auth/owner/otp/verify", { method: "POST", body: json({ phone, code }) });
+
+export const logoutSession = (refreshToken: string) =>
+  send<void>("/api/v1/auth/owner/logout", { method: "POST", body: json({ refreshToken }) });
+
+// ---- signed-in owner
+export const getMe = () => authed<OwnerProfile>("/api/v1/me");
+
+/**
+ * Reads the profile with a token passed in directly, for the moment just after sign-in when the
+ * cookie has been set but we would rather not depend on reading back what we only just wrote.
+ */
+export const getMeWithToken = (accessToken: string) => send<OwnerProfile>("/api/v1/me", {}, accessToken);
+
+export const onboard = (input: OnboardingInput) =>
+  authed<OnboardingResult>("/api/v1/me/onboarding", { method: "POST", body: json(input) });
+/** One customer enquiry as its owner sees it. The phone is private customer data. */
+export type OwnerEnquiry = {
+  id: number;
+  listingId: number;
+  listingName: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  message: string;
+  status: string;
+  createdAt: string;
+};
+
+export type OwnerEnquiryPage = {
+  items: OwnerEnquiry[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  /** Unread across every listing, not just this page. */
+  newCount: number;
+};
+
+export const getOverview = () => authed<OwnerOverview>("/api/v1/me/overview");
+
+export const updateProfile = (input: { name: string; email: string }) =>
+  authed<{ phone: string; name: string; email: string }>("/api/v1/me/profile", { method: "PUT", body: json(input) });
+
+export const listEnquiries = (options: { status?: string; page?: number } = {}) => {
+  const query = new URLSearchParams();
+  if (options.status) query.set('status', options.status);
+  if (options.page && options.page > 1) query.set('page', String(options.page));
+  const suffix = query.toString();
+  return authed<OwnerEnquiryPage>('/api/v1/me/enquiries' + (suffix ? '?' + suffix : ''));
+};
+
+export const setEnquiryStatus = (id: number, status: string) =>
+  authed<void>('/api/v1/me/enquiries/' + id + '/status', { method: 'PUT', body: json({ status }) });
+
+/** A review this person wrote, including what moderation decided about it. */
+export type MyReview = {
+  id: number;
+  listingId: number;
+  listingName: string;
+  url: string;
+  rating: number;
+  body: string;
+  status: string;
+  moderationNote: string | null;
+  createdAt: string;
+};
+
+export const submitReview = (
+  target: { city: string; locality: string; slug: string },
+  input: { rating: number; body: string },
+) =>
+  authed<{ id: number; status: string }>(
+    `/api/v1/me/reviews/${[target.city, target.locality, target.slug].map(encodeURIComponent).join("/")}`,
+    { method: "POST", body: json(input) },
+  );
+
+export const listMyReviews = () => authed<MyReview[]>("/api/v1/me/reviews");
+
+/**
+ * A listing this person saved. `isAvailable` is false once it stops being live: the entry is
+ * kept, because they saved it, but it is not offered as somewhere to go.
+ */
+export type Favourite = {
+  listingId: number;
+  name: string;
+  categoryName: string;
+  localityName: string;
+  phonePrimary: string;
+  url: string;
+  logoUrl: string | null;
+  isAvailable: boolean;
+  savedAt: string;
+};
+
+const favouritePath = (target: { city: string; locality: string; slug: string }) =>
+  "/api/v1/me/favourites/" + [target.city, target.locality, target.slug].map(encodeURIComponent).join("/");
+
+export const listFavourites = () => authed<Favourite[]>("/api/v1/me/favourites");
+
+/** PUT, not POST: saving one that is already saved is the same favourite. */
+export const saveFavourite = (target: { city: string; locality: string; slug: string }) =>
+  authed<void>(favouritePath(target), { method: "PUT" });
+
+export const forgetFavourite = (target: { city: string; locality: string; slug: string }) =>
+  authed<void>(favouritePath(target), { method: "DELETE" });
+
+export const listMyListings = () => authed<OwnerListing[]>("/api/v1/me/listings");
+export const getMyListing = (id: number) => authed<OwnerListing>(`/api/v1/me/listings/${id}`);
+export const createListing = (input: ListingFormInput) =>
+  authed<OwnerListing>("/api/v1/me/listings", { method: "POST", body: json(toPayload(input)) });
+export const updateListing = (id: number, input: ListingFormInput) =>
+  authed<OwnerListing>(`/api/v1/me/listings/${id}`, { method: "PUT", body: json(toPayload({ ...input, localitySlug: undefined })) });
+export const submitListing = (id: number) => authed<OwnerListing>(`/api/v1/me/listings/${id}/submit`, { method: "POST" });
+
+/** One photo, logo or video on a listing. `url` is the address the browser loads the file from. */
+export type ListingMediaItem = {
+  id: number;
+  kind: "logo" | "photo" | "video";
+  url: string;
+  contentType: string;
+  byteSize: number;
+  width: number | null;
+  height: number | null;
+  sortOrder: number;
+  /** Hidden after a downgrade: kept, but not shown on the public page (decision D10). */
+  isHidden: boolean;
+  createdAt: string;
+};
+
+/**
+ * What the listing's plan allows and what it has used.
+ * `limitsConfirmed` is false while the per-tier allowances are still provisional, and the screen
+ * says so rather than presenting an unconfirmed number as a promise.
+ */
+export type ListingMediaAllowance = {
+  planSlug: string;
+  planName: string;
+  photoLimit: number;
+  videoLimit: number;
+  logoLimit: number;
+  photosUsed: number;
+  videosUsed: number;
+  logosUsed: number;
+  limitsConfirmed: boolean;
+  uploadsAvailable: boolean;
+};
+
+export type ListingMedia = { allowance: ListingMediaAllowance; items: ListingMediaItem[] };
+
+export const getListingMedia = (id: number) => authed<ListingMedia>(`/api/v1/me/listings/${id}/media`);
+
+/** Moves one photo one place earlier or later within its own kind. */
+export const moveListingMedia = (id: number, mediaId: number, direction: "up" | "down") =>
+  authed<void>(`/api/v1/me/listings/${id}/media/${mediaId}/move?direction=${direction}`, { method: "POST" });
+
+export const deleteListingMedia = (id: number, mediaId: number) =>
+  authed<void>(`/api/v1/me/listings/${id}/media/${mediaId}`, { method: "DELETE" });
+
+/**
+ * Sends the file to the API. Written out rather than going through `send`, because that sets a JSON
+ * content type: a multipart body must keep the boundary fetch generates for it.
+ */
+export async function uploadListingMedia(
+  id: number,
+  kind: "logo" | "photo" | "video",
+  file: File,
+): Promise<ApiResult<ListingMediaItem>> {
+  const { access } = await readTokens();
+  if (!access) redirect("/login/reset");
+
+  const body = new FormData();
+  body.set("kind", kind);
+  body.set("file", file);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/me/listings/${id}/media`, {
+      method: "POST",
+      headers: { Accept: "application/json", Authorization: `Bearer ${access}` },
+      body,
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, status: 0, message: "We could not reach the server. Please try again in a moment.", fieldErrors: {} };
+  }
+
+  if (response.status === 401) redirect("/login/reset");
+  if (!response.ok) return toFailure(response);
+  return { ok: true, data: (await response.json()) as ListingMediaItem };
+}
+
+/** Plain-language status for the owner. */
+export function describeStatus(status: string): { label: string; tone: "grey" | "amber" | "green" | "red"; help: string } {
+  switch (status) {
+    case "draft":
+      return { label: "Draft", tone: "grey", help: "Only you can see this. Add the address and a description, then submit it for review." };
+    case "pending_review":
+      return { label: "In review", tone: "amber", help: "We are checking your listing. It will appear on the site once approved." };
+    case "active":
+      return { label: "Live", tone: "green", help: "Visible to everyone on the site." };
+    case "rejected":
+      return { label: "Needs changes", tone: "red", help: "We could not publish it as it is. Make the change below, then submit it again." };
+    case "suspended":
+      return { label: "Suspended", tone: "red", help: "This listing is hidden. Please contact support." };
+    default:
+      return { label: status, tone: "grey", help: "" };
+  }
+}
+
+========== .\backend\BusinessDirectory.Api\Endpoints\OwnerMediaEndpoints.cs ==========
+
+using BusinessDirectory.Api.Data;
+using System.Security.Claims;
+using BusinessDirectory.Api.Media;
+using Microsoft.Data.SqlClient;
+
+namespace BusinessDirectory.Api.Endpoints;
+
+/// <summary>
+/// A listing's photos, logo and video, under /api/v1/me/listings/{id}/media.
+///
+/// Three things are enforced here and nowhere else:
+///   * ownership â€” every statement joins business_members, so another owner's listing is "not found";
+///   * the plan's allowance â€” counted inside the same transaction that inserts the row, so two
+///     uploads racing cannot both slip past the last free slot;
+///   * what the file actually is â€” decided from its first bytes, never from the name or the
+///     Content-Type the caller sent.
+/// </summary>
+public static class OwnerMediaEndpoints
+{
+    public sealed record MediaItemDto(
+        long Id,
+        string Kind,
+        string Url,
+        string ContentType,
+        long ByteSize,
+        int? Width,
+        int? Height,
+        int SortOrder,
+        /// <summary>D10: over-allowance media after a downgrade. Kept, not deleted, and not shown publicly.</summary>
+        bool IsHidden,
+        DateTimeOffset CreatedAt);
+
+    /// <param name="LimitsConfirmed">
+    /// False while the per-tier allowances are still provisional (see V0008). The owner screens say so
+    /// rather than presenting an unconfirmed number as a promise.
+    /// </param>
+    /// <param name="UploadsAvailable">
+    /// False when no storage is configured; the UI then explains it instead of offering a button that cannot work.
+    /// </param>
+    public sealed record MediaAllowanceDto(
+        string PlanSlug,
+        string PlanName,
+        int PhotoLimit,
+        int VideoLimit,
+        int LogoLimit,
+        int PhotosUsed,
+        int VideosUsed,
+        int LogosUsed,
+        bool LimitsConfirmed,
+        bool UploadsAvailable);
+
+    public sealed record MediaDto(MediaAllowanceDto Allowance, List<MediaItemDto> Items);
+
+    public static RouteGroupBuilder MapOwnerMediaEndpoints(this RouteGroupBuilder listings)
+    {
+        var group = listings.MapGroup("/{id:long}/media");
+        group.MapGet("", List);
+        // The form is read from HttpRequest by hand, which also keeps the endpoint clear of minimal-API
+        // antiforgery metadata: this API is authenticated by a bearer token, not by a cookie, so a
+        // cross-site form post cannot carry the caller's credentials in the first place.
+        group.MapPost("", Upload);
+        group.MapPost("/{mediaId:long}/move", Move);
+        group.MapDelete("/{mediaId:long}", Delete);
+        return group;
+    }
+
+    // ------------------------------------------------------------------ list
+    private static async Task<IResult> List(
+        long id, ClaimsPrincipal principal, SqlDatabase db, IMediaStorage storage, CancellationToken ct)
+    {
+        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        var allowance = await ReadAllowance(conn, null, userId, id, storage.IsConfigured, ct);
+        if (allowance is null)
+        {
+            return Results.NotFound();
+        }
+
+        var items = await ReadItems(conn, id, storage, ct);
+        return Results.Ok(new MediaDto(allowance, items));
+    }
+
+    // ------------------------------------------------------------------ upload
+    private static async Task<IResult> Upload(
+        long id,
+        HttpRequest request,
+        ClaimsPrincipal principal,
+        SqlDatabase db,
+        IMediaStorage storage,
+        ILogger<OwnerMediaUpload> logger,
+        CancellationToken ct)
+    {
+        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!storage.IsConfigured)
+        {
+            // Nothing is written to the database either: a row pointing at bytes that were never
+            // stored would show as a permanently broken image.
+            return Results.Problem("Uploads are not available right now.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        if (!request.HasFormContentType)
+        {
+            return Results.Problem("Send the file as multipart/form-data.", statusCode: StatusCodes.Status415UnsupportedMediaType);
+        }
+
+        var form = await request.ReadFormAsync(ct);
+        if (!Enum.TryParse<MediaKind>(form["kind"], ignoreCase: true, out var kind))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["kind"] = ["Choose logo, photo or video."] });
+        }
+
+        var file = form.Files["file"];
+        if (file is null || file.Length == 0)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["file"] = ["Choose a file."] });
+        }
+
+        var maxBytes = MediaFile.MaxBytesFor(kind);
+        if (file.Length > maxBytes)
+        {
+            return Results.Problem(
+                $"That file is {file.Length / (1024 * 1024)} MB. The limit is {maxBytes / (1024 * 1024)} MB.",
+                statusCode: StatusCodes.Status413PayloadTooLarge);
+        }
+
+        // Enough of the start of the file to identify it and, for an image, read its dimensions.
+        var head = new byte[64 * 1024];
+        int headLength;
+        await using (var peek = file.OpenReadStream())
+        {
+            headLength = await peek.ReadAtLeastAsync(
+                head, Math.Min(head.Length, (int)file.Length), throwOnEndOfStream: false, ct);
+        }
+
+        var contentType = MediaFile.SniffContentType(head.AsSpan(0, headLength));
+        var matchesKind = kind == MediaKind.Video
+            ? contentType == MediaFile.Mp4
+            : MediaFile.ImageTypes.Contains(contentType);
+        if (contentType is null || !matchesKind)
+        {
+            return Results.Problem(
+                kind == MediaKind.Video ? "Videos must be MP4." : "Photos must be JPEG, PNG or WebP.",
+                statusCode: StatusCodes.Status415UnsupportedMediaType);
+        }
+
+        var size = kind == MediaKind.Video ? null : MediaFile.ReadImageSize(head.AsSpan(0, headLength), contentType);
+        var storageKey = MediaFile.NewStorageKey(id, kind, contentType);
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        // The whole check-and-insert runs in one transaction, and the listing row is locked first, so
+        // the count a concurrent upload sees already includes this one.
+        await using var tx = await conn.BeginSqlTransactionAsync(ct);
+
+        var allowance = await ReadAllowance(conn, tx, userId, id, uploadsAvailable: true, ct);
+        if (allowance is null)
+        {
+            return Results.NotFound();
+        }
+
+        var (limit, used) = kind switch
+        {
+            MediaKind.Logo => (allowance.LogoLimit, allowance.LogosUsed),
+            MediaKind.Photo => (allowance.PhotoLimit, allowance.PhotosUsed),
+            _ => (allowance.VideoLimit, allowance.VideosUsed),
+        };
+        if (used >= limit)
+        {
+            var what = kind.ToString().ToLowerInvariant();
+            return Results.Problem(
+                limit == 0
+                    ? $"The {allowance.PlanName} plan does not include {what}s."
+                    : $"The {allowance.PlanName} plan allows {limit} {what}{(limit == 1 ? "" : "s")}. Remove one first.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
+        long mediaId;
+        await using (var insert = new SqlCommand(
+            @"INSERT INTO listing_media (listing_id, kind, storage_key, content_type, byte_size, width, height, sort_order, created_by_user_id)
+              OUTPUT inserted.id
+              VALUES (@listing, @kind, @key, @type, @size, @width, @height,
+                      COALESCE((SELECT max(sort_order) + 1 FROM listing_media WHERE listing_id = @listing AND kind = @kind), 0),
+                      @user)", conn, tx))
+        {
+            insert.Parameters.AddWithValue("listing", id);
+            insert.Parameters.AddWithValue("kind", kind.ToString().ToLowerInvariant());
+            insert.Parameters.AddWithValue("key", storageKey);
+            insert.Parameters.AddWithValue("type", contentType);
+            insert.Parameters.AddWithValue("size", file.Length);
+            insert.Parameters.AddWithValue("width", (object?)size?.Width ?? DBNull.Value);
+            insert.Parameters.AddWithValue("height", (object?)size?.Height ?? DBNull.Value);
+            insert.Parameters.AddWithValue("user", userId);
+            mediaId = (long)(await insert.ExecuteScalarAsync(ct))!;
+        }
+
+        // The bytes are stored only after the row is reserved, and the row is committed only once the
+        // bytes are safely there. A failure in between rolls the row back, so the gallery never lists
+        // a file that is not in storage.
+        try
+        {
+            await using var content = file.OpenReadStream();
+            await storage.SaveAsync(storageKey, contentType, content, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Upload to media storage failed for listing {ListingId}.", id);
+            await tx.RollbackAsync(CancellationToken.None);
+            return Results.Problem("The file could not be stored. Please try again.", statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        try
+        {
+            await tx.CommitAsync(ct);
+        }
+        catch (Exception)
+        {
+            // The bytes are stored but the row is gone, so nothing would ever reference them again.
+            await storage.DeleteAsync(storageKey, CancellationToken.None);
+            throw;
+        }
+
+        return Results.Created($"/api/v1/me/listings/{id}/media/{mediaId}", new MediaItemDto(
+            mediaId, kind.ToString().ToLowerInvariant(), storage.PublicUrl(storageKey), contentType,
+            file.Length, size?.Width, size?.Height, 0, false, DateTimeOffset.UtcNow));
+    }
+
+    // ------------------------------------------------------------------ reorder
+    /// <summary>
+    /// Moves one photo one place earlier or later, by swapping its position with its neighbour of
+    /// the same kind. A swap rather than a renumbering: it touches two rows, so two owners reordering
+    /// at once cannot leave the gallery in a half-renumbered state.
+    /// </summary>
+    private static async Task<IResult> Move(
+        long id, long mediaId, string? direction, ClaimsPrincipal principal, SqlDatabase db, CancellationToken ct)
+    {
+        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var earlier = direction switch
+        {
+            "up" => true,
+            "down" => false,
+            _ => (bool?)null,
+        };
+        if (earlier is null)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["direction"] = ["Send up or down."] });
+        }
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginSqlTransactionAsync(ct);
+
+        // The business_members join is the authorisation, exactly as in the other handlers.
+        string kind;
+        int sortOrder;
+        await using (var find = new SqlCommand(
+            /* UPDLOCK on the media row only, which is what FOR NO KEY UPDATE OF m said: the
+               listing and the membership are read, not changed. */
+            @"SELECT m.kind, m.sort_order
+              FROM listing_media m WITH (UPDLOCK, ROWLOCK)
+              JOIN listings li ON li.id = m.listing_id
+              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              WHERE m.id = @media AND m.listing_id = @listing", conn, tx))
+        {
+            find.Parameters.AddWithValue("user", userId);
+            find.Parameters.AddWithValue("media", mediaId);
+            find.Parameters.AddWithValue("listing", id);
+            await using var reader = await find.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
+            {
+                return Results.NotFound();
+            }
+            kind = reader.GetString(0);
+            sortOrder = reader.GetInt32(1);
+        }
+
+        long? neighbourId = null;
+        var neighbourOrder = 0;
+        await using (var neighbour = new SqlCommand(
+            /* "the row just before this one, in (sort_order, id) order". PostgreSQL could compare
+               the pair directly -- (sort_order, id) < (@order, @media) -- which SQL Server cannot, so
+               it is written out: a smaller sort_order, or the same one and a smaller id. */
+            $@"SELECT TOP (1) id, sort_order
+               FROM listing_media WITH (UPDLOCK, ROWLOCK)
+               WHERE listing_id = @listing AND kind = @kind
+                 AND (sort_order {(earlier.Value ? "<" : ">")} @order
+                      OR (sort_order = @order AND id {(earlier.Value ? "<" : ">")} @media))
+               ORDER BY sort_order {(earlier.Value ? "DESC" : "ASC")}, id {(earlier.Value ? "DESC" : "ASC")}", conn, tx))
+        {
+            neighbour.Parameters.AddWithValue("listing", id);
+            neighbour.Parameters.AddWithValue("kind", kind);
+            neighbour.Parameters.AddWithValue("order", sortOrder);
+            neighbour.Parameters.AddWithValue("media", mediaId);
+            await using var reader = await neighbour.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                neighbourId = reader.GetInt64(0);
+                neighbourOrder = reader.GetInt32(1);
+            }
+        }
+
+        if (neighbourId is null)
+        {
+            // Already first or last. Not an error: the button simply had nothing to do. The rollback
+            // waits until here because the reader above has to be closed before the connection is
+            // free to carry another statement.
+            await tx.RollbackAsync(ct);
+            return Results.NoContent();
+        }
+
+        // Equal sort_order values can exist (a tie broken by id), and swapping those would change
+        // nothing, so the moved row is pushed past its neighbour instead.
+        var (mine, theirs) = sortOrder == neighbourOrder
+            ? (earlier.Value ? neighbourOrder - 1 : neighbourOrder + 1, neighbourOrder)
+            : (neighbourOrder, sortOrder);
+
+        await using (var update = new SqlCommand(
+            @"UPDATE listing_media SET sort_order = CASE id WHEN @media THEN @mine ELSE @theirs END
+              WHERE id IN (@media, @neighbour)", conn, tx))
+        {
+            update.Parameters.AddWithValue("media", mediaId);
+            update.Parameters.AddWithValue("neighbour", neighbourId.Value);
+            update.Parameters.AddWithValue("mine", mine);
+            update.Parameters.AddWithValue("theirs", theirs);
+            await update.ExecuteNonQueryAsync(ct);
+        }
+
+        await tx.CommitAsync(ct);
+        return Results.NoContent();
+    }
+
+    // ------------------------------------------------------------------ delete
+    private static async Task<IResult> Delete(
+        long id, long mediaId, ClaimsPrincipal principal, SqlDatabase db, IMediaStorage storage, CancellationToken ct)
+    {
+        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        // The join is the authorisation: a media id belonging to someone else's listing deletes nothing.
+        await using var command = db.CreateCommand(
+            /* DELETE ... USING becomes "DELETE <alias> FROM ... JOIN ...", and the row being
+               removed is "deleted", not "inserted" -- an OUTPUT on a DELETE has no inserted row. */
+            @"DELETE m
+              OUTPUT deleted.storage_key
+              FROM listing_media m
+              JOIN listings li ON li.id = m.listing_id
+              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              WHERE m.id = @media AND m.listing_id = @listing");
+        command.Parameters.AddWithValue("user", userId);
+        command.Parameters.AddWithValue("media", mediaId);
+        command.Parameters.AddWithValue("listing", id);
+
+        var storageKey = (string?)await command.ExecuteScalarAsync(ct);
+        if (storageKey is null)
+        {
+            return Results.NotFound();
+        }
+
+        // The row is already gone. If removing the bytes fails, the only consequence is a blob nobody
+        // references, which is better than a listing still showing a photo the owner deleted.
+        if (storage.IsConfigured)
+        {
+            await storage.DeleteAsync(storageKey, ct);
+        }
+        return Results.NoContent();
+    }
+
+    // ------------------------------------------------------------------ shared reads
+    /// <summary>
+    /// The listing's plan and what it has used so far, or null when this user does not own the listing.
+    /// Passed a transaction, it also locks the listing row, which is what makes the quota check reliable.
+    /// FOR NO KEY UPDATE rather than FOR UPDATE: it blocks a second uploader without blocking the
+    /// foreign keys that point at the listing (its media, enquiries and reviews).
+    /// </summary>
+    private static async Task<MediaAllowanceDto?> ReadAllowance(
+        SqlConnection conn, SqlTransaction? tx, long userId, long listingId, bool uploadsAvailable, CancellationToken ct)
+    {
+        await using var command = new SqlCommand(
+            @"SELECT p.slug, p.name, p.photo_limit, p.video_limit, p.logo_limit, p.media_limits_confirmed,
+                     (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'photo' AND m.is_hidden = 0),
+                     (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'video' AND m.is_hidden = 0),
+                     (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0)
+              FROM listings li" + (tx is null ? "" : " WITH (UPDLOCK, ROWLOCK)") + @"
+              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              JOIN plans p ON p.slug = li.plan_slug
+              WHERE li.id = @listing AND li.status <> 'archived'",
+            conn, tx);
+        command.Parameters.AddWithValue("user", userId);
+        command.Parameters.AddWithValue("listing", listingId);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+        {
+            return null;
+        }
+
+        return new MediaAllowanceDto(
+            reader.GetString(0),
+            reader.GetString(1),
+            reader.GetInt32(2),
+            reader.GetInt32(3),
+            reader.GetInt32(4),
+            PhotosUsed: (int)reader.GetInt64(6),
+            VideosUsed: (int)reader.GetInt64(7),
+            LogosUsed: (int)reader.GetInt64(8),
+            LimitsConfirmed: reader.GetBoolean(5),
+            UploadsAvailable: uploadsAvailable);
+    }
+
+    private static async Task<List<MediaItemDto>> ReadItems(
+        SqlConnection conn, long listingId, IMediaStorage storage, CancellationToken ct)
+    {
+        await using var command = new SqlCommand(
+            @"SELECT id, kind, storage_key, content_type, byte_size, width, height, sort_order, is_hidden, created_at
+              FROM listing_media
+              WHERE listing_id = @listing
+              ORDER BY kind, sort_order, id", conn);
+        command.Parameters.AddWithValue("listing", listingId);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        var items = new List<MediaItemDto>();
+        while (await reader.ReadAsync(ct))
+        {
+            items.Add(new MediaItemDto(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                storage.PublicUrl(reader.GetString(2)),
+                reader.GetString(3),
+                reader.GetInt64(4),
+                reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                reader.GetInt32(7),
+                reader.GetBoolean(8),
+                reader.GetFieldValue<DateTimeOffset>(9)));
+        }
+        return items;
+    }
+}
+
+/// <summary>Only a name for the upload logger, so the log category reads sensibly.</summary>
+public sealed class OwnerMediaUpload;
+
+========== .\backend\BusinessDirectory.Api\Endpoints\PublicSearchEndpoints.cs ==========
+
+using BusinessDirectory.Api.Data;
+using System.Data;
+using BusinessDirectory.Api.Listings;
+using BusinessDirectory.Api.Media;
+using Microsoft.Data.SqlClient;
+
+namespace BusinessDirectory.Api.Endpoints;
+
+/// <summary>
+/// Database-backed listing search under /api/v1/public/listings/search.
+/// Matching uses SQL Server full-text search over name and description, the
+/// hl_similarity function for typo tolerance, and the category_search_terms
+/// table so a service word such as "tap repair" finds the right trade.
+/// </summary>
+public static class PublicSearchEndpoints
+{
+    public sealed record SearchListingDto(
+        string Slug,
+        string Name,
+        string CitySlug,
+        string LocalitySlug,
+        string LocalityName,
+        string CategorySlug,
+        string CategoryName,
+        int? DistanceMetres,
+        string? AddressLine,
+        string PhonePrimary,
+        string? PhoneWhatsapp,
+        string Url,
+        /// <summary>The business's logo, or null when it has not uploaded one. The card falls back to a monogram.</summary>
+        string? LogoUrl,
+        /// <summary>Its first photo, used as the card thumbnail where there is no logo.</summary>
+        string? PhotoUrl);
+
+    public sealed record SearchResultsDto(
+        IReadOnlyList<SearchListingDto> Items,
+        int Page,
+        int PageSize,
+        int Total,
+        int TotalPages);
+
+    public static RouteGroupBuilder MapPublicSearchEndpoints(this RouteGroupBuilder group)
+    {
+        group.MapGet("/listings/search", Search);
+        return group;
+    }
+
+    // One statement does the filtering, ranking, distance, paging and total count.
+    // {0} and {1} are the same ORDER BY twice, chosen from a fixed set below - never built from
+    // request text. It is needed in both places: inside the CTE it decides *which* rows the page
+    // holds, and on the final SELECT it decides what order they come back in. A CTE's own ordering
+    // is not carried through the join below, so leaving the second one out returns the right rows
+    // shuffled.
+    //
+    // The last SELECT starts from a single dummy row and LEFT JOINs the page, so it always returns
+    // at least one row. That keeps the total available even when the requested page is past the end
+    // (the listing columns are then NULL), which lets a client send the visitor back to page 1.
+    /*
+     * {0}/{1} are the two ORDER BYs described above. {2} and {3} are the text-matching half of the
+     * query, which is present only when something was typed:
+     *
+     *   {2}  the joins -- two CONTAINSTABLE calls (full-text over name and over description) and the
+     *        trigram similarity for typo tolerance
+     *   {3}  the relevance expression built from them
+     *   {4}  the WHERE clause that keeps only rows one of them matched
+     *
+     * They are composed rather than written inline because CONTAINSTABLE cannot be given a null or
+     * empty condition: with nothing typed there is no full-text search to do, and the joins must not
+     * be in the statement at all.
+     */
+    private const string SearchSqlFormat =
+        @"WITH qry AS (
+              SELECT CASE WHEN @lat IS NULL THEN NULL
+                          ELSE geography::Point(@lat, @lng, 4326) END AS point
+          ),
+          matches AS (
+              SELECT li.slug, li.name, ci.slug AS city_slug,
+                     lo.slug AS locality_slug, lo.name AS locality_name,
+                     pc.slug AS category_slug, pc.name AS category_name,
+                     li.address_line, li.phone_primary, li.phone_whatsapp,
+                     -- One logo and one photo per card. Hidden media (over a downgraded plan's
+                     -- allowance, D10) is excluded here as well, so a card can never show a file the
+                     -- listing page itself no longer displays.
+                     (SELECT m.storage_key FROM listing_media m
+                      WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0
+                      ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) AS logo_key,
+                     (SELECT m.storage_key FROM listing_media m
+                      WHERE m.listing_id = li.id AND m.kind = 'photo' AND m.is_hidden = 0
+                      ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) AS photo_key,
+                     li.location.STDistance(qry.point) AS distance_metres,
+                     {3} AS relevance
+              FROM qry
+              JOIN listings li ON li.status = 'active'
+              JOIN localities lo ON lo.id = li.locality_id
+              JOIN cities ci ON ci.id = lo.city_id
+              JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+              JOIN categories pc ON pc.id = lc.category_id
+              {2}
+              WHERE (@city IS NULL OR ci.slug = @city)
+                -- Proximity window, used by locality landing pages so a thinly covered area
+                -- still shows businesses just outside it. Uses the SQL Server spatial index on location.
+                AND (@radius IS NULL OR li.location.STDistance(qry.point) <= @radius)
+                -- A listing belongs to its own locality and to every locality it serves.
+                AND (@locality IS NULL
+                     OR lo.slug = @locality
+                     OR EXISTS (SELECT 1
+                                FROM listing_service_areas sa
+                                JOIN localities sl ON sl.id = sa.locality_id
+                                WHERE sa.listing_id = li.id AND sl.slug = @locality))
+                -- A parent category slug also matches listings filed under its sub-categories.
+                AND (@category IS NULL
+                     OR EXISTS (SELECT 1
+                                FROM listing_categories fc
+                                JOIN categories fcat ON fcat.id = fc.category_id
+                                LEFT JOIN categories fparent ON fparent.id = fcat.parent_id
+                                WHERE fc.listing_id = li.id
+                                  AND (fcat.slug = @category OR fparent.slug = @category)))
+                {4}
+          ),
+          page AS (
+              SELECT * FROM matches ORDER BY {0} OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY
+          )
+          SELECT (SELECT COUNT_BIG(*) FROM matches) AS total,
+                 p.slug, p.name, p.city_slug, p.locality_slug, p.locality_name,
+                 p.category_slug, p.category_name, p.address_line, p.phone_primary,
+                 p.phone_whatsapp, p.distance_metres, p.logo_key, p.photo_key
+          FROM (SELECT 1 AS one) AS always_one_row
+          LEFT JOIN page p ON 1 = 1
+          ORDER BY {1}";
+
+    private static async Task<IResult> Search(
+        string? q,
+        string? city,
+        string? locality,
+        string? category,
+        double? lat,
+        double? lng,
+        double? radiusKm,
+        string? sort,
+        int? page,
+        int? pageSize,
+        SqlDatabase db,
+        IMediaStorage storage,
+        CancellationToken ct)
+    {
+        var query = ListingSearchQuery.TryCreate(q, city, locality, category, lat, lng, radiusKm, sort, page, pageSize, out var error);
+        if (query is null)
+        {
+            return Results.Problem(error, statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        // The same ordering for the CTE (bare column names) and for the final SELECT (p.-qualified).
+        var (pageOrder, resultOrder) = query.Sort switch
+        {
+            /* SQL Server has no NULLS LAST: it sorts nulls first ascending and last descending.
+               A "is it null" column in front of each one puts them where PostgreSQL put them --
+               rows with no distance (no point was given) after the ones that have it. */
+            ListingSortOrder.Distance => (
+                "CASE WHEN distance_metres IS NULL THEN 1 ELSE 0 END, distance_metres ASC, name ASC",
+                "CASE WHEN p.distance_metres IS NULL THEN 1 ELSE 0 END, p.distance_metres ASC, p.name ASC"),
+            ListingSortOrder.Name => (
+                "name ASC",
+                "p.name ASC"),
+            _ => (
+                "CASE WHEN relevance IS NULL THEN 1 ELSE 0 END, relevance DESC, CASE WHEN distance_metres IS NULL THEN 1 ELSE 0 END, distance_metres ASC, name ASC",
+                "CASE WHEN p.relevance IS NULL THEN 1 ELSE 0 END, p.relevance DESC, CASE WHEN p.distance_metres IS NULL THEN 1 ELSE 0 END, p.distance_metres ASC, p.name ASC"),
+        };
+
+        /* With nothing typed there is no text matching at all: no full-text joins, a constant
+           relevance, and no extra filter. With something typed, all three appear together. */
+        var hasText = query.Text is not null;
+        var textJoins = hasText
+            ? @"LEFT JOIN CONTAINSTABLE(listings, name, @ftText) ftn ON ftn.[KEY] = li.id
+              LEFT JOIN CONTAINSTABLE(listings, description, @ftText) ftd ON ftd.[KEY] = li.id
+              CROSS APPLY hl_similarity('listing', li.id, @text) sim"
+            : string.Empty;
+
+        /* Preserve the previous search weighting: the name counts double the description.
+   SQL Server full-text RANK is 0-1000, so it is scaled to sit beside a similarity
+   score of 0-1 rather than swamping it. */
+        var relevance = hasText
+            ? "(ISNULL(ftn.[RANK], 0) * 2 + ISNULL(ftd.[RANK], 0)) / 1000.0 + sim.similarity"
+            : "0";
+
+        var textFilter = hasText
+            ? @"AND (ftn.[KEY] IS NOT NULL
+                     OR ftd.[KEY] IS NOT NULL
+                     OR sim.similarity >= 0.3
+                     OR EXISTS (SELECT 1
+                                FROM listing_categories kc
+                                JOIN categories kcat ON kcat.id = kc.category_id
+                                LEFT JOIN category_search_terms kt ON kt.category_id = kcat.id
+                                CROSS APPLY hl_similarity('category', kcat.id, @text) csim
+                                WHERE kc.listing_id = li.id
+                                  AND (csim.similarity >= 0.3 OR kt.term = @text)))"
+            : string.Empty;
+
+        await using var command = db.CreateCommand(
+            string.Format(SearchSqlFormat, pageOrder, resultOrder, textJoins, relevance, textFilter));
+        AddText(command, "text", query.Text);
+        if (hasText)
+        {
+            AddText(command, "ftText", FullTextQuery(query.Text!));
+        }
+        AddText(command, "city", query.CitySlug);
+        AddText(command, "locality", query.LocalitySlug);
+        AddText(command, "category", query.CategorySlug);
+        AddDouble(command, "lat", query.Latitude);
+        AddDouble(command, "lng", query.Longitude);
+        AddDouble(command, "radius", query.RadiusKm * 1000);
+        command.Parameters.AddWithValue("pageSize", query.PageSize);
+        command.Parameters.AddWithValue("offset", query.Offset);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        var items = new List<SearchListingDto>();
+        var total = 0;
+        while (await reader.ReadAsync(ct))
+        {
+            total = (int)reader.GetInt64(0);
+            if (reader.IsDBNull(1))
+            {
+                continue;   // the placeholder row: this page holds no listings
+            }
+
+            var slug = reader.GetString(1);
+            var citySlug = reader.GetString(3);
+            var localitySlug = reader.GetString(4);
+            var categorySlug = reader.GetString(6);
+            items.Add(new SearchListingDto(
+                slug,
+                reader.GetString(2),
+                citySlug,
+                localitySlug,
+                reader.GetString(5),
+                categorySlug,
+                reader.GetString(7),
+                reader.IsDBNull(11) ? null : (int)Math.Round(reader.GetDouble(11)),
+                reader.IsDBNull(8) ? null : reader.GetString(8),
+                reader.GetString(9),
+                reader.IsDBNull(10) ? null : reader.GetString(10),
+                $"/{citySlug}/{localitySlug}/{categorySlug}/{slug}",
+                reader.IsDBNull(12) ? null : storage.PublicUrl(reader.GetString(12)),
+                reader.IsDBNull(13) ? null : storage.PublicUrl(reader.GetString(13))));
+        }
+
+        var totalPages = (int)Math.Ceiling(total / (double)query.PageSize);
+        return Results.Ok(new SearchResultsDto(items, query.Page, query.PageSize, total, totalPages));
+    }
+
+    /// <summary>
+    /// Turns what someone typed into a condition CONTAINSTABLE will accept.
+    ///
+    /// PostgreSQL had websearch_to_tsquery, which took any text at all and made sense of it. SQL
+    /// Server has no such thing: a quote or a stray AND in the string is a syntax error rather than
+    /// a search for that word. So each word is reduced to letters and digits, quoted, given a
+    /// trailing * so "plumb" still finds "plumbing", and the words are joined with OR -- matching
+    /// any of them, which is what a directory search should do.
+    ///
+    /// Returns a condition that matches nothing when the text had no usable word in it, so the
+    /// caller never has to special-case that.
+    /// </summary>
+    public static string FullTextQuery(string text)
+    {
+        var words = text
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => new string(word.Where(char.IsLetterOrDigit).ToArray()))
+            .Where(word => word.Length > 0)
+            .Take(10)   // a sentence pasted into the box should not become a hundred-term query
+            .Select(word => $"\"{word}*\"")
+            .ToArray();
+
+        return words.Length == 0 ? "\"\"" : string.Join(" OR ", words);
+    }
+
+    private static void AddText(SqlCommand command, string name, string? value) =>
+        command.Parameters.Add(new SqlParameter(name, SqlDbType.NVarChar) { Value = (object?)value ?? DBNull.Value });
+
+    private static void AddDouble(SqlCommand command, string name, double? value) =>
+        command.Parameters.Add(new SqlParameter(name, SqlDbType.Float) { Value = (object?)value ?? DBNull.Value });
+}
+
+========== .\database\sqlserver\seeds\reference\R004_plans.sql ==========
+
+SET XACT_ABORT ON;
+
+BEGIN TRANSACTION;
+
+-- Ensure the Free plan exists and is configured correctly.
+IF EXISTS (SELECT 1 FROM plans WHERE slug = 'free')
+BEGIN
+    UPDATE plans
+    SET name = 'Free',
+        price_paise = 0,
+        photo_limit = 0,
+        video_limit = 0,
+        logo_limit = 0,
+        grants_verified_badge = 0,
+        media_limits_confirmed = 1,
+        sort_order = 0,
+        is_active = 1,
+        updated_at = SYSDATETIMEOFFSET()
+    WHERE slug = 'free';
+END
+ELSE
+BEGIN
+    INSERT INTO plans
+        (slug, name, price_paise, photo_limit, video_limit, logo_limit,
+         grants_verified_badge, media_limits_confirmed, sort_order, is_active)
+    VALUES
+        ('free', 'Free', 0, 0, 0, 0, 0, 1, 0, 1);
+END;
+
+-- Configure the single paid plan.
+IF EXISTS (SELECT 1 FROM plans WHERE slug = 'verified')
+BEGIN
+    UPDATE plans
+    SET name = 'Verified',
+        price_paise = 39900,
+        photo_limit = 10,
+        video_limit = 3,
+        logo_limit = 1,
+        grants_verified_badge = 1,
+        media_limits_confirmed = 1,
+        sort_order = 1,
+        is_active = 1,
+        updated_at = SYSDATETIMEOFFSET()
+    WHERE slug = 'verified';
+END
+ELSE
+BEGIN
+    INSERT INTO plans
+        (slug, name, price_paise, photo_limit, video_limit, logo_limit,
+         grants_verified_badge, media_limits_confirmed, sort_order, is_active)
+    VALUES
+        ('verified', 'Verified', 39900, 10, 3, 1, 1, 1, 1, 1);
+END;
+
+-- Disable legacy plans without deleting rows that other records may reference.
+UPDATE plans
+SET is_active = 0,
+    updated_at = SYSDATETIMEOFFSET()
+WHERE slug NOT IN ('free', 'verified');
+
+COMMIT TRANSACTION;
+GO
+
+========== .\database\sqlserver\migrations\S0009__verified_plan_subscriptions_links.sql ==========
+
+SET XACT_ABORT ON;
+
+BEGIN TRANSACTION;
+
+-- 1. Remove legacy plan assignments before retiring the old plans.
+-- Existing listings remain intact and become free listings.
+UPDATE listings
+SET plan_slug = 'free',
+    updated_at = SYSDATETIMEOFFSET()
+WHERE plan_slug IS NULL
+   OR plan_slug NOT IN ('free', 'verified');
+
+-- 2. Keep Free and create/update the single paid plan.
+UPDATE plans
+SET name = 'Free',
+    price_paise = 0,
+    photo_limit = 0,
+    video_limit = 0,
+    logo_limit = 0,
+    grants_verified_badge = 0,
+    media_limits_confirmed = 1,
+    sort_order = 0,
+    updated_at = SYSDATETIMEOFFSET()
+WHERE slug = 'free';
+
+IF NOT EXISTS (SELECT 1 FROM plans WHERE slug = 'free')
+BEGIN
+    INSERT INTO plans
+        (slug, name, price_paise, photo_limit, video_limit, logo_limit,
+         grants_verified_badge, media_limits_confirmed, sort_order)
+    VALUES
+        ('free', 'Free', 0, 0, 0, 0, 0, 1, 0);
+END;
+
+IF EXISTS (SELECT 1 FROM plans WHERE slug = 'verified')
+BEGIN
+    UPDATE plans
+    SET name = 'Verified',
+        price_paise = 39900,
+        photo_limit = 10,
+        video_limit = 3,
+        logo_limit = 1,
+        grants_verified_badge = 1,
+        media_limits_confirmed = 1,
+        sort_order = 1,
+        updated_at = SYSDATETIMEOFFSET()
+    WHERE slug = 'verified';
+END
+ELSE
+BEGIN
+    INSERT INTO plans
+        (slug, name, price_paise, photo_limit, video_limit, logo_limit,
+         grants_verified_badge, media_limits_confirmed, sort_order)
+    VALUES
+        ('verified', 'Verified', 39900, 10, 3, 1, 1, 1, 1);
+END;
+
+-- 3. Retire the old paid plans.
+-- Existing listings were moved to Free above.
+DELETE FROM plans
+WHERE slug NOT IN ('free', 'verified');
+
+-- 4. Store paid subscription periods per listing.
+IF OBJECT_ID('subscriptions', 'U') IS NULL
+BEGIN
+    CREATE TABLE subscriptions (
+        id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        listing_id BIGINT NOT NULL,
+        plan_slug NVARCHAR(40) NOT NULL,
+        status NVARCHAR(20) NOT NULL,
+        starts_at DATETIMEOFFSET(3) NOT NULL,
+        expires_at DATETIMEOFFSET(3) NOT NULL,
+        created_at DATETIMEOFFSET(3) NOT NULL
+            CONSTRAINT DF_subscriptions_created_at DEFAULT SYSDATETIMEOFFSET(),
+        updated_at DATETIMEOFFSET(3) NOT NULL
+            CONSTRAINT DF_subscriptions_updated_at DEFAULT SYSDATETIMEOFFSET(),
+
+        CONSTRAINT FK_subscriptions_listing
+            FOREIGN KEY (listing_id) REFERENCES listings(id),
+        CONSTRAINT FK_subscriptions_plan
+            FOREIGN KEY (plan_slug) REFERENCES plans(slug),
+        CONSTRAINT CK_subscriptions_status
+            CHECK (status IN ('pending', 'active', 'expired', 'cancelled')),
+        CONSTRAINT CK_subscriptions_period
+            CHECK (expires_at > starts_at)
+    );
+
+    CREATE INDEX IX_subscriptions_listing_period
+        ON subscriptions(listing_id, status, expires_at);
+END;
+
+-- 5. Record payment attempts and verified payment references.
+IF OBJECT_ID('subscription_payments', 'U') IS NULL
+BEGIN
+    CREATE TABLE subscription_payments (
+        id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        listing_id BIGINT NOT NULL,
+        subscription_id BIGINT NULL,
+        provider NVARCHAR(30) NOT NULL
+            CONSTRAINT DF_subscription_payments_provider DEFAULT 'razorpay',
+        provider_order_id NVARCHAR(100) NULL,
+        provider_payment_id NVARCHAR(100) NULL,
+        amount_paise BIGINT NOT NULL,
+        currency CHAR(3) NOT NULL
+            CONSTRAINT DF_subscription_payments_currency DEFAULT 'INR',
+        status NVARCHAR(20) NOT NULL,
+        signature_verified_at DATETIMEOFFSET(3) NULL,
+        paid_at DATETIMEOFFSET(3) NULL,
+        webhook_event_id NVARCHAR(150) NULL,
+        created_at DATETIMEOFFSET(3) NOT NULL
+            CONSTRAINT DF_subscription_payments_created_at DEFAULT SYSDATETIMEOFFSET(),
+        updated_at DATETIMEOFFSET(3) NOT NULL
+            CONSTRAINT DF_subscription_payments_updated_at DEFAULT SYSDATETIMEOFFSET(),
+
+        CONSTRAINT FK_subscription_payments_listing
+            FOREIGN KEY (listing_id) REFERENCES listings(id),
+        CONSTRAINT FK_subscription_payments_subscription
+            FOREIGN KEY (subscription_id) REFERENCES subscriptions(id),
+        CONSTRAINT CK_subscription_payments_amount
+            CHECK (amount_paise > 0),
+        CONSTRAINT CK_subscription_payments_status
+            CHECK (status IN ('created', 'pending', 'paid', 'failed', 'refunded'))
+    );
+
+    CREATE UNIQUE INDEX UX_subscription_payments_order
+        ON subscription_payments(provider, provider_order_id)
+        WHERE provider_order_id IS NOT NULL;
+
+    CREATE UNIQUE INDEX UX_subscription_payments_payment
+        ON subscription_payments(provider, provider_payment_id)
+        WHERE provider_payment_id IS NOT NULL;
+
+    CREATE UNIQUE INDEX UX_subscription_payments_webhook
+        ON subscription_payments(provider, webhook_event_id)
+        WHERE webhook_event_id IS NOT NULL;
+END;
+
+-- 6. Store up to five website/social links per listing.
+IF OBJECT_ID('listing_links', 'U') IS NULL
+BEGIN
+    CREATE TABLE listing_links (
+        id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        listing_id BIGINT NOT NULL,
+        link_type NVARCHAR(20) NOT NULL,
+        label NVARCHAR(80) NOT NULL,
+        url NVARCHAR(1000) NOT NULL,
+        sort_order INT NOT NULL
+            CONSTRAINT DF_listing_links_sort_order DEFAULT 0,
+        created_at DATETIMEOFFSET(3) NOT NULL
+            CONSTRAINT DF_listing_links_created_at DEFAULT SYSDATETIMEOFFSET(),
+        updated_at DATETIMEOFFSET(3) NOT NULL
+            CONSTRAINT DF_listing_links_updated_at DEFAULT SYSDATETIMEOFFSET(),
+
+        CONSTRAINT FK_listing_links_listing
+            FOREIGN KEY (listing_id) REFERENCES listings(id) ON DELETE CASCADE,
+        CONSTRAINT CK_listing_links_type
+            CHECK (link_type IN
+                ('website', 'instagram', 'facebook', 'youtube',
+                 'linkedin', 'x', 'other')),
+        CONSTRAINT CK_listing_links_sort
+            CHECK (sort_order BETWEEN 0 AND 4)
+    );
+
+    CREATE INDEX IX_listing_links_listing
+        ON listing_links(listing_id, sort_order, id);
+END;
+
+COMMIT TRANSACTION;
+GO

@@ -22,7 +22,9 @@ type Props = {
 export function FeaturedBusiness({ name, href, imageUrl }: Props) {
   return (
     <Link href={href} className="group flex flex-col items-center gap-3 text-center">
-      <span className="relative block size-20 overflow-hidden rounded-full border border-brand-200 bg-white shadow-[0_6px_16px_#002a3414] transition group-hover:border-brand-700 sm:size-24">
+      {/* 64px on the narrowest phones: four 80px circles plus gaps overflowed a 360px screen and
+          pushed the page sideways. */}
+      <span className="relative block size-16 overflow-hidden rounded-full border border-brand-200 bg-white shadow-[0_6px_16px_#002a3414] transition group-hover:border-brand-700 min-[420px]:size-20 sm:size-24">
         {imageUrl ? (
           <Image
             src={imageUrl}

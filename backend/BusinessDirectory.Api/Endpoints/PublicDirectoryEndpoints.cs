@@ -94,7 +94,16 @@ public static class PublicDirectoryEndpoints
         /// allowance disappears here while staying in the database (D10).
         /// </summary>
         List<PublicFaqDto> Faqs,
-        List<PublicContentDto> ContentSections);
+        List<PublicContentDto> ContentSections,
+
+        /// <summary>
+        /// What the business offers, the languages it speaks and what it has on site (S0024).
+        /// Free on every plan: these are what a visitor reads to decide whether to call.
+        /// </summary>
+        List<PublicAttributeDto> Attributes);
+
+    /// <param name="Kind">offering, language or amenity.</param>
+    public sealed record PublicAttributeDto(string Kind, string Label);
 
     /// <param name="DayOfWeek">0 = Monday … 6 = Sunday.</param>
     public sealed record OpeningHoursDto(int DayOfWeek, string DayName, string Opens, string Closes);
@@ -431,6 +440,7 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
         var (hours, openStatus) = await ReadOpeningHours(db, listingId, ct);
         var faqs = await ReadPublicFaqs(db, listingId, ct);
         var contentSections = await ReadPublicContent(db, listingId, ct);
+        var attributes = await ReadPublicAttributes(db, listingId, ct);
 
         return Results.Ok(new ListingDetailDto(
             reader.GetString(0),
@@ -456,7 +466,8 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
             hours,
             openStatus,
             faqs,
-            contentSections));
+            contentSections,
+            attributes));
     }
 
     /// <summary>
@@ -601,5 +612,31 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
                 reader.IsDBNull(3) ? null : reader.GetInt32(3)));
         }
         return media;
+    }
+
+    /// <summary>
+    /// The business's offerings, languages and amenities, in display order.
+    ///
+    /// Not gated on the plan, unlike links and FAQs: these describe the business to somebody
+    /// deciding whether to call, and a free listing that cannot say it speaks Telugu is a worse
+    /// result for the person searching.
+    /// </summary>
+    private static async Task<List<PublicAttributeDto>> ReadPublicAttributes(
+        SqlDatabase db, long listingId, CancellationToken ct)
+    {
+        await using var command = db.CreateCommand(
+            @"SELECT kind, label FROM dbo.listing_attributes
+              WHERE listing_id = @listing
+              ORDER BY kind, sort_order, id");
+        command.Parameters.AddWithValue("listing", listingId);
+
+        var items = new List<PublicAttributeDto>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            items.Add(new PublicAttributeDto(reader.GetString(0), reader.GetString(1)));
+        }
+
+        return items;
     }
 }

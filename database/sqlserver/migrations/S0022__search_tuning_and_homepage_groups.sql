@@ -24,7 +24,9 @@ IF OBJECT_ID('dbo.search_synonyms', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.search_synonyms (
         id          int IDENTITY(1,1) NOT NULL CONSTRAINT search_synonyms_pkey PRIMARY KEY,
-        -- Stored lower-case; the API lower-cases what it looks up, so the comparison is exact.
+        /* Stored lower-case, and left on the database default collation so the comparisons below
+           are case-insensitive: the unique index then refuses "Chemist" once "chemist" exists, and
+           the circular check refuses a term that differs from its target only in case. */
         term        nvarchar(100) NOT NULL,
         maps_to     nvarchar(100) NOT NULL,
         is_active   bit NOT NULL CONSTRAINT search_synonyms_active_default DEFAULT 1,
@@ -119,7 +121,7 @@ IF OBJECT_ID('dbo.search_synonyms', 'U') IS NULL
    OR OBJECT_ID('dbo.homepage_groups', 'U') IS NULL
    OR COL_LENGTH('dbo.listings', 'homepage_group_id') IS NULL
 BEGIN
-    THROW 51030, 'S0022 did not create the search tuning and homepage group objects.', 1;
+    ;THROW 51030, 'S0022 did not create the search tuning and homepage group objects.', 1;
 END
 GO
 
@@ -127,6 +129,6 @@ GO
    this ran is still on it, in the default group. */
 IF EXISTS (SELECT 1 FROM dbo.listings WHERE featured_at IS NOT NULL AND homepage_group_id IS NOT NULL)
 BEGIN
-    THROW 51031, 'S0022 moved an already-featured listing into a group. It should have left it alone.', 1;
+    ;THROW 51031, 'S0022 moved an already-featured listing into a group. It should have left it alone.', 1;
 END
 GO

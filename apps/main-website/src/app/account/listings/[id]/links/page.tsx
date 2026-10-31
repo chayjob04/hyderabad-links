@@ -1,3 +1,4 @@
+import { ListingNav } from "@/components/account/ListingNav";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -57,20 +58,7 @@ export default async function ListingLinksPage({ params }: Props) {
       </h1>
       <p className="mt-1 font-bold text-muted">{listing.name}</p>
 
-      <nav className="mt-4 flex flex-wrap gap-3 text-sm font-bold">
-        <Link href={`/account/listings/${id}/edit`} className="text-brand-700 hover:underline">
-          Edit details
-        </Link>
-        <Link href={`/account/listings/${id}/photos`} className="text-brand-700 hover:underline">
-          Photos and video
-        </Link>
-        <Link href={`/account/listings/${id}/subscription`} className="text-brand-700 hover:underline">
-          Plan and payment
-        </Link>
-        <Link href="/account/listings" className="text-muted hover:underline">
-          All listings
-        </Link>
-      </nav>
+      <ListingNav listingId={id} current="links" />
 
       <section className="mt-8 rounded-xl bg-brand-50 px-5 py-4">
         <p className="text-sm font-black text-brand-800">

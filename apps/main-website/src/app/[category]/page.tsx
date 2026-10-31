@@ -1,9 +1,11 @@
+import { CategoryThumb } from "@/components/CategoryThumb";
+import { PageHero } from "@/components/PageHero";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
 import { SearchBox } from "@/components/SearchBox";
-import { getCategories, getLocalities } from "@/lib/api";
+import { getCategories, getLocalities, getPageMeta, withPageMeta } from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { findTopCategory, toSearchCategories } from "@/lib/categories";
 import { absoluteUrl } from "@/lib/format";
@@ -25,12 +27,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const found = findTopCategory(await getCategories(), category);
   if (!found) return { title: "Not found", robots: { index: false } };
 
+  const applied = withPageMeta(
+    {
+      title: `${found.name} in ${DEFAULT_CITY_NAME}`,
+      description: `Browse ${found.name.toLowerCase()} businesses across ${DEFAULT_CITY_NAME}.`,
+    },
+    await getPageMeta("category", found.slug),
+  );
+
   return {
-    title: `${found.name} in ${DEFAULT_CITY_NAME}`,
-    description: `Browse ${found.name.toLowerCase()} businesses across ${DEFAULT_CITY_NAME}.`,
+    ...applied,
     alternates: { canonical: absoluteUrl(`/${found.slug}`) },
-    // Nothing to show until it has subcategories; a bare heading is a thin page.
-    robots: found.children.length === 0 ? { index: false, follow: true } : undefined,
+    // Nothing to show until it has subcategories; a bare heading is a thin page. An override that
+    // sets noindex wins, because somebody decided it deliberately.
+    robots: applied.robots ?? (found.children.length === 0 ? { index: false, follow: true } : undefined),
   };
 }
 
@@ -57,12 +67,23 @@ export default async function TopCategoryPage({ params }: Props) {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-8 pb-16">
-      <SearchBox categories={toSearchCategories(tree)} />
+    <>
+      <PageHero
+        crumbs={[{ label: "Home", href: "/" }, { label: found.name }]}
+        title={
+          <>
+            {found.name} in <span className="text-[#42d0dc]">{DEFAULT_CITY_NAME}</span>
+          </>
+        }
+        subtitle={
+          found.children.length === 0
+            ? undefined
+            : `${found.children.length} kinds of ${found.name.toLowerCase()} to choose from`
+        }
+      />
 
-      <h1 className="mt-8 text-2xl font-bold">
-        {found.name} in {DEFAULT_CITY_NAME}
-      </h1>
+      <main className="mx-auto max-w-5xl px-5 pt-8 pb-16 sm:px-8">
+        <SearchBox categories={toSearchCategories(tree)} />
 
       {found.children.length === 0 ? (
         <p className="mt-4 text-neutral-600">Nothing listed under {found.name} yet.</p>
@@ -70,14 +91,18 @@ export default async function TopCategoryPage({ params }: Props) {
         <>
           <p className="mt-1 text-sm text-neutral-500">Pick what you are looking for.</p>
 
+          {/* Each card carries the category's picture where the original site had one, and its
+              drawn icon where it does not — see CategoryThumb. The layout is the same either way,
+              so filling the image map in later changes nothing structural. */}
           <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {found.children.map((sub) => (
               <li key={sub.slug}>
                 <Link
                   href={`/${found.slug}/${sub.slug}`}
-                  className="block rounded-xl border border-neutral-200 bg-white p-4 font-medium shadow-sm hover:border-neutral-400"
+                  className="flex items-center gap-3 rounded-xl border border-line bg-white p-3 font-bold text-ink shadow-[0_6px_18px_#002a340a] transition hover:border-brand-700 hover:shadow-[0_10px_24px_#002a3414]"
                 >
-                  {sub.name}
+                  <CategoryThumb slug={sub.slug} name={sub.name} className="size-14 shrink-0" />
+                  <span className="min-w-0">{sub.name}</span>
                 </Link>
               </li>
             ))}
@@ -98,6 +123,7 @@ export default async function TopCategoryPage({ params }: Props) {
           />
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }

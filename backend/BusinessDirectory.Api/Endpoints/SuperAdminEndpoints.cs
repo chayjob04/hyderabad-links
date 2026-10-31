@@ -81,6 +81,7 @@ public static class SuperAdminEndpoints
         group.MapPost("/admins/{id:long}/reset-mfa", ResetMfa);
         group.MapGet("/audit", GetAudit);
         group.MapSuperAdminListingEndpoints();   // add, correct, archive and delete listings
+        group.MapSuperAdminHomepageGroupEndpoints();  // named shelves for the homepage
         return group;
     }
 

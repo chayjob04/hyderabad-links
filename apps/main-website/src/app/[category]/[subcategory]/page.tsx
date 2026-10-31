@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/PageHero";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -88,20 +89,22 @@ export default async function SubCategoryPage({ params, searchParams }: Props) {
   const basePath = `/${page.parent.slug}/${page.sub.slug}`;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-8 pb-16">
-      <SearchBox categories={toSearchCategories(page.tree)} initialQuery={page.sub.name} />
+    <>
+      <PageHero
+        crumbs={[
+          { label: "Home", href: "/" },
+          { label: page.parent.name, href: `/${page.parent.slug}` },
+          { label: page.sub.name },
+        ]}
+        title={
+          <>
+            {page.sub.name} in <span className="text-[#42d0dc]">{DEFAULT_CITY_NAME}</span>
+          </>
+        }
+      />
 
-      <nav aria-label="Breadcrumb" className="mt-8 text-sm text-neutral-500">
-        <Link href={`/${page.parent.slug}`} className="hover:underline">
-          {page.parent.name}
-        </Link>
-        <span aria-hidden="true"> &rsaquo; </span>
-        <span className="text-neutral-800">{page.sub.name}</span>
-      </nav>
-
-      <h1 className="mt-1 text-2xl font-bold">
-        {page.sub.name} in {DEFAULT_CITY_NAME}
-      </h1>
+      <main className="mx-auto max-w-5xl px-5 pt-8 pb-16 sm:px-8">
+        <SearchBox categories={toSearchCategories(page.tree)} initialQuery={page.sub.name} />
 
       {/* Narrowing to an area is the usual next step on a city-wide list. */}
       {page.localities.length > 0 ? (
@@ -154,6 +157,7 @@ export default async function SubCategoryPage({ params, searchParams }: Props) {
           />
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }

@@ -443,3 +443,69 @@ export const updateBlogPost = (
 
 export const setBlogPostPublished = (id: number, published: boolean) =>
   authed<void>(`/api/v1/admin/blog/${id}/${published ? "publish" : "unpublish"}`, { method: "POST" });
+
+// ---------------------------------------------------------------- SEO metadata
+export type PageMeta = {
+  id: number;
+  entityType: string;
+  entityId: number;
+  pageKey: string | null;
+  metaTitle: string | null;
+  metaDescription: string | null;
+  metaKeywords: string | null;
+  ogImageUrl: string | null;
+  noindex: boolean;
+  updatedAt: string;
+};
+
+/** `staticPages` is the fixed list of page keys the API accepts, so the form cannot offer more. */
+export type PageMetaList = { items: PageMeta[]; staticPages: string[] };
+
+export const getPageMetaList = () => authed<PageMetaList>("/api/v1/admin/seo");
+
+export const savePageMeta = (
+  entityType: string,
+  key: string,
+  input: {
+    metaTitle: string;
+    metaDescription: string;
+    metaKeywords: string;
+    ogImageUrl: string;
+    noindex: boolean;
+  },
+) =>
+  authed<PageMeta>(`/api/v1/admin/seo/${entityType}/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: json(input),
+  });
+
+/** Removing the override restores the metadata the page derives for itself. */
+export const clearPageMeta = (entityType: string, key: string) =>
+  authed<void>(`/api/v1/admin/seo/${entityType}/${encodeURIComponent(key)}`, { method: "DELETE" });
+
+// ---------------------------------------------------------------- search tuning
+export type SearchSynonym = { id: number; term: string; mapsTo: string; isActive: boolean };
+
+export type SearchPlaceholder = { id: number; text: string; sortOrder: number; isActive: boolean };
+
+export type SearchTuning = { synonyms: SearchSynonym[]; placeholders: SearchPlaceholder[] };
+
+export const getSearchTuning = () => authed<SearchTuning>("/api/v1/admin/search");
+
+export const addSynonym = (term: string, mapsTo: string) =>
+  authed<SearchSynonym>("/api/v1/admin/search/synonyms", {
+    method: "POST",
+    body: json({ term, mapsTo, isActive: true }),
+  });
+
+export const deleteSynonym = (id: number) =>
+  authed<void>(`/api/v1/admin/search/synonyms/${id}`, { method: "DELETE" });
+
+export const addPlaceholder = (text: string, sortOrder: number) =>
+  authed<SearchPlaceholder>("/api/v1/admin/search/placeholders", {
+    method: "POST",
+    body: json({ text, sortOrder, isActive: true }),
+  });
+
+export const deletePlaceholder = (id: number) =>
+  authed<void>(`/api/v1/admin/search/placeholders/${id}`, { method: "DELETE" });

@@ -456,6 +456,8 @@ publicApi.MapPublicSitemapEndpoints();    // every page the public site should l
 publicApi.MapPublicReportEndpoints();     // anyone reporting a listing or a review
 publicApi.MapPublicBlogEndpoints();       // published posts; drafts answer 404 like anything else
 publicApi.MapPublicSearchTuningEndpoints();  // the search box placeholder, as data
+publicApi.MapPublicPageMetaEndpoints();   // staff-written titles and descriptions, as overrides
+publicApi.MapPublicPlanEndpoints();       // what a listing costs, for the pricing page
 
 app.MapPaymentWebhookEndpoints();   // /api/v1/webhooks/razorpay: the path that does not need a browser
 

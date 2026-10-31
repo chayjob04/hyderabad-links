@@ -48,11 +48,21 @@ public static class PublicHighlightsEndpoints
         /// <summary>True while a paid period is running. The card draws the badge from this.</summary>
         bool Verified);
 
+    /// <summary>A named shelf a super admin created, with the listings on it.</summary>
+    public sealed record FeaturedGroupDto(
+        string Slug, string Title, string? Subtitle, IReadOnlyList<HighlightDto> Listings);
+
     public sealed record HighlightsDto(
         IReadOnlyList<HighlightDto> Featured,
         IReadOnlyList<HighlightDto> Trending,
         /// <summary>So the site can say "most active in the last 30 days" without hard-coding the number twice.</summary>
-        int TrendingWindowDays);
+        int TrendingWindowDays,
+
+        /// <summary>
+        /// Named shelves, in the order staff chose. Empty when nobody has made one, which is the
+        /// normal state -- the default Featured shelf above is unaffected either way.
+        /// </summary>
+        IReadOnlyList<FeaturedGroupDto> FeaturedGroups);
 
     public static RouteGroupBuilder MapPublicHighlightsEndpoints(this RouteGroupBuilder group)
     {
@@ -103,7 +113,9 @@ public static class PublicHighlightsEndpoints
         var featured = await ReadFeatured(db, storage, city, ct);
         var trending = await ReadTrending(db, storage, city, ct);
 
-        return Results.Ok(new HighlightsDto(featured, trending, TrendingWindowDays));
+        var groups = await ReadFeaturedGroups(db, storage, city, ct);
+
+        return Results.Ok(new HighlightsDto(featured, trending, TrendingWindowDays, groups));
     }
 
     /// <summary>
@@ -125,6 +137,7 @@ public static class PublicHighlightsEndpoints
             {CardJoins}
             WHERE li.status = 'active'
               AND li.featured_at IS NOT NULL
+              AND li.homepage_group_id IS NULL
               AND (@city IS NULL OR c.slug = @city)
             ORDER BY li.featured_at DESC, li.name");
         command.Parameters.AddWithValue("take", ShelfSize);
@@ -200,5 +213,61 @@ public static class PublicHighlightsEndpoints
         }
 
         return cards;
+    }
+
+    /// <summary>
+    /// The named shelves, each with its own listings.
+    ///
+    /// One query for the groups and one per group for its cards. That is N+1, and it is the right
+    /// trade here: there are at most four active groups (SuperAdminHomepageGroupEndpoints caps it),
+    /// the alternative is a window function over every featured listing that the card join makes
+    /// awkward to read, and this page is cached. Readability wins at this size.
+    ///
+    /// A group with no live listings is left out entirely rather than rendered as a heading over
+    /// nothing, which is the same rule the Featured and Trending shelves follow.
+    /// </summary>
+    private static async Task<List<FeaturedGroupDto>> ReadFeaturedGroups(
+        SqlDatabase db, IMediaStorage storage, string? city, CancellationToken ct)
+    {
+        var groups = new List<(int Id, string Slug, string Title, string? Subtitle)>();
+
+        await using (var command = db.CreateCommand(
+            @"SELECT id, slug, title, subtitle FROM dbo.homepage_groups
+              WHERE is_active = 1 ORDER BY sort_order, id"))
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                groups.Add((
+                    reader.GetInt32(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3)));
+            }
+        }
+
+        var shelves = new List<FeaturedGroupDto>();
+        foreach (var group in groups)
+        {
+            await using var command = db.CreateCommand($@"
+                SELECT TOP (@take) {CardColumns}
+                {CardJoins}
+                WHERE li.status = 'active'
+                  AND li.featured_at IS NOT NULL
+                  AND li.homepage_group_id = @group
+                  AND (@city IS NULL OR c.slug = @city)
+                ORDER BY li.featured_at DESC, li.name");
+            command.Parameters.AddWithValue("take", ShelfSize);
+            command.Parameters.AddWithValue("group", group.Id);
+            command.Parameters.AddWithValue("city", (object?)city ?? DBNull.Value);
+
+            var cards = await ReadCards(command, storage, ct);
+            if (cards.Count > 0)
+            {
+                shelves.Add(new FeaturedGroupDto(group.Slug, group.Title, group.Subtitle, cards));
+            }
+        }
+
+        return shelves;
     }
 }

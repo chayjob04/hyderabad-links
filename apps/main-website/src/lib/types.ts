@@ -60,7 +60,15 @@ export type ListingDetail = {
    */
   faqs: ListingFaq[];
   contentSections: ListingContentSection[];
+  /**
+   * What the business offers, the languages it speaks and what it has on site. Free on every
+   * plan, unlike links and FAQs: these help the visitor choose.
+   */
+  attributes: ListingAttribute[];
 };
+
+/** `kind` is "offering", "language" or "amenity". */
+export type ListingAttribute = { kind: string; label: string };
 
 /** `dayOfWeek` is 0 for Monday through 6 for Sunday. Times are "HH:mm" in Hyderabad. */
 export type OpeningHours = {
@@ -175,13 +183,26 @@ export type HighlightListing = Omit<SearchListing, "distanceMetres"> & {
   verified: boolean;
 };
 
+/** A named shelf a super admin created, with its own heading. */
+export type FeaturedGroup = {
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  listings: HighlightListing[];
+};
+
 export type Highlights = {
-  /** Listings paying for prominence right now, newest first. */
+  /** The default Featured shelf: chosen by hand, and not in any named group. */
   featured: HighlightListing[];
   /** Listings with the most real activity (enquiries, favourites, approved reviews) in the window. */
   trending: HighlightListing[];
   /** How many days back "trending" measured, so the heading can say it without hard-coding it. */
   trendingWindowDays: number;
+  /**
+   * Named shelves, in the order staff chose. Empty when nobody has made one, which is the normal
+   * state — the default Featured shelf above is unaffected either way.
+   */
+  featuredGroups: FeaturedGroup[];
 };
 
 /** A published blog post, as the public list shows it. */
@@ -204,4 +225,33 @@ export type BlogPage = {
   page: number;
   totalPages: number;
   total: number;
+};
+
+/**
+ * A staff-written override for one page's title, description or indexing.
+ *
+ * `key` is the page key for a static page and the entity id as text for everything else, matching
+ * how `page_meta` addresses a row.
+ */
+export type PageMetaOverride = {
+  entityType: string;
+  key: string;
+  metaTitle: string | null;
+  metaDescription: string | null;
+  ogImageUrl: string | null;
+  noindex: boolean;
+};
+
+/** A plan as the public pricing page shows it. `pricePaise` is in paise: ₹399 arrives as 39900. */
+export type PublicPlan = {
+  slug: string;
+  name: string;
+  pricePaise: number;
+  photoLimit: number;
+  videoLimit: number;
+  logoLimit: number;
+  linkLimit: number;
+  faqLimit: number;
+  contentSectionLimit: number;
+  grantsVerifiedBadge: boolean;
 };

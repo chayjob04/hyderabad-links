@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { Marquee } from "@/components/Marquee";
 import { JsonLd } from "@/components/JsonLd";
 import { SearchBox } from "@/components/SearchBox";
 import { BusinessCard } from "@/components/ui/BusinessCard";
@@ -6,7 +8,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { CategoryCard } from "@/components/ui/CategoryCard";
 import { CategoryIcon } from "@/components/ui/CategoryIcon";
 import { SectionHeading } from "@/components/ui/SectionHeading";
-import { getCategories, getHighlights } from "@/lib/api";
+import { getCategories, getHighlights, getPageMeta, getSearchPlaceholders, withPageMeta } from "@/lib/api";
 import { BRAND_NAME, DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { toSearchCategories } from "@/lib/categories";
 import { absoluteUrl } from "@/lib/format";
@@ -30,6 +32,19 @@ const SHELL = "mx-auto w-full max-w-[1480px]";
 /** The card grid. Two up on a phone, four on a desktop, with room to breathe at both ends. */
 const CARD_GRID = "grid grid-cols-2 gap-x-5 gap-y-10 sm:gap-x-8 sm:gap-y-12 lg:grid-cols-4 lg:gap-x-10 lg:gap-y-14";
 
+/**
+ * The home page's own title and description.
+ *
+ * It had none, inheriting the site defaults from the root layout — which was fine until staff
+ * could write one. This keeps those defaults as the fallback and lets an override replace them,
+ * so the admin panel's "Home page" form does something.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const override = await getPageMeta("static", "home");
+  // No override means no properties set here, so the layout's defaults still apply untouched.
+  return override ? withPageMeta({}, override) : {};
+}
+
 export default async function HomePage() {
   const tree = await getCategories();
 
@@ -42,6 +57,9 @@ export default async function HomePage() {
    * shelf with nothing in it is skipped rather than padded out with whatever else was to hand.
    */
   const highlights = await getHighlights(DEFAULT_CITY);
+
+  // Hint text staff configured in the admin panel. Empty is normal and leaves the built-in wording.
+  const placeholders = await getSearchPlaceholders();
 
   const quickLinks = tree.slice(0, 7);
 
@@ -81,13 +99,10 @@ export default async function HomePage() {
           ],
         }}
       />
-      <section className="flex h-8 items-center gap-3 overflow-hidden bg-[#050505] px-5 text-[11px] whitespace-nowrap text-white sm:justify-center sm:text-[13px]">
-        <span>Everything about a business, and all its digital profiles, in one place</span>
-        <b className="text-brand-400">&bull;</b>
-        <span>Chat directly with businesses on WhatsApp</span>
-        <b className="text-brand-400">&bull;</b>
-        <span>Find businesses that can help you in your language</span>
-      </section>
+      {/* The scrolling strip the original site had across the top. It replaces three fixed
+          sentences that said what the site does; a row of real categories says the same thing and
+          every word of it is a link somewhere. */}
+      <Marquee tree={tree} />
 
       {/* Hero. The illustration is drawn in CSS - gradients and a faint grid - so it costs no image. */}
       {/* The hero shares the page gutter so its text starts on the same line as every section
@@ -114,9 +129,12 @@ export default async function HomePage() {
           </p>
 
           <div className="mx-auto mt-7 max-w-3xl text-left">
-            <SearchBox categories={toSearchCategories(tree)} />
+            <SearchBox categories={toSearchCategories(tree)} placeholders={placeholders} />
           </div>
 
+          {/* The original's category chips under the search box. This row already did that job —
+              an icon and a name per category, each linking to a real page — so it is the existing
+              nav rather than a second strip of chips saying the same thing twice. */}
           {quickLinks.length > 0 ? (
             <nav aria-label="Popular categories" className="mt-9 flex flex-wrap justify-center gap-x-6 gap-y-4">
               {quickLinks.map((parent) => (
@@ -154,7 +172,7 @@ export default async function HomePage() {
               FEATURED BUSINESSES
             </h2>
             {/* Four across on a phone, eight on a wide screen: one row either way. */}
-            <div className="grid grid-cols-4 gap-x-4 gap-y-8 sm:gap-x-6 lg:grid-cols-8 lg:gap-x-8">
+            <div className="grid grid-cols-3 gap-x-3 gap-y-8 min-[420px]:grid-cols-4 sm:gap-x-6 lg:grid-cols-8 lg:gap-x-8">
               {highlights.featured.map((listing) => (
                 <FeaturedBusiness
                   key={listing.url}
@@ -167,6 +185,39 @@ export default async function HomePage() {
           </div>
         </section>
       ) : null}
+
+      {/*
+        Named shelves, each with a heading somebody wrote — "Best cafes in Madhapur" and so on.
+        They sit between Featured and Trending: more specific than the first, still editorial
+        rather than earned like the second.
+
+        A shelf with no live listings never reaches here (the API leaves it out), so this cannot
+        render a heading over an empty row.
+      */}
+      {highlights.featuredGroups.map((group) => (
+        <section key={group.slug} className={`border-b border-brand-100 ${SECTION}`}>
+          <div className={SHELL}>
+            <h2 className="mb-2 text-center text-xl font-black tracking-tight text-brand-800 sm:text-2xl">
+              {group.title}
+            </h2>
+            {group.subtitle ? (
+              <p className="mx-auto mb-8 max-w-2xl text-center text-[15px] text-muted">{group.subtitle}</p>
+            ) : (
+              <div className="mb-8" />
+            )}
+            <div className="grid grid-cols-3 gap-x-3 gap-y-8 min-[420px]:grid-cols-4 sm:gap-x-6 lg:grid-cols-8 lg:gap-x-8">
+              {group.listings.map((listing) => (
+                <FeaturedBusiness
+                  key={listing.url}
+                  name={listing.name}
+                  href={listing.url}
+                  imageUrl={listing.logoUrl ?? listing.photoUrl}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      ))}
 
       {/*
         Trending. Replaces the old "Businesses on Hyderabad Links" shelf, which existed only because

@@ -1,11 +1,22 @@
 @import "tailwindcss";
 
-/* The same brand colours as the public and admin sites, so the three look like one product. The
-   listing form moved here from the admin site and uses them; defining them here rather than
-   rewriting the form keeps one palette across all three. */
+/*
+ * The same brand colours as the public site, and now actually the same values.
+ *
+ * These were Tailwind's teal-700 (#0f766e) while the public site used #05677d, so a comment saying
+ * "same brand colours" was describing an intention rather than a fact: the panels and the site
+ * were visibly different greens side by side. The palette below is the one the public site and the
+ * original Hyderabad Links both use, so the three applications read as one product.
+ */
 @theme {
-  --color-brand-50: #f0fdfa;
-  --color-brand-100: #ccfbf1;
-  --color-brand-700: #0f766e;
-  --color-brand-900: #134e4a;
+  --color-brand-50: #f2fafb;
+  --color-brand-100: #d9eef1;
+  --color-brand-200: #b7dde3;
+  --color-brand-700: #05677d; /* primary teal: buttons, links, headings */
+  --color-brand-800: #004b5d;
+  --color-brand-900: #00343f;
+
+  /* Mulish for everything, as the original site used. The staff panels do not use Capriola:
+     a display face belongs on a marketing page, not on a screen somebody works in all day. */
+  --font-sans: var(--font-mulish), "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
 }

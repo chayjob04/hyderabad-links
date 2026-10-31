@@ -53,6 +53,7 @@ public static class SuperAdminFeaturedEndpoints
         // "featured" is a fixed segment, so it cannot collide with the "/{id:long}" routes beside it.
         listings.MapGet("/featured", List);
         listings.MapPut("/{id:long}/featured", Feature);
+        listings.MapPut("/{id:long}/featured/group/{groupId:int}", FeatureInGroup);
         listings.MapDelete("/{id:long}/featured", Unfeature);
         return listings;
     }
@@ -106,8 +107,21 @@ public static class SuperAdminFeaturedEndpoints
         return Results.Ok(new FeaturedListDto(items, MaxFeatured, Math.Max(0, MaxFeatured - items.Count)));
     }
 
-    private static async Task<IResult> Feature(
-        long id, ClaimsPrincipal principal, HttpContext http, SqlDatabase db, CancellationToken ct)
+    /// <summary>Features a listing on the default shelf.</summary>
+    private static Task<IResult> Feature(
+        long id, ClaimsPrincipal principal, HttpContext http, SqlDatabase db, CancellationToken ct) =>
+        FeatureCore(id, null, principal, http, db, ct);
+
+    /// <summary>
+    /// Features a listing on a named shelf. A groupId of 0 means the default shelf, so one route
+    /// can move a listing between groups and back again without a second verb.
+    /// </summary>
+    private static Task<IResult> FeatureInGroup(
+        long id, int groupId, ClaimsPrincipal principal, HttpContext http, SqlDatabase db, CancellationToken ct) =>
+        FeatureCore(id, groupId == 0 ? null : groupId, principal, http, db, ct);
+
+    private static async Task<IResult> FeatureCore(
+        long id, int? groupId, ClaimsPrincipal principal, HttpContext http, SqlDatabase db, CancellationToken ct)
     {
         var admin = await Authorized(db, principal, ct);
         if (admin is null)
@@ -167,17 +181,19 @@ public static class SuperAdminFeaturedEndpoints
         await using (var update = new SqlCommand(
             @"UPDATE dbo.listings
               SET featured_at = SYSDATETIMEOFFSET(), featured_by_admin_id = @admin,
+                  homepage_group_id = @group,
                   updated_at = SYSDATETIMEOFFSET()
               WHERE id = @id", conn, tx))
         {
             update.Parameters.AddWithValue("admin", admin.Id);
+            update.Parameters.AddWithValue("group", (object?)groupId ?? DBNull.Value);
             update.Parameters.AddWithValue("id", id);
             await update.ExecuteNonQueryAsync(ct);
         }
 
         await AuditLog.WriteAsync(
             conn, tx, admin.Id, "listing.featured", "listing", id.ToString(), http,
-            new { refeatured = alreadyFeatured }, ct);
+            new { refeatured = alreadyFeatured, groupId }, ct);
 
         await tx.CommitAsync(ct);
         return Results.NoContent();

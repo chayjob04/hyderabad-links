@@ -91,6 +91,7 @@ public static class OwnerListingEndpoints
         group.MapOwnerAlertEndpoints();   // staff requests to correct something, and marking them read
         group.MapOwnerOpeningHoursEndpoints();   // when the business is open
         group.MapOwnerListingContentEndpoints();  // FAQs and content sections, capped by the plan
+        group.MapOwnerAttributeEndpoints();       // offerings, languages and amenities
         return group;
     }
 

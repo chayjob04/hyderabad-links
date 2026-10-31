@@ -1,3 +1,4 @@
+import { ListingNav } from "@/components/account/ListingNav";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -32,6 +33,7 @@ export default async function ListingHoursPage({ params }: Props) {
         </Link>
         <h1 className="mt-2 text-3xl font-black tracking-tight text-brand-800">Opening hours</h1>
         <p className="mt-2 text-sm text-muted">{listingResult.data.name}</p>
+        <ListingNav listingId={id} current="hours" />
       </div>
 
       <div className="mt-6">

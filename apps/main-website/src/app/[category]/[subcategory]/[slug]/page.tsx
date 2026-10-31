@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { EnquiryForm } from "@/components/EnquiryForm";
+import { PageHero } from "@/components/PageHero";
+import { ListingAttributes } from "@/components/ListingAttributes";
 import { ListingContent, ListingFaqs } from "@/components/ListingFaqs";
 import { OpeningHoursPanel } from "@/components/OpeningHoursPanel";
 import { ReviewForm } from "@/components/ReviewForm";
@@ -11,7 +13,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { ListingGallery } from "@/components/ListingGallery";
 import { ReportListing } from "@/components/ReportListing";
 import { initialsOf } from "@/components/ui/BusinessCard";
-import { getListing, getReviews } from "@/lib/api";
+import { getListing, getPageMeta, getReviews, withPageMeta } from "@/lib/api";
 import { listFavourites } from "@/lib/owner-api";
 import { readTokens } from "@/lib/session";
 import { absoluteUrl, mapsHref, telHref, whatsappHref } from "@/lib/format";
@@ -33,16 +35,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
      showing the shop beats one showing the directory's emblem. Falls back to the site default. */
   const photo = listing.media.find((item) => item.kind === "photo") ?? listing.media.find((item) => item.kind === "logo");
 
+  // A staff-written override replaces whatever it sets, and leaves the rest as derived above.
+  const override = await getPageMeta("listing", listing.slug);
+  const applied = withPageMeta({ title, description }, override);
+
   return {
-    title,
-    description,
+    ...applied,
     alternates: { canonical: absoluteUrl(listing.url) },
     openGraph: {
       type: "website",
       url: absoluteUrl(listing.url),
-      title,
-      description,
-      ...(photo ? { images: [{ url: photo.url, alt: listing.name }] } : {}),
+      title: applied.title,
+      description: applied.description,
+      ...(override?.ogImageUrl
+        ? { images: [{ url: override.ogImageUrl, alt: listing.name }] }
+        : photo
+          ? { images: [{ url: photo.url, alt: listing.name }] }
+          : {}),
     },
     twitter: {
       card: photo ? "summary_large_image" : "summary",
@@ -158,38 +167,29 @@ export default async function ListingPage({ params }: Props) {
   const images = media.filter((item) => item.kind !== "video").map((item) => item.url);
 
   return (
-    <main className="mx-auto max-w-4xl px-5 py-10 pb-20 sm:px-8 lg:py-14 lg:pb-24">
-      {/*
-        The crumbs follow the segments of the URL this page is at - city/locality/category/slug -
-        and every one of them is a page that exists: the area and the category resolve through
-        search, and the third crumb is the locality + category page itself.
-      */}
-      <nav aria-label="Breadcrumb">
-        <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
-          <li>
-            <Link href="/" className="font-bold text-brand-700 hover:underline">
-              Home
-            </Link>
-          </li>
-          <li aria-hidden="true">&rsaquo;</li>
-          <li>
-            <Link href={`/areas/${listing.localitySlug}`} className="font-bold text-brand-700 hover:underline">
-              {listing.localityName}
-            </Link>
-          </li>
-          <li aria-hidden="true">&rsaquo;</li>
-          <li>
-            <Link href={categoryPage} className="font-bold text-brand-700 hover:underline">
-              {listing.categoryName}
-            </Link>
-          </li>
-          <li aria-hidden="true">&rsaquo;</li>
-          <li aria-current="page" className="min-w-0 truncate">
-            {listing.name}
-          </li>
-        </ol>
-      </nav>
+    <>
+      {/* The original's signature header: the trail and the business name inside a deep teal
+          band, with everything else against white below it. The crumbs follow the segments of the
+          URL, and every one is a page that exists. */}
+      <PageHero
+        crumbs={[
+          { label: "Home", href: "/" },
+          { label: listing.localityName, href: `/areas/${listing.localitySlug}` },
+          { label: listing.categoryName, href: categoryPage },
+          { label: listing.name },
+        ]}
+        title={listing.name}
+        subtitle={`${listing.categoryName} in ${listing.localityName}, ${listing.cityName}`}
+        aside={
+          listing.isVerified ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/95 px-3.5 py-1.5 text-[13px] font-black text-amber-950">
+              <span aria-hidden="true">&#10003;</span> Verified
+            </span>
+          ) : null
+        }
+      />
 
+    <main className="mx-auto max-w-4xl px-5 py-10 pb-20 sm:px-8 lg:py-14 lg:pb-24">
       <article className="mt-8 rounded-2xl border border-line bg-white p-6 shadow-[0_12px_36px_#002a3410] sm:p-10 lg:p-12">
         {logo ? (
           <img
@@ -322,10 +322,14 @@ export default async function ListingPage({ params }: Props) {
       {/* Hours, the business's own description sections and its FAQs, before the enquiry form.
           Someone deciding whether to get in touch reads these first; putting them after the form
           would mean answering questions the visitor had already given up on. */}
-      {listing.openingHours.length > 0 || listing.contentSections.length > 0 || listing.faqs.length > 0 ? (
+      {listing.openingHours.length > 0 ||
+      listing.contentSections.length > 0 ||
+      listing.faqs.length > 0 ||
+      listing.attributes.length > 0 ? (
         <div className="mt-10 grid gap-5 lg:grid-cols-[1fr_320px] lg:items-start">
           <div className="grid gap-5">
             <ListingContent sections={listing.contentSections} />
+            <ListingAttributes attributes={listing.attributes} />
             <ListingFaqs faqs={listing.faqs} businessName={listing.name} />
           </div>
           <OpeningHoursPanel hours={listing.openingHours} status={listing.openStatus} />
@@ -390,5 +394,6 @@ export default async function ListingPage({ params }: Props) {
         }}
       />
     </main>
+    </>
   );
 }

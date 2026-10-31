@@ -5,9 +5,11 @@ import {
   PERMISSION_LISTINGS_FEATURE,
   formatWhen,
   getFeatured,
+  getHomepageGroups,
   getProfile,
 } from "@/lib/super-admin-api";
 import { removeFromShelfAction } from "./actions";
+import { HomepageGroups } from "./HomepageGroups";
 
 export const metadata: Metadata = { title: "Featured", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -27,7 +29,7 @@ type Props = { searchParams: Promise<{ done?: string; error?: string }> };
  */
 export default async function FeaturedPage({ searchParams }: Props) {
   const { done, error } = await searchParams;
-  const [result, me] = await Promise.all([getFeatured(), getProfile()]);
+  const [result, me, groups] = await Promise.all([getFeatured(), getProfile(), getHomepageGroups()]);
   const mayFeature = me.ok && me.data.permissions.includes(PERMISSION_LISTINGS_FEATURE);
 
   return (
@@ -138,6 +140,8 @@ export default async function FeaturedPage({ searchParams }: Props) {
             )}
           </>
         )}
+
+        {groups.ok ? <HomepageGroups groups={groups.data} mayEdit={mayFeature} /> : null}
 
         {!mayFeature ? (
           <p className="mt-6 rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">

@@ -26,6 +26,9 @@ export async function SiteHeader() {
 
         {/* Was an outbound link to the old site, which took visitors off this one and gave the
             traffic away. The blog now lives here. */}
+        <Link href="/pricing" className="hidden text-sm font-bold hover:opacity-70 sm:block">
+          Pricing
+        </Link>
         <Link href="/blog" className="text-sm font-bold hover:opacity-70">
           Blog
         </Link>
@@ -132,6 +135,12 @@ export function SiteFooter() {
             Privacy policy
           </Link>
 
+          <Link href="/about" className="hover:opacity-70">
+            About
+          </Link>
+          <Link href="/pricing" className="hover:opacity-70">
+            Pricing
+          </Link>
           <Link href="/blog" className="hover:opacity-70">
             Blog
           </Link>

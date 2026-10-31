@@ -57,6 +57,12 @@ public static class PublicSitemapEndpoints
               JOIN categories pc ON pc.id = lc.category_id
               JOIN categories pcparent ON pcparent.id = pc.parent_id
               WHERE li.status = 'active'
+                /* A listing whose page_meta says noindex is left out. A sitemap entry says the page
+                   is worth a crawler's time and a noindex tag says the opposite, so including it
+                   would make the two contradict each other. */
+                AND NOT EXISTS (
+                    SELECT 1 FROM dbo.page_meta m
+                    WHERE m.entity_type = 'listing' AND m.entity_id = li.id AND m.noindex = 1)
               ORDER BY li.updated_at DESC"))
         {
             // One over the cap, so a full page tells us there is more rather than guessing.

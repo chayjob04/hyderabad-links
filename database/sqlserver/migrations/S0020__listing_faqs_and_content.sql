@@ -109,39 +109,11 @@ BEGIN
 END
 GO
 
--- ---------------------------------------------------------------- 4. what is visible right now
-/* The same shape as listing_visible_media (S0012): number each listing's rows in the owner's own
-   order, and show only those within the allowance the entitlement view reports this instant. A
-   lapsed plan hides the extras; a renewal brings them straight back; nothing is deleted and no job
-   runs. */
-CREATE OR ALTER VIEW dbo.listing_visible_faqs
-AS
-SELECT f.id, f.listing_id, f.question, f.answer, f.sort_order, f.created_at, f.updated_at
-FROM (
-    SELECT f.*,
-           ROW_NUMBER() OVER (PARTITION BY f.listing_id ORDER BY f.sort_order, f.id) AS rank_in_listing
-    FROM dbo.listing_faqs f
-) f
-JOIN dbo.listing_entitlements e ON e.listing_id = f.listing_id
-WHERE f.rank_in_listing <= e.faq_limit;
-GO
-
-CREATE OR ALTER VIEW dbo.listing_visible_content
-AS
-SELECT c.id, c.listing_id, c.heading, c.body, c.sort_order, c.created_at, c.updated_at
-FROM (
-    SELECT c.*,
-           ROW_NUMBER() OVER (PARTITION BY c.listing_id ORDER BY c.sort_order, c.id) AS rank_in_listing
-    FROM dbo.listing_content_sections c
-) c
-JOIN dbo.listing_entitlements e ON e.listing_id = c.listing_id
-WHERE c.rank_in_listing <= e.content_section_limit;
-GO
-
--- ---------------------------------------------------------------- 5. entitlements carry the new limits
+-- ---------------------------------------------------------------- 4. entitlements carry the new limits
 /* listing_entitlements is replaced wholesale with the same definition plus two columns. Every
    existing column keeps its name, position and meaning, so nothing that reads this view has to
-   change -- the two views above and the API simply gain something to read. */
+   change -- the two views below and the API simply gain something to read. This comes first,
+   because those views read faq_limit from it. */
 CREATE OR ALTER VIEW dbo.listing_entitlements
 AS
 SELECT
@@ -170,6 +142,35 @@ OUTER APPLY (
     ORDER BY s.expires_at DESC
 ) sub
 JOIN dbo.plans p ON p.slug = COALESCE(sub.plan_slug, 'free');
+GO
+
+-- ---------------------------------------------------------------- 5. what is visible right now
+/* The same shape as listing_visible_media (S0012): number each listing's rows in the owner's own
+   order, and show only those within the allowance the entitlement view reports this instant. A
+   lapsed plan hides the extras; a renewal brings them straight back; nothing is deleted and no job
+   runs. */
+CREATE OR ALTER VIEW dbo.listing_visible_faqs
+AS
+SELECT f.id, f.listing_id, f.question, f.answer, f.sort_order, f.created_at, f.updated_at
+FROM (
+    SELECT f.*,
+           ROW_NUMBER() OVER (PARTITION BY f.listing_id ORDER BY f.sort_order, f.id) AS rank_in_listing
+    FROM dbo.listing_faqs f
+) f
+JOIN dbo.listing_entitlements e ON e.listing_id = f.listing_id
+WHERE f.rank_in_listing <= e.faq_limit;
+GO
+
+CREATE OR ALTER VIEW dbo.listing_visible_content
+AS
+SELECT c.id, c.listing_id, c.heading, c.body, c.sort_order, c.created_at, c.updated_at
+FROM (
+    SELECT c.*,
+           ROW_NUMBER() OVER (PARTITION BY c.listing_id ORDER BY c.sort_order, c.id) AS rank_in_listing
+    FROM dbo.listing_content_sections c
+) c
+JOIN dbo.listing_entitlements e ON e.listing_id = c.listing_id
+WHERE c.rank_in_listing <= e.content_section_limit;
 GO
 
 -- ---------------------------------------------------------------- what must be true afterwards

@@ -598,3 +598,29 @@ export const addListingContent = (id: number, heading: string, body: string) =>
 
 export const deleteListingContent = (id: number, sectionId: number) =>
   authed<void>(`/api/v1/me/listings/${id}/content/${sectionId}`, { method: "DELETE" });
+
+// ---------------------------------------------------------------- offerings, languages, amenities
+export type ListingAttribute = { id: number; kind: string; label: string; sortOrder: number };
+
+/**
+ * The three lists, plus what to call each and what to suggest. The kinds and suggestions come from
+ * the API so the form offers exactly what the database will accept.
+ */
+export type ListingAttributes = {
+  items: ListingAttribute[];
+  kinds: Record<string, string>;
+  suggestions: Record<string, string[]>;
+  maxPerKind: number;
+};
+
+export const getListingAttributes = (id: number) =>
+  authed<ListingAttributes>(`/api/v1/me/listings/${id}/attributes`);
+
+export const addListingAttribute = (id: number, kind: string, label: string) =>
+  authed<ListingAttribute>(`/api/v1/me/listings/${id}/attributes`, {
+    method: "POST",
+    body: json({ kind, label }),
+  });
+
+export const deleteListingAttribute = (id: number, attributeId: number) =>
+  authed<void>(`/api/v1/me/listings/${id}/attributes/${attributeId}`, { method: "DELETE" });

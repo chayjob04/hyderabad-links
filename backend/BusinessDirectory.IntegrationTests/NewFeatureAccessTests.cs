@@ -6,9 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace BusinessDirectory.IntegrationTests;
 
-// Every route added for opening hours, FAQs, content sections, SEO metadata, the blog and search
-// tuning, checked for the one thing that needs no database: that nothing reaches them without the
-// right kind of token.
+// Every route added for opening hours, FAQs, content sections, listing attributes, SEO metadata,
+// the blog and search tuning, checked for the one thing that needs no database: that nothing
+// reaches them without the right kind of token.
 //
 // The owner routes must refuse an anonymous caller. The admin routes must refuse one too, and must
 // refuse an owner's token even though it is real and correctly signed — that is the audience split
@@ -34,6 +34,9 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
         { "GET", "/api/v1/me/listings/1/content" },
         { "POST", "/api/v1/me/listings/1/content" },
         { "DELETE", "/api/v1/me/listings/1/content/1" },
+        { "GET", "/api/v1/me/listings/1/attributes" },
+        { "POST", "/api/v1/me/listings/1/attributes" },
+        { "DELETE", "/api/v1/me/listings/1/attributes/1" },
     };
 
     [Theory]
@@ -50,6 +53,38 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
     }
 
     // ---------------------------------------------------------------- admin routes
+    public static TheoryData<string, string> SuperAdminRoutes() => new()
+    {
+        { "GET", "/api/v1/super-admin/homepage-groups" },
+        { "POST", "/api/v1/super-admin/homepage-groups" },
+        { "PUT", "/api/v1/super-admin/homepage-groups/1" },
+        { "DELETE", "/api/v1/super-admin/homepage-groups/1" },
+        { "PUT", "/api/v1/super-admin/listings/1/featured/group/2" },
+    };
+
+    [Theory]
+    [MemberData(nameof(SuperAdminRoutes))]
+    public async Task Every_homepage_group_route_refuses_an_anonymous_caller(string method, string path)
+    {
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        if (method is "POST" or "PUT")
+        {
+            request.Content = JsonContent.Create(new { title = "A shelf", isActive = true });
+        }
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.SendAsync(request)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Homepage_groups_are_not_on_the_ordinary_admin_surface()
+    {
+        /* Choosing what the platform recommends is super-admin work, and naming a shelf is the same
+           decision as filling it. The route must not exist here at all: 404 or 405, never 401. */
+        var response = await _client.GetAsync("/api/v1/admin/homepage-groups");
+
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
+    }
+
     public static TheoryData<string, string> AdminRoutes() => new()
     {
         { "GET", "/api/v1/admin/seo" },
@@ -102,6 +137,8 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
     [Theory]
     [InlineData("/api/v1/public/blog")]
     [InlineData("/api/v1/public/search-placeholders")]
+    [InlineData("/api/v1/public/page-meta")]
+    [InlineData("/api/v1/public/plans")]
     public async Task The_new_public_routes_exist_and_need_no_token(string path)
     {
         /* Without a database these cannot return data, so what is asserted is that the route is

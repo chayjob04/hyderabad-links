@@ -46,7 +46,10 @@ export function HoursForm({ listingId, initial }: { listingId: number; initial: 
           return (
             <div key={name} className="grid gap-2 border-b border-line pb-3 sm:grid-cols-[120px_1fr] sm:items-center">
               <span className="text-sm font-black text-ink">{name}</span>
-              <div className="flex flex-wrap items-center gap-2">
+              {/* Two rows on a phone, one on a tablet upwards. Four time inputs and two dashes on
+                  one line overflowed a 360px screen; each pair now keeps its own line. */}
+              <div className="grid gap-2 min-[560px]:flex min-[560px]:flex-wrap min-[560px]:items-center">
+                <div className="flex items-center gap-2">
                 <input
                   type="time"
                   name={`opens-${day}a`}
@@ -64,13 +67,15 @@ export function HoursForm({ listingId, initial }: { listingId: number; initial: 
                   aria-label={`${name} closing time`}
                   className={INPUT}
                 />
+                </div>
 
+                <div className="flex items-center gap-2">
                 <input
                   type="time"
                   name={`opens-${day}b`}
                   defaultValue={b?.opens ?? ""}
                   aria-label={`${name} second opening time`}
-                  className={`${INPUT} ml-2`}
+                  className={INPUT}
                 />
                 <span aria-hidden="true" className="text-muted">
                   &ndash;
@@ -82,6 +87,7 @@ export function HoursForm({ listingId, initial }: { listingId: number; initial: 
                   aria-label={`${name} second closing time`}
                   className={INPUT}
                 />
+                </div>
               </div>
             </div>
           );

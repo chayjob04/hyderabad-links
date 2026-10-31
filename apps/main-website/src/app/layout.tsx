@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Capriola, Mulish } from "next/font/google";
 import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
 import { BRAND_NAME } from "@/lib/brand";
 import { absoluteUrl } from "@/lib/format";
@@ -45,9 +46,20 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
+/*
+ * The original Hyderabad Links set headings in Capriola and body text in Mulish. Both come through
+ * next/font, which downloads them at build time and serves them from this origin: no request to
+ * Google on a page load, and no flash of a fallback face while a webfont arrives.
+ *
+ * Capriola has one weight, which is the point of using it only for headings -- it is a display
+ * face, and body copy needs a regular and a bold.
+ */
+const mulish = Mulish({ subsets: ["latin"], variable: "--font-mulish", display: "swap" });
+const capriola = Capriola({ subsets: ["latin"], weight: "400", variable: "--font-capriola", display: "swap" });
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${mulish.variable} ${capriola.variable}`}>
       <body className="min-h-screen bg-white font-sans text-ink antialiased">
         <SiteHeader />
         {children}

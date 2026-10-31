@@ -114,7 +114,9 @@ INSERT INTO @expectedPermissions (code)
 VALUES ('listings.view'), ('listings.create'), ('listings.edit'), ('listings.delete'),
        ('listings.review'), ('listings.verify'), ('listings.alert'), ('listings.feature'),
        ('reports.handle'), ('users.view'), ('taxonomy.manage'),
-       ('analytics.view'), ('data.export'), ('plans.manage'), ('admins.manage'), ('audit.view');
+       ('analytics.view'), ('data.export'), ('plans.manage'), ('admins.manage'), ('audit.view'),
+       -- S0021 and S0023.
+       ('seo.manage'), ('blog.manage');
 
 DECLARE @missingPermissions int =
     (SELECT COUNT(*) FROM (SELECT code FROM @expectedPermissions EXCEPT SELECT code FROM permissions) AS m);
@@ -151,7 +153,9 @@ ELSE PRINT 'ok: super_admin holds every permission';
 DECLARE @expectedAdmin TABLE (code varchar(50) PRIMARY KEY);
 INSERT INTO @expectedAdmin (code)
 VALUES ('listings.view'), ('listings.review'), ('listings.verify'), ('listings.alert'),
-       ('reports.handle'), ('users.view'), ('taxonomy.manage');
+       ('reports.handle'), ('users.view'), ('taxonomy.manage'),
+       -- S0021 and S0023: writing the site's own words and its page titles is admin work.
+       ('seo.manage'), ('blog.manage');
 
 DECLARE @adminGrants TABLE (code varchar(50) PRIMARY KEY);
 INSERT INTO @adminGrants (code)

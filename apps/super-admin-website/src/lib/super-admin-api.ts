@@ -399,3 +399,41 @@ export const featureListing = (id: number) =>
 
 export const unfeatureListing = (id: number) =>
   authed<void>(`/api/v1/super-admin/listings/${id}/featured`, { method: "DELETE" });
+
+// ---------------------------------------------------------------- homepage groups
+export type HomepageGroup = {
+  id: number;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  listingCount: number;
+};
+
+/** `maxActive` is the cap the API enforces, so the UI can say so before a save is refused. */
+export type HomepageGroupList = { items: HomepageGroup[]; maxActive: number };
+
+export const getHomepageGroups = () =>
+  authed<HomepageGroupList>("/api/v1/super-admin/homepage-groups");
+
+export const createHomepageGroup = (input: {
+  title: string;
+  subtitle: string;
+  sortOrder: number;
+  isActive: boolean;
+}) => authed<HomepageGroup>("/api/v1/super-admin/homepage-groups", { method: "POST", body: json(input) });
+
+/** The slug never changes: it is how the group is addressed, like a listing's or a post's. */
+export const updateHomepageGroup = (
+  id: number,
+  input: { title: string; subtitle: string; sortOrder: number; isActive: boolean },
+) => authed<void>(`/api/v1/super-admin/homepage-groups/${id}`, { method: "PUT", body: json(input) });
+
+/** Listings in a deleted group stay featured and fall back to the default shelf. */
+export const deleteHomepageGroup = (id: number) =>
+  authed<void>(`/api/v1/super-admin/homepage-groups/${id}`, { method: "DELETE" });
+
+/** Moves a featured listing onto a named shelf. Group 0 means the default shelf. */
+export const featureListingInGroup = (listingId: number, groupId: number) =>
+  authed<void>(`/api/v1/super-admin/listings/${listingId}/featured/group/${groupId}`, { method: "PUT" });

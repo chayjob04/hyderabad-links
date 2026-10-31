@@ -1,4 +1,6 @@
 import type {
+  PublicPlan,
+  PageMetaOverride,
   BlogPage,
   BlogPost,
   Category,
@@ -107,7 +109,7 @@ export async function searchListings(criteria: SearchCriteria): Promise<SearchRe
  * two missing shelves are better than a 500. The page skips a shelf that comes back empty.
  */
 export async function getHighlights(city: string): Promise<Highlights> {
-  const empty: Highlights = { featured: [], trending: [], trendingWindowDays: 30 };
+  const empty: Highlights = { featured: [], trending: [], trendingWindowDays: 30, featuredGroups: [] };
   try {
     const query = new URLSearchParams({ city });
     return (await getJson<Highlights>(`/api/v1/public/listings/highlights?${query.toString()}`, 300)) ?? empty;
@@ -292,4 +294,76 @@ export async function getBlogPost(slug: string): Promise<BlogPost | null> {
  */
 export async function getSearchPlaceholders(): Promise<string[]> {
   return (await getJson<string[]>("/api/v1/public/search-placeholders", 600)) ?? [];
+}
+
+/**
+ * Staff-written overrides for page titles, descriptions and indexing.
+ *
+ * Fetched whole and cached, then looked up per page: Next.js builds metadata one page at a time,
+ * so a request per page would be a request per render. The table is small and the answer changes
+ * only when somebody edits it in the admin panel.
+ *
+ * An empty list is normal and means every page keeps the metadata it works out for itself.
+ */
+export async function getPageMetaOverrides(): Promise<PageMetaOverride[]> {
+  return (await getJson<PageMetaOverride[]>("/api/v1/public/page-meta", 300)) ?? [];
+}
+
+/**
+ * The override for one page, or null when there is none.
+ *
+ * Returning null rather than a blank object is deliberate: the caller falls back to what the page
+ * derives for itself, and an object full of nulls would invite that fallback being forgotten.
+ */
+export async function getPageMeta(
+  entityType: string,
+  key: string | number,
+): Promise<PageMetaOverride | null> {
+  const overrides = await getPageMetaOverrides();
+  return overrides.find((m) => m.entityType === entityType && m.key === String(key)) ?? null;
+}
+
+/**
+ * Applies an override to the metadata a page built for itself.
+ *
+ * Each field is replaced only when the override actually sets it, so an admin who writes a
+ * description but no title keeps the page's own title. `noindex` adds the robots directive that
+ * the sitemap also honours, so the two can never disagree.
+ */
+export function withPageMeta(
+  base: { title?: string; description?: string },
+  override: PageMetaOverride | null,
+): {
+  title?: string;
+  description?: string;
+  robots?: { index: boolean; follow: boolean };
+  openGraph?: { title?: string; description?: string; images?: { url: string }[] };
+} {
+  if (!override) {
+    return base;
+  }
+
+  const title = override.metaTitle ?? base.title;
+  const description = override.metaDescription ?? base.description;
+
+  return {
+    title,
+    description,
+    ...(override.noindex ? { robots: { index: false, follow: false } } : {}),
+    openGraph: {
+      title,
+      description,
+      ...(override.ogImageUrl ? { images: [{ url: override.ogImageUrl }] } : {}),
+    },
+  };
+}
+
+/**
+ * The plans on sale, for the pricing page.
+ *
+ * Cached for an hour: a price changes when somebody runs an UPDATE, not continuously. An empty
+ * list means the API is unreachable, and the page says so rather than inventing a figure.
+ */
+export async function getPublicPlans(): Promise<PublicPlan[]> {
+  return (await getJson<PublicPlan[]>("/api/v1/public/plans", 3600)) ?? [];
 }

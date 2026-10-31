@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/PageHero";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
@@ -89,12 +90,23 @@ export default async function CategoryInLocalityPage({ params, searchParams }: P
   const basePath = `/areas/${page.area.slug}/${page.found.slug}`;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-8 pb-16">
-      <SearchBox categories={toSearchCategories(page.tree)} initialQuery={page.found.name} />
+    <>
+      <PageHero
+        crumbs={[
+          { label: "Home", href: "/" },
+          { label: page.area.name, href: `/areas/${page.area.slug}` },
+          { label: page.found.name },
+        ]}
+        title={
+          <>
+            {page.found.name} in <span className="text-[#42d0dc]">{page.area.name}</span>
+          </>
+        }
+        subtitle={DEFAULT_CITY_NAME}
+      />
 
-      <h1 className="mt-8 text-2xl font-bold">
-        {page.found.name} in {page.area.name}, {DEFAULT_CITY_NAME}
-      </h1>
+      <main className="mx-auto max-w-5xl px-5 pt-8 pb-16 sm:px-8">
+        <SearchBox categories={toSearchCategories(page.tree)} initialQuery={page.found.name} />
 
       {results === null ? (
         <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
@@ -134,6 +146,7 @@ export default async function CategoryInLocalityPage({ params, searchParams }: P
           />
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }

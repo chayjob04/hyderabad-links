@@ -19,7 +19,8 @@ public static class AdminSeoEndpoints
 {
     /// <summary>The static pages that may be overridden. A fixed list, so a typo cannot create an
     /// override for a page nothing renders and then puzzle whoever wrote it.</summary>
-    public static readonly string[] StaticPageKeys = ["home", "search", "terms", "privacy", "help", "blog"];
+    public static readonly string[] StaticPageKeys =
+        ["home", "search", "terms", "privacy", "help", "blog", "about", "pricing"];
 
     public static readonly string[] EntityTypes = ["listing", "category", "locality", "static"];
 
