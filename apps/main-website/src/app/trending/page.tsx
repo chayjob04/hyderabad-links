@@ -27,7 +27,14 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function TrendingPage() {
   const highlights = await getHighlights(DEFAULT_CITY);
-  const items = highlights.trending.map((listing) => ({ ...listing, distanceMetres: null }));
+  /* `verified` becomes `isVerified`: the highlights payload and a search result spell the same
+     flag differently, and ListingCard reads the search spelling. Without this the badge would be
+     silently absent on every card here. */
+  const items = highlights.trending.map(({ verified, ...listing }) => ({
+    ...listing,
+    distanceMetres: null,
+    isVerified: verified,
+  }));
 
   return (
     <>

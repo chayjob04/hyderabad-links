@@ -53,6 +53,25 @@ export function ListingCard({ listing }: { listing: SearchListing }) {
         <Link href={listing.url} className="hover:text-brand-700">
           {listing.name}
         </Link>
+        {/* Inline with the name, not floated on the logo as BusinessCard does it: this card is a
+            row of text rather than a portrait, and a tick on the avatar would sit a long way from
+            the business it is vouching for. The tick carries it visually; the label is for screen
+            readers, and `title` gives a sighted visitor the same words on hover. */}
+        {listing.isVerified ? (
+          <span
+            title="Verified business"
+            className="ml-1.5 inline-grid h-5 w-5 translate-y-0.5 place-items-center rounded-full bg-brand-700 text-white align-baseline"
+          >
+            <span className="sr-only">Verified business</span>
+            <svg viewBox="0 0 20 20" aria-hidden="true" className="h-3 w-3" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 0 1 1.4-1.4l3.8 3.8 6.8-6.8a1 1 0 0 1 1.4 0Z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </span>
+        ) : null}
       </h3>
       <p className="mt-1.5 text-sm text-muted">{where}</p>
 

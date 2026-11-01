@@ -30,7 +30,13 @@ public static class PublicSearchEndpoints
         /// <summary>The business's logo, or null when it has not uploaded one. The card falls back to a monogram.</summary>
         string? LogoUrl,
         /// <summary>Its first photo, used as the card thumbnail where there is no logo.</summary>
-        string? PhotoUrl);
+        string? PhotoUrl,
+        /// <summary>
+        /// True while a paid Verified period is running. Read from `listing_entitlements`, which
+        /// works that out against the clock at read time, so a plan that lapsed a minute ago loses
+        /// its badge here without anything having run.
+        /// </summary>
+        bool IsVerified);
 
     public sealed record SearchResultsDto(
         IReadOnlyList<SearchListingDto> Items,
@@ -91,6 +97,10 @@ public static class PublicSearchEndpoints
                       WHERE m.listing_id = li.id AND m.kind = 'photo'
                       ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) AS photo_key,
                      li.location.STDistance(qry.point) AS distance_metres,
+                     -- The badge the Verified plan buys, for the card. The same view the
+                     -- @verifiedOnly filter below reads, so a card's badge and the ?verified=1
+                     -- filter cannot disagree about who is paying.
+                     e.is_verified,
                      {3} AS relevance
               FROM qry
               JOIN listings li ON li.status = 'active'
@@ -104,6 +114,10 @@ public static class PublicSearchEndpoints
               -- excludes nothing that can exist, and a left join would hand the reader a null it
               -- would have to invent a URL for.
               JOIN categories pcparent ON pcparent.id = pc.parent_id
+              -- Exactly one row per listing, so this cannot multiply the result set. Inner rather
+              -- than left for the same reason the highlights shelves join it: a listing with no
+              -- entitlement row does not exist.
+              JOIN listing_entitlements e ON e.listing_id = li.id
               {2}
               WHERE (@city IS NULL OR ci.slug = @city)
                 -- Proximity window, used by locality landing pages so a thinly covered area
@@ -124,12 +138,11 @@ public static class PublicSearchEndpoints
                                 LEFT JOIN categories fparent ON fparent.id = fcat.parent_id
                                 WHERE fc.listing_id = li.id
                                   AND (fcat.slug = @category OR fparent.slug = @category)))
-                -- Verified only. Read from listing_entitlements, which works out the paid period
-                -- against the clock at read time, so a plan that lapsed a minute ago drops out
-                -- here without anything having run.
-                AND (@verifiedOnly = 0
-                     OR EXISTS (SELECT 1 FROM listing_entitlements ve
-                                WHERE ve.listing_id = li.id AND ve.is_verified = 1))
+                -- Verified only. listing_entitlements works the paid period out against the clock
+                -- at read time, so a plan that lapsed a minute ago drops out here without anything
+                -- having run. Read off the join above rather than a second subquery, which is also
+                -- what guarantees this filter and the badge on the card agree.
+                AND (@verifiedOnly = 0 OR e.is_verified = 1)
                 {4}
           ),
           page AS (
@@ -139,7 +152,7 @@ public static class PublicSearchEndpoints
                  p.slug, p.name, p.city_slug, p.locality_slug, p.locality_name,
                  p.category_slug, p.category_name, p.address_line, p.phone_primary,
                  p.phone_whatsapp, p.distance_metres, p.logo_key, p.photo_key,
-                 p.parent_category_slug
+                 p.parent_category_slug, p.is_verified
           FROM (SELECT 1 AS one) AS always_one_row
           LEFT JOIN page p ON 1 = 1
           ORDER BY {1}";
@@ -259,7 +272,8 @@ public static class PublicSearchEndpoints
                 reader.IsDBNull(10) ? null : reader.GetString(10),
                 PublicUrl.ForListing(reader.GetString(14), categorySlug, slug)!,
                 reader.IsDBNull(12) ? null : storage.PublicUrl(reader.GetString(12)),
-                reader.IsDBNull(13) ? null : storage.PublicUrl(reader.GetString(13))));
+                reader.IsDBNull(13) ? null : storage.PublicUrl(reader.GetString(13)),
+                reader.GetBoolean(15)));
         }
 
         var totalPages = (int)Math.Ceiling(total / (double)query.PageSize);

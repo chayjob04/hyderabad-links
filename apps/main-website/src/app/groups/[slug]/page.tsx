@@ -50,10 +50,15 @@ export default async function HomepageGroupPage({ params }: Props) {
   if (!group) notFound();
 
   /* The shelf's cards carry everything ListingCard needs except `distanceMetres`, which only a
-     search from a point can know. Null means the card simply draws no distance chip. */
-  const listings: SearchListing[] = group.listings.map((listing) => ({
+     search from a point can know. Null means the card simply draws no distance chip.
+
+     `verified` is renamed to `isVerified` because the two endpoints spell it differently — the
+     highlights payload says `verified`, a search result says `isVerified`. Mapping it here rather
+     than letting the type inherit it is what makes the badge appear on this page at all. */
+  const listings: SearchListing[] = group.listings.map(({ verified, ...listing }) => ({
     ...listing,
     distanceMetres: null,
+    isVerified: verified,
   }));
 
   return (

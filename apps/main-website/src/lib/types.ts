@@ -146,6 +146,11 @@ export type SearchListing = {
   logoUrl: string | null;
   /** The first photo, used as the card image when there is no logo. */
   photoUrl: string | null;
+  /**
+   * True while a paid Verified period is running. Computed by the API from the subscription period
+   * against the clock, so it is never stale — the same flag the `?verified=1` filter reads.
+   */
+  isVerified: boolean;
 };
 
 /** A page of search results. `total` counts every match, not just this page. */
@@ -180,8 +185,15 @@ export type { PublicReview, ReviewSummary } from "./api";
  * One card on a homepage shelf. The same fields as a search result minus the distance (a shelf is
  * not a proximity search), plus whether a paid period is running.
  */
-export type HighlightListing = Omit<SearchListing, "distanceMetres"> & {
-  /** True while the listing has a paid Verified period. Drives the badge. */
+export type HighlightListing = Omit<SearchListing, "distanceMetres" | "isVerified"> & {
+  /**
+   * True while the listing has a paid Verified period. Drives the badge.
+   *
+   * Named `verified` here and `isVerified` on a search result because that is what the two
+   * endpoints actually send. `isVerified` is omitted above rather than inherited, so a shelf card
+   * cannot read a field the highlights endpoint never returns — which would be a badge that is
+   * silently always absent.
+   */
   verified: boolean;
 };
 
