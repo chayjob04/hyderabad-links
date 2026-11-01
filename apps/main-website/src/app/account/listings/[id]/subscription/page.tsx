@@ -60,7 +60,7 @@ export default async function ListingSubscriptionPage({ params }: Props) {
       <h1 className="mt-1 text-2xl font-black tracking-tight text-brand-800 sm:text-3xl">Plan and payment</h1>
       <p className="mt-1 font-bold text-muted">{listing.name}</p>
 
-      <ListingNav listingId={id} current="subscription" />
+      <ListingNav listingId={id} current="subscription" verified={listing.verified} />
 
       {/* ------------------------------------------------------------ what is in force now */}
       <section className="mt-8 rounded-2xl border border-line bg-white px-6 py-5">

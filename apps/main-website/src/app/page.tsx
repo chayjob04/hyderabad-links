@@ -104,17 +104,23 @@ export default async function HomePage() {
           every word of it is a link somewhere. */}
       <Marquee tree={tree} />
 
-      {/* Hero. The illustration is drawn in CSS - gradients and a faint grid - so it costs no image. */}
+      {/* Hero. The city illustration is the original site's own background, served from /public
+          rather than next/image: it is one fixed decorative file at a known size, and a plain
+          <img> under the content lets it cover the section without registering a host. */}
       {/* The hero shares the page gutter so its text starts on the same line as every section
           below it; without that it sat 44px further left than the rest of the page at desktop width. */}
-      <section className="relative isolate overflow-hidden bg-[linear-gradient(110deg,#00242c_0%,#003a47_55%,#062a34_100%)] px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-12 lg:py-24 xl:px-16">
+      <section className="relative isolate overflow-hidden bg-night px-5 py-16 text-white sm:px-8 sm:py-20 lg:px-12 lg:py-24 xl:px-16">
+        <img
+          src="/images/hero-city.jpg"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 -z-20 h-full w-full object-cover"
+        />
+        {/* Over the photograph, so the headline keeps its contrast wherever the image is light. */}
+        <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[linear-gradient(110deg,#00242ccc_0%,#003a47b3_55%,#062a34cc_100%)]" />
         <div
           aria-hidden="true"
           className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_35%,#0d7b8c55,transparent_30%),radial-gradient(ellipse_at_80%_30%,#12647755,transparent_33%)]"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 -z-10 opacity-15 [background-image:linear-gradient(90deg,transparent_0_48px,#2bb3c2_49px,transparent_50px),linear-gradient(0deg,transparent_0_48px,#2bb3c2_49px,transparent_50px)] [background-size:50px_50px] [mask-image:linear-gradient(to_bottom,transparent,#000_30%,#000_85%,transparent)]"
         />
 
         <div className="mx-auto w-full max-w-[1050px] text-center">

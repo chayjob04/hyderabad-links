@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ListingNav } from "@/components/account/ListingNav";
 import { MediaUploader } from "@/components/account/MediaUploader";
 import { MoveMediaButton } from "@/components/account/MoveMediaButton";
 import { RemoveMediaButton } from "@/components/account/RemoveMediaButton";
@@ -82,7 +83,31 @@ export default async function ListingPhotosPage({ params }: Props) {
         <p className="mt-2 text-muted">
           How much you can add depends on your plan. This listing is on <span className="font-bold text-ink">{allowance.planName}</span>.
         </p>
+        <ListingNav listingId={id} current="photos" verified={listing.verified} />
       </div>
+
+      {!listing.verified ? (
+        /* Every allowance is zero on the Free plan, so the upload boxes below could only
+           ever refuse. Saying what the plan includes, and where to get it, is more use
+           than three disabled fields. Anything uploaded under an earlier paid plan is
+           still stored and comes back on renewal (D10), which is why this says kept.
+           */
+        <div className="mt-8 rounded-xl border border-brand-200 bg-brand-50 p-6">
+          <h2 className="text-xl font-black text-brand-800">Photos and video come with Verified</h2>
+          <p className="mt-2 text-sm text-brand-900">
+            This listing is on <span className="font-bold">{allowance.planName}</span>, which includes no
+            photos, logo or video. Anything you added on an earlier plan is kept and comes back the
+            moment the listing is Verified again — nothing is deleted.
+          </p>
+          <Link
+            href={`/account/listings/${id}/subscription`}
+            className="mt-4 inline-block rounded-full bg-brand-700 px-5 py-2 text-sm font-black text-white hover:bg-brand-800"
+          >
+            See plans and prices
+          </Link>
+        </div>
+      ) : (
+        <>
 
       {!allowance.limitsConfirmed ? (
         // Never present a provisional number as settled: the API says whether it has been confirmed.
@@ -169,6 +194,8 @@ export default async function ListingPhotosPage({ params }: Props) {
           </section>
         );
       })}
+        </>
+      )}
     </main>
   );
 }

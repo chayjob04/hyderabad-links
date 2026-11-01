@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ListingNav } from "@/components/account/ListingNav";
 import { ListingForm } from "@/components/ListingForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SubmitForReview } from "@/components/SubmitForReview";
@@ -53,24 +54,15 @@ export default async function EditListingPage({ params, searchParams }: Props) {
         </div>
         <p className="mt-2 text-muted">{describeStatus(listing.status).help}</p>
 
-        <p className="mt-2 flex flex-wrap items-center gap-4">
-          <Link href={`/account/listings/${listing.id}/photos`} className="text-sm font-black text-brand-700 hover:underline">
-            Photos and video <span aria-hidden="true">&rarr;</span>
-          </Link>
-          {/* Shown on every plan, not only the paid one: the page itself explains the allowance,
-              and hiding it would leave an owner no way to find out the Verified plan includes it. */}
-          <Link href={`/account/listings/${listing.id}/links`} className="text-sm font-black text-brand-700 hover:underline">
-            Website and social links <span aria-hidden="true">&rarr;</span>
-          </Link>
-          <Link href={`/account/listings/${listing.id}/subscription`} className="text-sm font-black text-brand-700 hover:underline">
-            Plan and payment <span aria-hidden="true">&rarr;</span>
-          </Link>
-          {listing.status === "active" ? (
+        <ListingNav listingId={listing.id} current="edit" verified={listing.verified} />
+
+        {listing.status === "active" ? (
+          <p className="mt-2">
             <Link href={listing.url} className="text-sm font-black text-brand-700 hover:underline">
               View public page <span aria-hidden="true">&rarr;</span>
             </Link>
-          ) : null}
-        </p>
+          </p>
+        ) : null}
       </div>
 
       {listing.status === "rejected" && listing.reviewNote ? (

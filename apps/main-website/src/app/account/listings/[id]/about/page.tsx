@@ -50,7 +50,7 @@ export default async function ListingAboutPage({ params }: Props) {
         </Link>
         <h1 className="mt-2 text-3xl font-black tracking-tight text-brand-800">About this business</h1>
         <p className="mt-2 text-sm text-muted">{listingResult.data.name}</p>
-        <ListingNav listingId={id} current="about" />
+        <ListingNav listingId={id} current="about" verified={listingResult.data.verified} />
       </div>
 
       {/* ---- the three short lists ---- */}

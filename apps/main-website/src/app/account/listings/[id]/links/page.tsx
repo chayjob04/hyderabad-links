@@ -58,7 +58,7 @@ export default async function ListingLinksPage({ params }: Props) {
       </h1>
       <p className="mt-1 font-bold text-muted">{listing.name}</p>
 
-      <ListingNav listingId={id} current="links" />
+      <ListingNav listingId={id} current="links" verified={listing.verified} />
 
       <section className="mt-8 rounded-xl bg-brand-50 px-5 py-4">
         <p className="text-sm font-black text-brand-800">

@@ -10,10 +10,16 @@ import Link from "next/link";
  * The current page is rendered as plain text rather than a link to itself — a link that goes
  * nowhere is a small lie, and it also tells someone where they are.
  */
-export function ListingNav({ listingId, current }: { listingId: number; current: ListingScreen }) {
+export function ListingNav({ listingId, current, verified }: Props) {
   const items: { key: ListingScreen; href: string; label: string }[] = [
     { key: "edit", href: `/account/listings/${listingId}/edit`, label: "Edit details" },
-    { key: "photos", href: `/account/listings/${listingId}/photos`, label: "Photos and video" },
+    /* Photos and video are the one screen that is genuinely unusable on the Free plan: every
+       allowance is zero, so the page could only ever say so. The others are free or explain the
+       paid part themselves, which is why only this one is hidden. The Plan and payment screen is
+       always present, so there is still an obvious way to find out what Verified includes. */
+    ...(verified
+      ? [{ key: "photos" as const, href: `/account/listings/${listingId}/photos`, label: "Photos and video" }]
+      : []),
     { key: "hours", href: `/account/listings/${listingId}/hours`, label: "Opening hours" },
     { key: "about", href: `/account/listings/${listingId}/about`, label: "About & FAQs" },
     { key: "links", href: `/account/listings/${listingId}/links`, label: "Website and social links" },
@@ -39,5 +45,12 @@ export function ListingNav({ listingId, current }: { listingId: number; current:
     </nav>
   );
 }
+
+type Props = {
+  listingId: number;
+  current: ListingScreen;
+  /** Whether the listing's plan includes media. Photos and video are hidden when it does not. */
+  verified: boolean;
+};
 
 export type ListingScreen = "edit" | "photos" | "hours" | "about" | "links" | "subscription";
