@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingForm } from "@/components/ListingForm";
+import { ListingStaffNav } from "@/components/ListingStaffNav";
 import {
   PERMISSION_LISTINGS_DELETE,
   PERMISSION_LISTINGS_EDIT,
@@ -76,8 +77,10 @@ export default async function ListingPage({ params, searchParams }: Props) {
             {listing.categoryName ?? "No category"} &middot; {listing.localityName}
           </p>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${TONES[tone.tone]}`}>{tone.label}</span>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold `}>{tone.label}</span>
       </div>
+
+      <ListingStaffNav listingId={listing.id} current="detail" />
 
       {added ? (
         <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">

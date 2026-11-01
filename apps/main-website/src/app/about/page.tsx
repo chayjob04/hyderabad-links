@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PageHero } from "@/components/PageHero";
 import { getPageMeta, withPageMeta } from "@/lib/api";
 import { BRAND_NAME, DEFAULT_CITY_NAME, SUPPORT_EMAIL } from "@/lib/brand";
 import { absoluteUrl } from "@/lib/format";
@@ -28,17 +29,15 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default function AboutPage() {
   return (
-    <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
-      <p className="text-[11px] font-black tracking-[0.22em] text-muted">ABOUT</p>
-      <h1 className="mt-2 text-3xl font-black tracking-tight text-brand-800 sm:text-4xl">
-        {BRAND_NAME}
-      </h1>
-      <p className="mt-4 text-[17px] leading-relaxed text-ink">
-        A directory of businesses in {DEFAULT_CITY_NAME}, organised by what they do and where they
-        are, so you can find the nearest one and contact it yourself.
-      </p>
+    <>
+      <PageHero
+        crumbs={[{ label: "Home", href: "/" }, { label: "About" }]}
+        title={`About ${BRAND_NAME}`}
+        subtitle={`A directory of businesses in ${DEFAULT_CITY_NAME}, organised by what they do and where they are, so you can find the nearest one and contact it yourself.`}
+      />
 
-      <section className="mt-10">
+      <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
+      <section>
         <h2 className="text-xl font-black text-brand-800">How it works</h2>
         <div className="mt-4 grid gap-5">
           <div>
@@ -105,6 +104,7 @@ export default function AboutPage() {
           .
         </p>
       </section>
-    </main>
+      </main>
+    </>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ListingCard } from "@/components/ListingCard";
 import { Pagination } from "@/components/Pagination";
+import { PageHero } from "@/components/PageHero";
 import { SearchFilters } from "@/components/SearchFilters";
 import { ActiveFilters, type ActiveFilter } from "@/components/ui/ActiveFilters";
 import { ButtonLink } from "@/components/ui/Button";
@@ -166,16 +167,28 @@ export default async function SearchPage({ searchParams }: Props) {
   }
 
   return (
-    <main className="mx-auto max-w-[1500px] px-5 pt-10 pb-20 sm:px-8 lg:px-12">
-      <div className="mx-auto max-w-3xl text-center">
-        <p className="text-[11px] font-black tracking-[0.22em] text-brand-500">HYDERABAD, CONNECTED</p>
-        <h1 className="mt-2 text-3xl leading-tight font-black tracking-tight text-brand-700 sm:text-4xl lg:text-5xl">
-          {headingFor(criteria, categoryName, localityName)}
-        </h1>
-        <p className="mt-3 text-muted">Only businesses approved by our team appear in these results.</p>
-      </div>
+    <>
+      {/* The same band every other inner page carries, so a result page reads as part of the site
+          rather than as a different product. The count lives in the subtitle because that is the
+          first thing anyone wants from a search. */}
+      <PageHero
+        crumbs={[
+          { label: "Home", href: "/" },
+          ...(categoryName && criteria.category ?
+            [{ label: categoryName, href: `/${criteria.category}` }]
+          : []),
+          { label: criteria.q ? `"${criteria.q}"` : "Search" },
+        ]}
+        title={headingFor(criteria, categoryName, localityName)}
+        subtitle={
+          results ?
+            `${results.total} ${results.total === 1 ? "business" : "businesses"} found. Only listings approved by our team appear here.`
+          : "Only businesses approved by our team appear in these results."
+        }
+      />
 
-      <div className="mx-auto mt-8 max-w-4xl">
+      <main className="mx-auto max-w-[1500px] px-5 pt-8 pb-20 sm:px-8 lg:px-12">
+      <div className="mx-auto max-w-4xl">
         <SearchFilters criteria={criteria} categories={tree} localityName={localityName} />
       </div>
 
@@ -259,6 +272,7 @@ export default async function SearchPage({ searchParams }: Props) {
           </p>
         </>
       ) : null}
-    </main>
+      </main>
+    </>
   );
 }

@@ -13,6 +13,7 @@ import Link from "next/link";
 export function ListingNav({ listingId, current, verified }: Props) {
   const items: { key: ListingScreen; href: string; label: string }[] = [
     { key: "edit", href: `/account/listings/${listingId}/edit`, label: "Edit details" },
+    { key: "preview", href: `/account/listings/${listingId}/preview`, label: "Preview" },
     /* Photos and video are the one screen that is genuinely unusable on the Free plan: every
        allowance is zero, so the page could only ever say so. The others are free or explain the
        paid part themselves, which is why only this one is hidden. The Plan and payment screen is
@@ -53,4 +54,11 @@ type Props = {
   verified: boolean;
 };
 
-export type ListingScreen = "edit" | "photos" | "hours" | "about" | "links" | "subscription";
+export type ListingScreen =
+  | "edit"
+  | "preview"
+  | "photos"
+  | "hours"
+  | "about"
+  | "links"
+  | "subscription";

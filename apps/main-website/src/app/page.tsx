@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Marquee } from "@/components/Marquee";
 import { JsonLd } from "@/components/JsonLd";
 import { SearchBox } from "@/components/SearchBox";
@@ -8,7 +9,14 @@ import { ButtonLink } from "@/components/ui/Button";
 import { CategoryCard } from "@/components/ui/CategoryCard";
 import { CategoryIcon } from "@/components/ui/CategoryIcon";
 import { SectionHeading } from "@/components/ui/SectionHeading";
-import { getCategories, getHighlights, getPageMeta, getSearchPlaceholders, withPageMeta } from "@/lib/api";
+import {
+  getCategories,
+  getHighlights,
+  getHomepageCuration,
+  getPageMeta,
+  getSearchPlaceholders,
+  withPageMeta,
+} from "@/lib/api";
 import { BRAND_NAME, DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { toSearchCategories } from "@/lib/categories";
 import { absoluteUrl } from "@/lib/format";
@@ -61,7 +69,26 @@ export default async function HomePage() {
   // Hint text staff configured in the admin panel. Empty is normal and leaves the built-in wording.
   const placeholders = await getSearchPlaceholders();
 
-  const quickLinks = tree.slice(0, 7);
+  /* What staff have curated for this page (S0025): which categories lead it, and the lines on the
+     strip. Both are empty until somebody curates one, and the fallbacks below are what this page
+     did before either existed, so an empty answer is not a degraded page. */
+  const curation = await getHomepageCuration();
+
+  /* The chips under the search box. Staff-chosen categories win when there are any; otherwise the
+     first seven top-level categories, which is what this row has always shown. A curated
+     subcategory links to /parent/child, a curated top-level one to /parent. */
+  const quickLinks =
+    curation.popularCategories.length > 0 ?
+      curation.popularCategories.map((category) => ({
+        slug: category.slug,
+        name: category.name,
+        href: category.parentSlug ? `//` : `/`,
+      }))
+    : tree.slice(0, 7).map((parent) => ({
+        slug: parent.slug,
+        name: parent.name,
+        href: `/`,
+      }));
 
   return (
     <main>
@@ -102,7 +129,7 @@ export default async function HomePage() {
       {/* The scrolling strip the original site had across the top. It replaces three fixed
           sentences that said what the site does; a row of real categories says the same thing and
           every word of it is a link somewhere. */}
-      <Marquee tree={tree} />
+      <Marquee tree={tree} lines={curation.scrollingText} />
 
       {/* Hero. The city illustration is the original site's own background, served from /public
           rather than next/image: it is one fixed decorative file at a known size, and a plain
@@ -145,8 +172,8 @@ export default async function HomePage() {
             <nav aria-label="Popular categories" className="mt-9 flex flex-wrap justify-center gap-x-6 gap-y-4">
               {quickLinks.map((parent) => (
                 <a
-                  key={parent.slug}
-                  href={`/${parent.slug}`}
+                  key={parent.href}
+                  href={parent.href}
                   className="flex min-w-[64px] flex-col items-center gap-2 text-[11px] font-bold text-white sm:text-xs"
                 >
                   <span
@@ -207,10 +234,19 @@ export default async function HomePage() {
               {group.title}
             </h2>
             {group.subtitle ? (
-              <p className="mx-auto mb-8 max-w-2xl text-center text-[15px] text-muted">{group.subtitle}</p>
+              <p className="mx-auto mb-3 max-w-2xl text-center text-[15px] text-muted">{group.subtitle}</p>
             ) : (
-              <div className="mb-8" />
+              <div className="mb-3" />
             )}
+            {/* The shelf is capped, so each one gets its own page — the original's `hplg` route. */}
+            <p className="mb-8 text-center">
+              <Link
+                href={`/groups/${group.slug}`}
+                className="text-sm font-black text-brand-700 hover:underline"
+              >
+                See all <span aria-hidden="true">&rarr;</span>
+              </Link>
+            </p>
             <div className="grid grid-cols-3 gap-x-3 gap-y-8 min-[420px]:grid-cols-4 sm:gap-x-6 lg:grid-cols-8 lg:gap-x-8">
               {group.listings.map((listing) => (
                 <FeaturedBusiness

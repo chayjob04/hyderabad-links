@@ -21,6 +21,9 @@ public sealed record ListingSearchQuery(
     double? Longitude,
     double? RadiusKm,
     ListingSortOrder Sort,
+    /// <summary>When true, only listings with a paid Verified period running right now.</summary>
+    bool VerifiedOnly,
+
     int Page,
     int PageSize)
 {
@@ -52,6 +55,7 @@ public sealed record ListingSearchQuery(
         string? sort,
         int? page,
         int? pageSize,
+        bool? verifiedOnly,
         out string? error)
     {
         error = null;
@@ -120,6 +124,7 @@ public sealed record ListingSearchQuery(
             lng,
             radiusKm.HasValue ? Math.Clamp(radiusKm.Value, MinRadiusKm, MaxRadiusKm) : null,
             order,
+            verifiedOnly ?? false,
             Math.Max(page ?? 1, 1),
             Math.Clamp(pageSize ?? DefaultPageSize, 1, MaxPageSize));
     }

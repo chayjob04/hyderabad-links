@@ -458,6 +458,7 @@ publicApi.MapPublicBlogEndpoints();       // published posts; drafts answer 404 
 publicApi.MapPublicSearchTuningEndpoints();  // the search box placeholder, as data
 publicApi.MapPublicPageMetaEndpoints();   // staff-written titles and descriptions, as overrides
 publicApi.MapPublicPlanEndpoints();       // what a listing costs, for the pricing page
+publicApi.MapPublicHomepageEndpoints();   // staff-curated popular categories and the scrolling strip
 
 app.MapPaymentWebhookEndpoints();   // /api/v1/webhooks/razorpay: the path that does not need a browser
 

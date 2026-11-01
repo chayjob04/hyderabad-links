@@ -124,6 +124,12 @@ public static class PublicSearchEndpoints
                                 LEFT JOIN categories fparent ON fparent.id = fcat.parent_id
                                 WHERE fc.listing_id = li.id
                                   AND (fcat.slug = @category OR fparent.slug = @category)))
+                -- Verified only. Read from listing_entitlements, which works out the paid period
+                -- against the clock at read time, so a plan that lapsed a minute ago drops out
+                -- here without anything having run.
+                AND (@verifiedOnly = 0
+                     OR EXISTS (SELECT 1 FROM listing_entitlements ve
+                                WHERE ve.listing_id = li.id AND ve.is_verified = 1))
                 {4}
           ),
           page AS (
@@ -149,11 +155,13 @@ public static class PublicSearchEndpoints
         string? sort,
         int? page,
         int? pageSize,
+        bool? verified,
         SqlDatabase db,
         IMediaStorage storage,
         CancellationToken ct)
     {
-        var query = ListingSearchQuery.TryCreate(q, city, locality, category, lat, lng, radiusKm, sort, page, pageSize, out var error);
+        var query = ListingSearchQuery.TryCreate(
+            q, city, locality, category, lat, lng, radiusKm, sort, page, pageSize, verified, out var error);
         if (query is null)
         {
             return Results.Problem(error, statusCode: StatusCodes.Status400BadRequest);
@@ -215,6 +223,7 @@ public static class PublicSearchEndpoints
         AddText(command, "city", query.CitySlug);
         AddText(command, "locality", query.LocalitySlug);
         AddText(command, "category", query.CategorySlug);
+        command.Parameters.AddWithValue("verifiedOnly", query.VerifiedOnly);
         AddDouble(command, "lat", query.Latitude);
         AddDouble(command, "lng", query.Longitude);
         AddDouble(command, "radius", query.RadiusKm * 1000);

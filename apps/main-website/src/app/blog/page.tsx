@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { PageHero } from "@/components/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getBlogPage } from "@/lib/api";
 import { absoluteUrl } from "@/lib/format";
@@ -35,24 +36,23 @@ export default async function BlogIndexPage({ searchParams }: Props) {
   const result = await getBlogPage(page);
 
   return (
-    <main className="mx-auto max-w-5xl px-5 py-10 sm:px-8">
-      <div className="border-b border-line pb-5">
-        <p className="text-[11px] font-black tracking-[0.22em] text-muted">HYDERABAD LINKS</p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-brand-800 sm:text-4xl">Blog</h1>
-        <p className="mt-2 max-w-2xl text-[15px] text-muted">
-          Guides to eating, shopping and getting things done around the city.
-        </p>
-      </div>
+    <>
+      <PageHero
+        crumbs={[{ label: "Home", href: "/" }, { label: "Blog" }]}
+        title="Blog"
+        subtitle="Guides to eating, shopping and getting things done around the city."
+      />
 
+      <main className="mx-auto max-w-5xl px-5 py-10 sm:px-8">
       {!result || result.items.length === 0 ? (
-        <div className="mt-8">
+        <div>
           <EmptyState mark="&#9998;" title="Nothing here yet">
             <p>The first post is on its way.</p>
           </EmptyState>
         </div>
       ) : (
         <>
-          <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {result.items.map((post) => (
               <li
                 key={post.slug}
@@ -110,6 +110,7 @@ export default async function BlogIndexPage({ searchParams }: Props) {
           ) : null}
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }

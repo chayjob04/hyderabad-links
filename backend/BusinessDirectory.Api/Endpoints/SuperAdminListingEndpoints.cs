@@ -63,6 +63,7 @@ public static class SuperAdminListingEndpoints
         group.MapDelete("/{id:long}", Delete);
         group.MapSuperAdminListingAlertEndpoints();
         group.MapSuperAdminFeaturedEndpoints();  // the homepage Featured shelf, chosen by hand
+        group.MapSuperAdminListingContentEndpoints();  // staff editing a listing's About, FAQs and links
         return group;
     }
 
@@ -90,6 +91,7 @@ public static class SuperAdminListingEndpoints
         CancellationToken ct,
         string? q = null,
         string? status = null,
+        string? category = null,
         int? page = null,
         int? pageSize = null)
     {
@@ -102,6 +104,9 @@ public static class SuperAdminListingEndpoints
         var currentPage = page is > 0 ? page.Value : 1;
         var size = pageSize is > 0 ? Math.Min(pageSize.Value, MaxPageSize) : DefaultPageSize;
         var search = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
+        // A category slug, for the by-category screens. Matched on the primary category only, the
+        // same one /category-counts counts, so a drill-in returns exactly the number it promised.
+        var categorySlug = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
 
         /* One statement returns the page and the total, so the two cannot disagree. The ORDER BY is
            repeated outside the CTE because ordering only inside it returns the right rows in an
@@ -119,6 +124,7 @@ public static class SuperAdminListingEndpoints
                 LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
                 WHERE (@status IS NULL OR li.status = @status)
                   AND (@q IS NULL OR li.name LIKE '%' + @q + '%' OR li.slug LIKE '%' + @q + '%')
+                  AND (@category IS NULL OR pc.slug = @category)
               )
               SELECT id, name, slug, status, locality_name, category_name, phone_primary,
                      is_verified, paid_until, created_at, featured_at, total
@@ -127,6 +133,7 @@ public static class SuperAdminListingEndpoints
               OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY");
         command.Parameters.Add(new SqlParameter("status", SqlDbType.VarChar) { Value = (object?)status ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("q", SqlDbType.NVarChar) { Value = (object?)search ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("category", SqlDbType.VarChar) { Value = (object?)categorySlug ?? DBNull.Value });
         command.Parameters.AddWithValue("skip", (currentPage - 1) * size);
         command.Parameters.AddWithValue("take", size);
 

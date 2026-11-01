@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PageHero } from "@/components/PageHero";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getPageMeta, getPublicPlans, withPageMeta } from "@/lib/api";
@@ -80,26 +81,22 @@ export default async function PricingPage() {
   const plans = await getPublicPlans();
 
   return (
-    <main className="mx-auto max-w-5xl px-5 py-10 sm:px-8">
-      <div className="text-center">
-        <p className="text-[11px] font-black tracking-[0.22em] text-muted">LIST YOUR BUSINESS</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-brand-800 sm:text-4xl">
-          Simple pricing
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl text-[15px] leading-relaxed text-muted">
-          Being listed is free. The Verified plan adds everything that helps somebody choose you
-          over the shop next door.
-        </p>
-      </div>
+    <>
+      <PageHero
+        crumbs={[{ label: "Home", href: "/" }, { label: "Membership" }]}
+        title="Membership and pricing"
+        subtitle="Being listed is free. The Verified plan adds everything that helps somebody choose you over the shop next door."
+      />
 
+      <main className="mx-auto max-w-5xl px-5 py-10 sm:px-8">
       {plans.length === 0 ? (
-        <div className="mt-10">
+        <div>
           <EmptyState tone="error" mark="&#9888;" title="We could not load our plans">
             <p>Please try again in a moment.</p>
           </EmptyState>
         </div>
       ) : (
-        <div className="mt-10 grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2">
           {plans.map((plan) => {
             const paid = plan.pricePaise > 0;
             return (
@@ -186,6 +183,7 @@ export default async function PricingPage() {
         </Link>
         .
       </p>
-    </main>
+      </main>
+    </>
   );
 }

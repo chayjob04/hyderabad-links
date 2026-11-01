@@ -437,3 +437,147 @@ export const deleteHomepageGroup = (id: number) =>
 /** Moves a featured listing onto a named shelf. Group 0 means the default shelf. */
 export const featureListingInGroup = (listingId: number, groupId: number) =>
   authed<void>(`/api/v1/super-admin/listings/${listingId}/featured/group/${groupId}`, { method: "PUT" });
+
+// ---- listings by category, and the people who own them ----------------------------------------
+
+export const PERMISSION_USERS_VIEW = "users.view";
+export const PERMISSION_ADMINS_MANAGE = "admins.manage";
+
+/** One category or subcategory with what is filed under it. `parentSlug` is null at the top level. */
+export type CategoryCount = {
+  id: number;
+  level: number;
+  slug: string;
+  name: string;
+  parentSlug: string | null;
+  parentName: string | null;
+  isActive: boolean;
+  /** Live listings whose primary category this is. */
+  activeCount: number;
+  /** Listings filed here in any status, drafts and suspended ones included. */
+  totalCount: number;
+};
+
+export type AccountRow = {
+  id: number;
+  phoneE164: string;
+  name: string | null;
+  email: string | null;
+  status: string;
+  phoneVerified: boolean;
+  listingCount: number;
+  createdAt: string;
+};
+
+export type AccountPage = {
+  items: AccountRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+export type AccountListing = {
+  id: number;
+  name: string;
+  slug: string;
+  status: string;
+  localityName: string;
+};
+
+export type AccountDetail = { account: AccountRow; listings: AccountListing[] };
+
+export const getCategoryCounts = () =>
+  authed<CategoryCount[]>("/api/v1/super-admin/category-counts");
+
+/** The listings filed under one category, for the drill-in from a count. */
+export const listListingsInCategory = (category: string, page = 1) => {
+  const query = new URLSearchParams({ category, page: String(page) });
+  return authed<ListingPage>(`/api/v1/super-admin/listings?${query.toString()}`);
+};
+
+export const listAccounts = (options: { q?: string; status?: string; page?: number } = {}) => {
+  const query = new URLSearchParams();
+  if (options.q) query.set("q", options.q);
+  if (options.status) query.set("status", options.status);
+  query.set("page", String(options.page ?? 1));
+  return authed<AccountPage>(`/api/v1/super-admin/accounts?${query.toString()}`);
+};
+
+export const getAccount = (id: number) =>
+  authed<AccountDetail>(`/api/v1/super-admin/accounts/${id}`);
+
+export const setAccountStatus = (id: number, status: "active" | "suspended") =>
+  authed<void>(`/api/v1/super-admin/accounts/${id}/status`, {
+    method: "PUT",
+    body: json({ status }),
+  });
+
+// ---- staff editing a listing's written content -------------------------------------------------
+
+/** A collection with the plan's allowance beside it, so a screen can say why a slot is refused. */
+export type Allowanced<T> = { items: T[]; limit: number; used: number; planName: string };
+
+export type ListingFaq = { id: number; question: string; answer: string; sortOrder: number };
+
+export type ListingContentSection = {
+  id: number;
+  heading: string;
+  body: string;
+  sortOrder: number;
+};
+
+export type ListingLink = {
+  id: number;
+  linkType: string;
+  label: string;
+  url: string;
+  sortOrder: number;
+};
+
+export const getListingFaqs = (id: number) =>
+  authed<Allowanced<ListingFaq>>(`/api/v1/super-admin/listings/${id}/faqs`);
+
+export const addListingFaq = (id: number, question: string, answer: string) =>
+  authed<ListingFaq>(`/api/v1/super-admin/listings/${id}/faqs`, {
+    method: "POST",
+    body: json({ question, answer }),
+  });
+
+export const deleteListingFaq = (id: number, faqId: number) =>
+  authed<void>(`/api/v1/super-admin/listings/${id}/faqs/${faqId}`, { method: "DELETE" });
+
+export const getListingContent = (id: number) =>
+  authed<Allowanced<ListingContentSection>>(`/api/v1/super-admin/listings/${id}/content`);
+
+export const addListingContent = (id: number, heading: string, body: string) =>
+  authed<ListingContentSection>(`/api/v1/super-admin/listings/${id}/content`, {
+    method: "POST",
+    body: json({ heading, body }),
+  });
+
+export const deleteListingContent = (id: number, sectionId: number) =>
+  authed<void>(`/api/v1/super-admin/listings/${id}/content/${sectionId}`, { method: "DELETE" });
+
+export const getListingLinks = (id: number) =>
+  authed<Allowanced<ListingLink>>(`/api/v1/super-admin/listings/${id}/links`);
+
+export const addListingLink = (id: number, linkType: string, label: string, url: string) =>
+  authed<ListingLink>(`/api/v1/super-admin/listings/${id}/links`, {
+    method: "POST",
+    body: json({ linkType, label, url }),
+  });
+
+export const deleteListingLink = (id: number, linkId: number) =>
+  authed<void>(`/api/v1/super-admin/listings/${id}/links/${linkId}`, { method: "DELETE" });
+
+/** The link types `listing_links_type_check` allows, for the picker. */
+export const LINK_TYPES = [
+  "website",
+  "instagram",
+  "facebook",
+  "youtube",
+  "linkedin",
+  "x",
+  "other",
+] as const;

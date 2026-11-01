@@ -12,11 +12,10 @@ import { saveListingAction } from "../../../actions";
 
 export const metadata: Metadata = { title: "Edit listing" };
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string }> };
+type Props = { params: Promise<{ id: string }> };
 
-export default async function EditListingPage({ params, searchParams }: Props) {
+export default async function EditListingPage({ params }: Props) {
   const { id: rawId } = await params;
-  const { created } = await searchParams;
   if (!/^\d{1,15}$/.test(rawId)) notFound();
   const id = Number(rawId);
 
@@ -68,15 +67,6 @@ export default async function EditListingPage({ params, searchParams }: Props) {
       {listing.status === "rejected" && listing.reviewNote ? (
         <p className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
           <span className="font-black">What to change:</span> {listing.reviewNote}
-        </p>
-      ) : null}
-
-      {created ? (
-        <p
-          role="status"
-          className="mt-5 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 text-sm text-brand-800"
-        >
-          Saved. Add the address and a description, and saving again will send it for review.
         </p>
       ) : null}
 

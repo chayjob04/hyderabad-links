@@ -60,6 +60,21 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
         { "PUT", "/api/v1/super-admin/homepage-groups/1" },
         { "DELETE", "/api/v1/super-admin/homepage-groups/1" },
         { "PUT", "/api/v1/super-admin/listings/1/featured/group/2" },
+        // Staff editing a listing's written content.
+        { "GET", "/api/v1/super-admin/listings/1/faqs" },
+        { "POST", "/api/v1/super-admin/listings/1/faqs" },
+        { "DELETE", "/api/v1/super-admin/listings/1/faqs/1" },
+        { "GET", "/api/v1/super-admin/listings/1/content" },
+        { "POST", "/api/v1/super-admin/listings/1/content" },
+        { "DELETE", "/api/v1/super-admin/listings/1/content/1" },
+        { "GET", "/api/v1/super-admin/listings/1/links" },
+        { "POST", "/api/v1/super-admin/listings/1/links" },
+        { "DELETE", "/api/v1/super-admin/listings/1/links/1" },
+        // Category counts and business accounts.
+        { "GET", "/api/v1/super-admin/category-counts" },
+        { "GET", "/api/v1/super-admin/accounts" },
+        { "GET", "/api/v1/super-admin/accounts/1" },
+        { "PUT", "/api/v1/super-admin/accounts/1/status" },
     };
 
     [Theory]
@@ -102,6 +117,13 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
         { "DELETE", "/api/v1/admin/search/synonyms/1" },
         { "POST", "/api/v1/admin/search/placeholders" },
         { "DELETE", "/api/v1/admin/search/placeholders/1" },
+        // S0025: curating the homepage.
+        { "GET", "/api/v1/admin/popular-categories" },
+        { "PUT", "/api/v1/admin/popular-categories/1" },
+        { "GET", "/api/v1/admin/scrolling-text" },
+        { "POST", "/api/v1/admin/scrolling-text" },
+        { "PUT", "/api/v1/admin/scrolling-text/1" },
+        { "DELETE", "/api/v1/admin/scrolling-text/1" },
     };
 
     [Theory]

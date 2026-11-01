@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/PageHero";
 import { BRAND_NAME, SUPPORT_EMAIL } from "@/lib/brand";
 
 /**
@@ -10,9 +11,11 @@ import { BRAND_NAME, SUPPORT_EMAIL } from "@/lib/brand";
  */
 export function LegalPage({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <main className="mx-auto max-w-3xl px-5 pt-10 pb-16 sm:px-8">
-      <h1 className="text-3xl font-black tracking-tight text-brand-800">{title}</h1>
-      <p className="mt-3 text-muted">{children}</p>
+    <>
+      <PageHero crumbs={[{ label: "Home", href: "/" }, { label: title }]} title={title} />
+
+      <main className="mx-auto max-w-3xl px-5 pt-10 pb-16 sm:px-8">
+      <p className="text-muted">{children}</p>
 
       <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
         <p className="font-black text-amber-900">This page is being written.</p>
@@ -27,6 +30,7 @@ export function LegalPage({ title, children }: { title: string; children: React.
           {SUPPORT_EMAIL}
         </a>
       </div>
-    </main>
+      </main>
+    </>
   );
 }

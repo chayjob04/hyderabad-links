@@ -28,6 +28,7 @@ public static class AdminEndpoints
         group.MapAdminSeoEndpoints();        // page titles, descriptions and indexing
         group.MapAdminBlogEndpoints();       // writing and publishing posts
         group.MapAdminSearchTuningEndpoints();  // synonyms and the search placeholder
+        group.MapAdminHomepageEndpoints();   // popular categories and the scrolling strip (S0025)
         group.MapAdminReviewEndpoints();
         group.MapAdminReportEndpoints();
         return group;

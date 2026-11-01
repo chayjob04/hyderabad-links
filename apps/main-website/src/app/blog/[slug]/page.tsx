@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Markdown } from "@/components/Markdown";
+import { PageHero } from "@/components/PageHero";
 import { BRAND_NAME } from "@/lib/brand";
 import { getBlogPost } from "@/lib/api";
 import { absoluteUrl } from "@/lib/format";
@@ -79,21 +80,16 @@ export default async function BlogPostPage({ params }: Props) {
   };
 
   return (
-    <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
-      <Link href="/blog" className="text-sm font-bold text-brand-700 hover:underline">
-        <span aria-hidden="true">&larr;</span> Blog
-      </Link>
+    <>
+      <PageHero
+        crumbs={[{ label: "Home", href: "/" }, { label: "Blog", href: "/blog" }, { label: post.title }]}
+        title={post.title}
+        subtitle={`${post.authorName}${post.publishedAt ? ` · ${formatDate(post.publishedAt)}` : ""}`}
+      />
 
-      <h1 className="mt-3 text-3xl leading-tight font-black tracking-tight text-brand-800 sm:text-4xl">
-        {post.title}
-      </h1>
-      <p className="mt-3 text-sm text-muted">
-        {post.authorName}
-        {post.publishedAt ? ` · ${formatDate(post.publishedAt)}` : ""}
-      </p>
-
+      <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
       {post.coverImageUrl ? (
-        <div className="relative mt-6 aspect-[16/9] overflow-hidden rounded-xl bg-brand-50">
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-brand-50">
           <Image
             src={post.coverImageUrl}
             alt=""
@@ -105,14 +101,21 @@ export default async function BlogPostPage({ params }: Props) {
         </div>
       ) : null}
 
-      <article className="mt-8">
+      <article className={post.coverImageUrl ? "mt-8" : undefined}>
         <Markdown source={post.bodyMarkdown} />
       </article>
+
+      <p className="mt-10 border-t border-line pt-6">
+        <Link href="/blog" className="font-black text-brand-700 hover:underline">
+          <span aria-hidden="true">&larr;</span> More from the blog
+        </Link>
+      </p>
 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-    </main>
+      </main>
+    </>
   );
 }

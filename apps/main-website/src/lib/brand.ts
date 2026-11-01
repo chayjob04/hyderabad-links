@@ -29,3 +29,14 @@ export const SOCIAL_LINKS: { label: string; href: string }[] = [
 /** Hyderabad is the only live city for now. The URL scheme already carries the city, so more can be added later. */
 export const DEFAULT_CITY = "hyderabad";
 export const DEFAULT_CITY_NAME = "Hyderabad";
+
+/**
+ * The WhatsApp number the original site put behind its "Contact" link, with the same opening
+ * message. It is a link rather than a form on purpose: on a phone it opens the conversation
+ * straight away, which is how most people here get in touch.
+ */
+export const WHATSAPP_CONTACT =
+  "https://wa.me/918019180101?text=Hi%2C%20I%20would%20like%20to%20get%20more%20information..";
+
+/** Shown in the footer under the logo, as on the original. */
+export const POWERED_BY = "Powered by Hyonweb LLP";

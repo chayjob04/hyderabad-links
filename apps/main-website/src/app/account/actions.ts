@@ -21,7 +21,10 @@ export async function saveListingAction(listingId: number | null, previous: List
   const result = listingId === null ? await createListing(input) : await updateListing(listingId, input);
   if (!result.ok) return { rev, values, message: result.message, fieldErrors: result.fieldErrors };
 
-  if (listingId === null) redirect(`/account/listings/${result.data.id}/edit?created=1`);
+  /* A new business goes to its own confirmation page, not back into the form it was just filled
+     in from. Someone adding a listing needs to be told the draft is private and that review is a
+     step they have to ask for — which a banner above the same form never managed to say. */
+  if (listingId === null) redirect(`/account/listings/${result.data.id}/created`);
   return { rev, values, success: true, message: "Changes saved.", fieldErrors: {} };
 }
 

@@ -116,7 +116,7 @@ VALUES ('listings.view'), ('listings.create'), ('listings.edit'), ('listings.del
        ('reports.handle'), ('users.view'), ('taxonomy.manage'),
        ('analytics.view'), ('data.export'), ('plans.manage'), ('admins.manage'), ('audit.view'),
        -- S0021 and S0023.
-       ('seo.manage'), ('blog.manage');
+       ('seo.manage'), ('blog.manage'), ('homepage.manage');  -- S0021, S0023, S0025
 
 DECLARE @missingPermissions int =
     (SELECT COUNT(*) FROM (SELECT code FROM @expectedPermissions EXCEPT SELECT code FROM permissions) AS m);
@@ -155,7 +155,7 @@ INSERT INTO @expectedAdmin (code)
 VALUES ('listings.view'), ('listings.review'), ('listings.verify'), ('listings.alert'),
        ('reports.handle'), ('users.view'), ('taxonomy.manage'),
        -- S0021 and S0023: writing the site's own words and its page titles is admin work.
-       ('seo.manage'), ('blog.manage');
+       ('seo.manage'), ('blog.manage'), ('homepage.manage');  -- S0021, S0023, S0025
 
 DECLARE @adminGrants TABLE (code varchar(50) PRIMARY KEY);
 INSERT INTO @adminGrants (code)

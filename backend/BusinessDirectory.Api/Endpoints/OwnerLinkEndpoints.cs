@@ -45,6 +45,68 @@ public static class OwnerLinkEndpoints
 
     public sealed record AddLinkRequest(string? LinkType, string? Label, string? Url);
 
+    /// <summary>A link that has passed <see cref="TryNormalise"/>: trimmed, lower-cased type, known good URL.</summary>
+    public sealed record NormalisedLink(string LinkType, string Label, string Url);
+
+    /// <summary>
+    /// Checks and tidies one submitted link, or hands back the field errors.
+    ///
+    /// Public and shared, because the super-admin staff editor
+    /// (SuperAdminListingContentEndpoints) adds links to listings whose owner has no account. Two
+    /// implementations of this check is how one of them ends up accepting a `javascript:` URL that
+    /// the other refuses — and this is the one rule on the listing page whose output is an
+    /// attribute a visitor's browser will follow.
+    /// </summary>
+    public static bool TryNormalise(
+        AddLinkRequest? body,
+        out NormalisedLink link,
+        out Dictionary<string, string[]> errors)
+    {
+        errors = [];
+
+        var linkType = body?.LinkType?.Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(linkType) || !AllowedTypes.Contains(linkType))
+        {
+            errors["linkType"] = [$"Choose one of: {string.Join(", ", AllowedTypes)}."];
+        }
+
+        var label = body?.Label?.Trim();
+        if (string.IsNullOrEmpty(label))
+        {
+            errors["label"] = ["Give the link a short label."];
+        }
+        else if (label.Length > 80)
+        {
+            errors["label"] = ["Keep the label to 80 characters or fewer."];
+        }
+
+        var url = body?.Url?.Trim();
+        if (string.IsNullOrEmpty(url))
+        {
+            errors["url"] = ["Enter the web address."];
+        }
+        else if (url.Length > 1000)
+        {
+            errors["url"] = ["That web address is too long."];
+        }
+        else if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
+                 || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+        {
+            // Parsed rather than pattern-matched, so "https:/x" and "javascript:alert(1)" are both
+            // refused here and never reach the database.
+            errors["url"] = ["Enter a full web address starting with http:// or https://."];
+        }
+
+        if (errors.Count > 0)
+        {
+            link = new NormalisedLink(string.Empty, string.Empty, string.Empty);
+            return false;
+        }
+
+        link = new NormalisedLink(linkType!, label!, url!);
+        return true;
+    }
+
     public static RouteGroupBuilder MapOwnerLinkEndpoints(this RouteGroupBuilder listings)
     {
         var group = listings.MapGroup("/{id:long}/links");
@@ -84,42 +146,7 @@ public static class OwnerLinkEndpoints
             return Results.Unauthorized();
         }
 
-        var errors = new Dictionary<string, string[]>();
-
-        var linkType = body.LinkType?.Trim().ToLowerInvariant();
-        if (string.IsNullOrEmpty(linkType) || !AllowedTypes.Contains(linkType))
-        {
-            errors["linkType"] = [$"Choose one of: {string.Join(", ", AllowedTypes)}."];
-        }
-
-        var label = body.Label?.Trim();
-        if (string.IsNullOrEmpty(label))
-        {
-            errors["label"] = ["Give the link a short label."];
-        }
-        else if (label.Length > 80)
-        {
-            errors["label"] = ["Keep the label to 80 characters or fewer."];
-        }
-
-        var url = body.Url?.Trim();
-        if (string.IsNullOrEmpty(url))
-        {
-            errors["url"] = ["Enter the web address."];
-        }
-        else if (url.Length > 1000)
-        {
-            errors["url"] = ["That web address is too long."];
-        }
-        else if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
-                 || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
-        {
-            // Parsed rather than pattern-matched, so "https:/x" and "javascript:alert(1)" are both
-            // refused here and never reach the database.
-            errors["url"] = ["Enter a full web address starting with http:// or https://."];
-        }
-
-        if (errors.Count > 0)
+        if (!TryNormalise(body, out var link, out var errors))
         {
             return Results.ValidationProblem(errors);
         }
@@ -169,9 +196,9 @@ public static class OwnerLinkEndpoints
               VALUES (@listing, @type, @label, @url, @slot)", conn, tx))
         {
             insert.Parameters.AddWithValue("listing", id);
-            insert.Parameters.AddWithValue("type", linkType!);
-            insert.Parameters.AddWithValue("label", label!);
-            insert.Parameters.AddWithValue("url", url!);
+            insert.Parameters.AddWithValue("type", link.LinkType);
+            insert.Parameters.AddWithValue("label", link.Label);
+            insert.Parameters.AddWithValue("url", link.Url);
             insert.Parameters.AddWithValue("slot", slot.Value);
 
             var newId = (long)(await insert.ExecuteScalarAsync(ct))!;
@@ -179,7 +206,7 @@ public static class OwnerLinkEndpoints
 
             return Results.Created(
                 $"/api/v1/me/listings/{id}/links/{newId}",
-                new LinkDto(newId, linkType!, label!, url!, slot.Value));
+                new LinkDto(newId, link.LinkType, link.Label, link.Url, slot.Value));
         }
     }
 
@@ -272,7 +299,7 @@ public static class OwnerLinkEndpoints
     /// unique per listing, so picking a free one rather than counting rows is what keeps an insert
     /// from colliding after a link in the middle has been removed.
     /// </summary>
-    private static async Task<int?> NextFreeSlot(
+    public static async Task<int?> NextFreeSlot(
         SqlConnection conn, SqlTransaction tx, long listingId, int limit, CancellationToken ct)
     {
         await using var command = new SqlCommand(

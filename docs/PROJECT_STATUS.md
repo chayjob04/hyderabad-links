@@ -54,8 +54,43 @@ disagreement inside it:
 
 ## What changed since 2026-10-25
 
-`REPAIR_STATUS.md` ends with its fourth pass. These are the 22 commits after it, which no other
+`REPAIR_STATUS.md` ends with its fourth pass. These are the commits after it, which no other
 document records; each commit message carries the full reasoning.
+
+**2 November — UI parity with the original site, finished.**
+
+`docs/original-ui-parity-plan.md` mapped every view in the original `WebZyte.HL.WebApp` to a route
+here. That work is now done, across all four groups. What is worth knowing:
+
+- **Every inner public page carries the original's breadcrumb band** (`PageHero`). Search, the blog,
+  a post, membership, about, help, terms and privacy were still using a centred white header, which
+  is what made the site read as a different product on every route.
+- **New public pages:** `/categories`, `/areas`, `/trending`, `/verified` (with the by-category
+  variant folded in as `?category=`, not a second route), and `/groups/[slug]` — one named Featured
+  shelf on its own page, built from the highlights payload the homepage already reads, so no new
+  endpoint and no shelf that can say two different things.
+- **Owner:** adding a business now ends on its own confirmation page
+  (`/account/listings/[id]/created`) instead of dropping back into the form it was just filled in
+  from, plus a preview checklist and an access-denied page.
+- **Admin:** popular categories and the scrolling strip, both of which needed `S0025` — see below.
+- **Super admin, the largest gap:** listings by category and by subcategory with counts and
+  drill-in; staff editors for a listing's About, FAQs and links; and business accounts. Nine pages,
+  each needing an endpoint.
+- **`S0025` is written but NOT applied.** It adds `categories.is_popular`, `dbo.scrolling_texts` and
+  the `homepage.manage` permission, all additive. The two admin screens and the homepage's curated
+  chips do nothing until `npm run db:migrate` runs, and `v0003_smoke` **will fail** until then,
+  because its expected permission list now includes `homepage.manage`.
+- **The link validator is now shared.** `OwnerLinkEndpoints.TryNormalise` was private to the owner's
+  screen; the staff editor needed the same rule, and two implementations of "http or https only" is
+  how one of them ends up accepting `javascript:`. The scrolling strip's URL has its own rule — a
+  site-relative path and nothing else — enforced in the API *and* by a CHECK constraint.
+- **Two decisions are still open and were taken the no-database-change way:** the third taxonomy
+  level (Segment) is not built, so the five original views that need it are not either; and the
+  staff config screens stay on admin rather than being duplicated onto super admin.
+- `npm run verify` passes: migration check, script tests, three production builds, .NET build,
+  669 unit and 245 integration tests, no warnings. **Nothing was checked in a browser** — no
+  browser tooling was available in that session, so the responsive behaviour is written to the
+  same breakpoints as the rest of the site but has not been seen rendered.
 
 **26 October — the shape of the public site.**
 
@@ -1135,11 +1170,17 @@ reason. Until that has actually been run, **nothing should claim email delivery 
 
 ## The next step
 
-**Last finished (2026-10-27):** the curated Featured shelf and staff correction requests (`S0017`,
-D51–D52), with the permission catalogue now asserted by name rather than by count. Earlier the same
-day: the two-video correction to the Verified plan (`S0016`), link previews, Cloudflare R2 media
-storage (D49) and the live-payment-key refusal (D50). `npm run verify` passes — 534 unit and 185
-integration tests, three production builds, no warnings.
+**Last finished (2026-11-02):** UI parity with the original site across all four groups — see
+"What changed since 2026-10-25" for what that covers and what it deliberately left out.
+`npm run verify` passes: 669 unit and 245 integration tests, three production builds, no warnings.
+
+**Two things are outstanding from it, and they are the first things to do:**
+
+1. **Apply `S0025`** (`npm run db:migrate`). It is additive — one column, one table, one permission —
+   and until it runs the admin's popular-categories and scrolling-text screens have nothing to read,
+   and `npm run db:check` fails `v0003_smoke` because that check now expects `homepage.manage`.
+2. **Look at the pages in a browser** at 375 / 768 / 1280px. Every claim about the parity work rests
+   on a passing build and typecheck, not on anything having been seen to render.
 
 Everything that remains is listed in "Not built yet", in the order that unblocks the most. Its first
 four items are the owner's to unblock, and until the first one lands — **the first super-admin

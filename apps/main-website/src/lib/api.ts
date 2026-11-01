@@ -5,6 +5,7 @@ import type {
   BlogPost,
   Category,
   Highlights,
+  HomepageCuration,
   ListingDetail,
   Locality,
   LocalitySuggestion,
@@ -366,4 +367,22 @@ export function withPageMeta(
  */
 export async function getPublicPlans(): Promise<PublicPlan[]> {
   return (await getJson<PublicPlan[]>("/api/v1/public/plans", 3600)) ?? [];
+}
+
+/**
+ * What staff have curated for the homepage: which categories lead it, and the lines on the
+ * scrolling strip (S0025).
+ *
+ * Both lists are empty until somebody curates something, and empty is a normal answer rather than
+ * a failure — the homepage falls back to the category tree in its own order, and the strip falls
+ * back to scrolling subcategories. A failed request degrades to the same thing for the same reason
+ * getHighlights does: two decorative pieces are not worth a 500 on the busiest page on the site.
+ */
+export async function getHomepageCuration(): Promise<HomepageCuration> {
+  const empty: HomepageCuration = { popularCategories: [], scrollingText: [] };
+  try {
+    return (await getJson<HomepageCuration>("/api/v1/public/homepage", 300)) ?? empty;
+  } catch {
+    return empty;
+  }
 }

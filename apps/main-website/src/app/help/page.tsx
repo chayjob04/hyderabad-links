@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PageHero } from "@/components/PageHero";
 import { BRAND_NAME, SUPPORT_EMAIL } from "@/lib/brand";
 
 export const metadata: Metadata = {
@@ -9,13 +10,15 @@ export const metadata: Metadata = {
 
 export default function HelpPage() {
   return (
-    <main className="mx-auto max-w-3xl px-5 pt-10 pb-16 sm:px-8">
-      <h1 className="text-3xl font-black tracking-tight text-brand-800">Help &amp; feedback</h1>
-      <p className="mt-2 text-muted">
-        Something wrong with a listing, or an idea for the site? Tell us and a person will read it.
-      </p>
+    <>
+      <PageHero
+        crumbs={[{ label: "Home", href: "/" }, { label: "Help & feedback" }]}
+        title="Help & feedback"
+        subtitle="Something wrong with a listing, or an idea for the site? Tell us and a person will read it."
+      />
 
-      <section className="mt-8 rounded-2xl border border-line bg-white p-6 shadow-[0_8px_22px_#002a340b]">
+      <main className="mx-auto max-w-3xl px-5 pt-10 pb-16 sm:px-8">
+      <section className="rounded-2xl border border-line bg-white p-6 shadow-[0_8px_22px_#002a340b]">
         <h2 className="text-lg font-black text-brand-800">Email us</h2>
         <p className="mt-1 text-sm text-muted">
           The quickest way to reach us. Include the name of the business if your question is about a
@@ -44,7 +47,8 @@ export default function HelpPage() {
           Free listings stay free. The Verified plan is &#8377;399 a year.
         </Card>
       </section>
-    </main>
+      </main>
+    </>
   );
 }
 

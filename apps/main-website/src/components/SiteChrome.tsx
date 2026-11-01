@@ -4,7 +4,7 @@ import { signOutAction } from "@/app/account/actions";
 import { CategoryNav } from "@/components/CategoryNav";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { getCategories } from "@/lib/api";
-import { BRAND_NAME, SOCIAL_LINKS, SUPPORT_EMAIL } from "@/lib/brand";
+import { BRAND_NAME, POWERED_BY, SOCIAL_LINKS, SUPPORT_EMAIL, WHATSAPP_CONTACT } from "@/lib/brand";
 import { getMeIfSignedIn } from "@/lib/owner-api";
 
 export async function SiteHeader() {
@@ -20,25 +20,29 @@ export async function SiteHeader() {
           Home
         </Link>
 
-        <Link href="/search" className="text-sm font-bold hover:opacity-70">
-          Search
+        <Link href="/about" className="text-sm font-bold hover:opacity-70">
+          About
         </Link>
 
-        {/* Was an outbound link to the old site, which took visitors off this one and gave the
-            traffic away. The blog now lives here. */}
-        <Link href="/pricing" className="hidden text-sm font-bold hover:opacity-70 sm:block">
-          Pricing
+        {/* "Membership" rather than "Pricing": it is what the original called it, and what the
+            page is really selling is being listed as a member, not a price. */}
+        <Link href="/pricing" className="text-sm font-bold hover:opacity-70">
+          Membership
         </Link>
+
         <Link href="/blog" className="text-sm font-bold hover:opacity-70">
           Blog
         </Link>
 
-        <Link
-          href="/account/listings"
-          className="hidden text-sm font-bold hover:opacity-70 sm:block"
+        {/* A WhatsApp link, as on the original: on a phone it opens the conversation itself. */}
+        <a
+          href={WHATSAPP_CONTACT}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-bold hover:opacity-70"
         >
-          List your business
-        </Link>
+          Contact
+        </a>
       </div>
 
       {/* Main header */}
@@ -103,63 +107,131 @@ export async function SiteHeader() {
   );
 }
 
+
 export function SiteFooter() {
   return (
     <footer className="bg-[#333] text-neutral-300">
-      {/* The navigation that used to live here repeated the header exactly, which is the one place
-          a footer earns nothing. It carries the things a header has no room for instead: where to
-          find us, and the terms people are agreeing to. */}
-      <div className="relative flex min-h-[115px] flex-col items-center justify-center gap-4 bg-brand-700 px-5 py-7 text-white">
-        {SOCIAL_LINKS.length > 0 ? (
-          <nav aria-label="Follow us" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-bold">
-            {SOCIAL_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:opacity-70"
+      {/* Four bands across, as on the original: the two documents people actually look for, the
+          social accounts, and the same five links as the top bar. The header's navigation is
+          repeated here on purpose — at the bottom of a long listing page it is the nearest way
+          out, and that is the one place repeating it earns its space. */}
+      <div className="bg-brand-700 px-5 py-9 text-white">
+        <div className="mx-auto grid max-w-[1200px] gap-8 text-center sm:grid-cols-2 lg:grid-cols-4 lg:text-left">
+          <div>
+            <h2 className="text-xs font-black tracking-[0.18em] opacity-70">DOCUMENTS</h2>
+            <ul className="mt-3 space-y-2 text-sm font-bold">
+              <li>
+                <Link href="/terms" className="hover:opacity-70">
+                  Terms of use
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="hover:opacity-70">
+                  Privacy policy
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="text-xs font-black tracking-[0.18em] opacity-70">BROWSE</h2>
+            <ul className="mt-3 space-y-2 text-sm font-bold">
+              <li>
+                <Link href="/categories" className="hover:opacity-70">
+                  All categories
+                </Link>
+              </li>
+              <li>
+                <Link href="/areas" className="hover:opacity-70">
+                  All areas
+                </Link>
+              </li>
+              <li>
+                <Link href="/trending" className="hover:opacity-70">
+                  Trending
+                </Link>
+              </li>
+              <li>
+                <Link href="/verified" className="hover:opacity-70">
+                  Verified businesses
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="text-xs font-black tracking-[0.18em] opacity-70">HYDERABAD LINKS</h2>
+            <ul className="mt-3 space-y-2 text-sm font-bold">
+              <li>
+                <Link href="/" className="hover:opacity-70">
+                  Home
+                </Link>
+              </li>
+              <li>
+                <Link href="/about" className="hover:opacity-70">
+                  About
+                </Link>
+              </li>
+              <li>
+                <Link href="/pricing" className="hover:opacity-70">
+                  Membership
+                </Link>
+              </li>
+              <li>
+                <Link href="/blog" className="hover:opacity-70">
+                  Blog
+                </Link>
+              </li>
+              <li>
+                <a
+                  href={WHATSAPP_CONTACT}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:opacity-70"
+                >
+                  Contact
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="text-xs font-black tracking-[0.18em] opacity-70">FOLLOW US</h2>
+            {SOCIAL_LINKS.length > 0 ? (
+              <nav
+                aria-label="Follow us"
+                className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold lg:justify-start"
               >
-                {link.label}
+                {SOCIAL_LINKS.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:opacity-70"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </nav>
+            ) : null}
+
+            <p className="mt-4 text-sm">
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="font-bold hover:opacity-70">
+                {SUPPORT_EMAIL}
               </a>
-            ))}
-          </nav>
-        ) : null}
-
-        <nav aria-label="Legal and help" className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-bold">
-          <Link href="/terms" className="hover:opacity-70">
-            Terms of use
-          </Link>
-
-          <Link href="/privacy" className="hover:opacity-70">
-            Privacy policy
-          </Link>
-
-          <Link href="/about" className="hover:opacity-70">
-            About
-          </Link>
-          <Link href="/pricing" className="hover:opacity-70">
-            Pricing
-          </Link>
-          <Link href="/blog" className="hover:opacity-70">
-            Blog
-          </Link>
-          <Link href="/help" className="hover:opacity-70">
-            Help &amp; feedback
-          </Link>
-
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:opacity-70">
-            Contact us
-          </a>
-        </nav>
+            </p>
+            <p className="mt-1 text-sm">
+              <Link href="/help" className="font-bold hover:opacity-70">
+                Help &amp; feedback
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="px-5 pb-6 pt-8 text-center">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2"
-          aria-label="Hyderabad Links home"
-        >
+      <div className="px-5 pt-8 pb-6 text-center">
+        <Link href="/" className="inline-flex items-center gap-2" aria-label="Hyderabad Links home">
           <Image
             src="/hyderabad-links-logo.png"
             alt=""
@@ -174,11 +246,8 @@ export function SiteFooter() {
           &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved.
         </p>
 
-        <small className="text-neutral-500">
-          Hyderabad&apos;s local business directory.
-        </small>
+        <small className="text-neutral-500">{POWERED_BY}</small>
       </div>
     </footer>
   );
 }
-

@@ -42,6 +42,15 @@ public static class AdminPermissions
     /// <summary>Writing and publishing blog posts (S0023). Editorial work, so admin.</summary>
     public const string BlogManage = "blog.manage";
 
+    /// <summary>
+    /// Which categories lead the homepage, and what the scrolling strip says (S0025). Editorial,
+    /// like SEO and the blog, so admin — and one code for both, because they are the same job.
+    /// Which *businesses* the homepage recommends is a different matter and stays super-admin only
+    /// (ListingsFeature below): a category is a section of the directory, a business is a name the
+    /// platform puts its own weight behind.
+    /// </summary>
+    public const string HomepageManage = "homepage.manage";
+
     // ---- super-admin only (listed so the separation is visible in one place; not checked here)
     /* Writing listings lives here rather than on the admin surface. An admin reviews what owners
        submit and nothing more -- approve, reject, suspend, reinstate. Adding a business by hand,
@@ -70,7 +79,7 @@ public static class AdminPermissions
     public static readonly string[] AdminSurface =
     [
         ListingsView, ListingsReview, ListingsVerify, ListingsAlert,
-        ReportsHandle, UsersView, TaxonomyManage, SeoManage, BlogManage,
+        ReportsHandle, UsersView, TaxonomyManage, SeoManage, BlogManage, HomepageManage,
     ];
 
     /// <summary>Permissions reserved for the super-admin surface.</summary>

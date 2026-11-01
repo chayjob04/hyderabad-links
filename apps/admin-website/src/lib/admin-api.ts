@@ -509,3 +509,61 @@ export const addPlaceholder = (text: string, sortOrder: number) =>
 
 export const deletePlaceholder = (id: number) =>
   authed<void>(`/api/v1/admin/search/placeholders/${id}`, { method: "DELETE" });
+
+// ---- the homepage, as staff curate it (S0025) -------------------------------------------------
+
+export type PopularCategory = {
+  id: number;
+  level: number;
+  slug: string;
+  name: string;
+  /** The top-level category above it, so two subcategories with the same name can be told apart. */
+  parentName: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  isPopular: boolean;
+  /** Live listings on it. A popular category with none would be an empty shelf. */
+  listingCount: number;
+};
+
+export type ScrollingText = {
+  id: number;
+  message: string;
+  /** A site-relative path, or null for a line that is only an announcement. */
+  url: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  updatedAt: string;
+};
+
+export const getPopularCategories = () =>
+  authed<PopularCategory[]>("/api/v1/admin/popular-categories");
+
+export const setCategoryPopular = (id: number, isPopular: boolean) =>
+  authed<void>(`/api/v1/admin/popular-categories/${id}`, {
+    method: "PUT",
+    body: json({ isPopular }),
+  });
+
+export const setCategorySortOrder = (id: number, sortOrder: number) =>
+  authed<void>(`/api/v1/admin/popular-categories/${id}`, {
+    method: "PUT",
+    body: json({ sortOrder }),
+  });
+
+export const getScrollingText = () => authed<ScrollingText[]>("/api/v1/admin/scrolling-text");
+
+export const addScrollingText = (message: string, url: string | null, sortOrder: number) =>
+  authed<{ id: number }>("/api/v1/admin/scrolling-text", {
+    method: "POST",
+    body: json({ message, url, sortOrder, isActive: true }),
+  });
+
+export const setScrollingTextActive = (id: number, isActive: boolean) =>
+  authed<void>(`/api/v1/admin/scrolling-text/${id}`, { method: "PUT", body: json({ isActive }) });
+
+export const deleteScrollingText = (id: number) =>
+  authed<void>(`/api/v1/admin/scrolling-text/${id}`, { method: "DELETE" });
+
+/** Curating the homepage: popular categories and the scrolling strip (S0025). */
+export const PERMISSION_HOMEPAGE = "homepage.manage";

@@ -169,6 +169,8 @@ export type SearchCriteria = {
   sort?: "relevance" | "distance" | "name";
   page?: number;
   pageSize?: number;
+  /** Only listings with a paid Verified period running now. Used by /verified. */
+  verified?: boolean;
 };
 
 /** Re-exported from the API client so components can import review shapes from one place. */
@@ -254,4 +256,23 @@ export type PublicPlan = {
   faqLimit: number;
   contentSectionLimit: number;
   grantsVerifiedBadge: boolean;
+};
+
+/** A category staff chose to lead the homepage. `parentSlug` is null for a top-level category. */
+export type PopularCategory = {
+  slug: string;
+  name: string;
+  parentSlug: string | null;
+};
+
+/** One line on the scrolling strip. `url` is a site-relative path, or null for an announcement. */
+export type ScrollingTextLine = {
+  message: string;
+  url: string | null;
+};
+
+/** The staff-curated parts of the homepage. Both lists are empty until somebody curates one. */
+export type HomepageCuration = {
+  popularCategories: PopularCategory[];
+  scrollingText: ScrollingTextLine[];
 };

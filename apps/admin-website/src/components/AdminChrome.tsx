@@ -1,59 +1,54 @@
-import Link from "next/link";
 import { signOutAction } from "@/app/listings/actions";
+import { StaffSidebar, type NavItem } from "@/components/StaffSidebar";
 import { getAdminProfile } from "@/lib/admin-api";
 
 /**
- * The bar across the top of every signed-in admin screen: where you are, who you are, and the way
- * out. It lives here rather than in one route's layout so the listings and reviews queues cannot
- * drift apart.
+ * The frame around every signed-in admin screen.
  *
- * The links are shown to everyone signed in. The API refuses a queue the account has no permission
- * for, and that refusal is what the page then explains — hiding a link is not authorisation.
+ * A sidebar rather than a bar across the top, which is how the original's admin was laid out: by
+ * the time there were eight queues the top bar had run out of room and started wrapping, and a
+ * vertical list has no such limit.
  */
+const ITEMS: NavItem[] = [
+  { href: "/", label: "Dashboard", mark: "▦" },
+  { href: "/listings", label: "Listings", mark: "☰" },
+  { href: "/reviews", label: "Reviews", mark: "★" },
+  { href: "/reports", label: "Reports", mark: "⚠" },
+  { href: "/blog", label: "Blog", mark: "✎" },
+  { href: "/seo", label: "SEO", mark: "⌕" },
+  { href: "/search", label: "Search", mark: "⌘" },
+  { href: "/categories", label: "Categories", mark: "⊞" },
+  { href: "/locations", label: "Locations", mark: "⚑" },
+  { href: "/homepage/popular-categories", label: "Popular categories", mark: "◉" },
+  { href: "/homepage/scrolling-text", label: "Scrolling text", mark: "⇄" },
+];
+
 export async function AdminChrome({ children }: { children: React.ReactNode }) {
   const me = await getAdminProfile();
 
   return (
-    <>
-      <div className="border-b border-neutral-200 bg-brand-50">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-2 text-sm">
-          <div className="flex items-center gap-4">
-            <Link href="/listings" className="font-semibold text-brand-900">
-              Listings
-            </Link>
-            <Link href="/reviews" className="font-semibold text-brand-900">
-              Reviews
-            </Link>
-            <Link href="/reports" className="font-semibold text-brand-900">
-              Reports
-            </Link>
-            <Link href="/blog" className="font-semibold text-brand-900">
-              Blog
-            </Link>
-            <Link href="/seo" className="font-semibold text-brand-900">
-              SEO
-            </Link>
-            <Link href="/search" className="font-semibold text-brand-900">
-              Search
-            </Link>
-            <Link href="/categories" className="font-semibold text-brand-900">
-              Categories
-            </Link>
-            <Link href="/locations" className="font-semibold text-brand-900">
-              Locations
-            </Link>
-            <span className="text-neutral-700">
-              {me.ok ? `${me.data.displayName} (${me.data.roles.join(", ") || "no role"})` : "Signed in"}
-            </span>
-          </div>
-          <form action={signOutAction}>
-            <button type="submit" className="font-medium text-brand-700 underline-offset-2 hover:underline">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </div>
-      {children}
-    </>
+    <div className="lg:flex">
+      <StaffSidebar
+        title="HL ADMIN"
+        items={ITEMS}
+        footer={
+          <>
+            <p className="font-bold text-white">{me.ok ? me.data.displayName : "Signed in"}</p>
+            {me.ok ? (
+              <p className="mt-0.5 text-xs">{me.data.roles.join(", ") || "no role"}</p>
+            ) : null}
+            <form action={signOutAction} className="mt-3">
+              <button
+                type="submit"
+                className="rounded-lg border border-white/25 px-3 py-1.5 text-sm font-bold text-white hover:bg-white/10"
+              >
+                Sign out
+              </button>
+            </form>
+          </>
+        }
+      />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
   );
 }

@@ -14,8 +14,10 @@ public class ListingSearchQueryTests
         double? radiusKm = null,
         string? sort = null,
         int? page = null,
-        int? pageSize = null) =>
-        ListingSearchQuery.TryCreate(q, city, locality, category, lat, lng, radiusKm, sort, page, pageSize, out _);
+        int? pageSize = null,
+        bool? verified = null) =>
+        ListingSearchQuery.TryCreate(
+            q, city, locality, category, lat, lng, radiusKm, sort, page, pageSize, verified, out _);
 
     private static string? ErrorFrom(
         double? lat = null,
@@ -24,7 +26,7 @@ public class ListingSearchQueryTests
         string? sort = null,
         string? q = null)
     {
-        ListingSearchQuery.TryCreate(q, null, null, null, lat, lng, radiusKm, sort, null, null, out var error);
+        ListingSearchQuery.TryCreate(q, null, null, null, lat, lng, radiusKm, sort, null, null, null, out var error);
         return error;
     }
 
@@ -147,5 +149,34 @@ public class ListingSearchQueryTests
 
         Assert.Null(Create(radiusKm: 5));
         Assert.Contains("radiusKm needs lat and lng", ErrorFrom(radiusKm: 5));
+    }
+
+    [Fact]
+    public void A_search_is_not_verified_only_unless_it_asks()
+    {
+        // The default has to be false: a true default would silently hide every free listing from
+        // ordinary search, which is most of the directory.
+        Assert.False(Create()!.VerifiedOnly);
+        Assert.False(Create(verified: false)!.VerifiedOnly);
+    }
+
+    [Fact]
+    public void Asking_for_verified_only_is_carried_through()
+    {
+        Assert.True(Create(verified: true)!.VerifiedOnly);
+    }
+
+    [Fact]
+    public void Verified_only_does_not_disturb_anything_else()
+    {
+        // It is one more predicate in the WHERE clause, not a different query: the sort a visitor
+        // chose and the page they are on must survive it.
+        var query = Create(q: "biryani", category: "restaurants", sort: "name", page: 3, verified: true)!;
+
+        Assert.True(query.VerifiedOnly);
+        Assert.Equal("biryani", query.Text);
+        Assert.Equal("restaurants", query.CategorySlug);
+        Assert.Equal(ListingSortOrder.Name, query.Sort);
+        Assert.Equal(3, query.Page);
     }
 }
