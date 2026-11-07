@@ -16,7 +16,6 @@ public static class AdminPermissions
     public const string ListingsReview = "listings.review";
     public const string ListingsVerify = "listings.verify";
     public const string ReportsHandle = "reports.handle";
-    public const string UsersView = "users.view";
 
     /// <summary>
     /// Categories, subcategories and localities: the lists every listing and every public URL is
@@ -57,6 +56,19 @@ public static class AdminPermissions
        correcting its details and removing it are platform work, so they are reachable only with a
        super-admin token: Authorize() refuses these codes on /api/v1/admin even to an account that
        holds them. */
+    /// <summary>
+    /// Reading business owner accounts: who they are, how many listings they hold, and suspending
+    /// one. Super-admin only, and it is the only surface that reads it — the admin site has no
+    /// screen for it, because an admin moderates listings rather than the people behind them.
+    ///
+    /// It sat in <see cref="AdminSurface"/> until 2026-11-07 while being required by
+    /// SuperAdminDirectoryEndpoints, which made <see cref="AdminAccess.AuthorizeSuper"/> refuse
+    /// /accounts unconditionally — the surface check cannot pass for a code on the other list, no
+    /// matter what the account holds. The `admin` role is still granted it by R003 and now cannot
+    /// use it anywhere, which costs nothing: no admin endpoint has ever read it.
+    /// </summary>
+    public const string UsersView = "users.view";
+
     public const string ListingsCreate = "listings.create";
     public const string ListingsEdit = "listings.edit";
     public const string ListingsDelete = "listings.delete";
@@ -79,13 +91,13 @@ public static class AdminPermissions
     public static readonly string[] AdminSurface =
     [
         ListingsView, ListingsReview, ListingsVerify, ListingsAlert,
-        ReportsHandle, UsersView, TaxonomyManage, SeoManage, BlogManage, HomepageManage,
+        ReportsHandle, TaxonomyManage, SeoManage, BlogManage, HomepageManage,
     ];
 
     /// <summary>Permissions reserved for the super-admin surface.</summary>
     public static readonly string[] SuperAdminOnly =
     [
-        ListingsCreate, ListingsEdit, ListingsDelete, ListingsFeature,
+        ListingsCreate, ListingsEdit, ListingsDelete, ListingsFeature, UsersView,
         AnalyticsView, DataExport, PlansManage, AdminsManage, AuditView,
     ];
 

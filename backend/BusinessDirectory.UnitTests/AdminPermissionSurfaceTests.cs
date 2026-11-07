@@ -70,4 +70,27 @@ public class AdminPermissionSurfaceTests
         Assert.NotNull(AdminAccess.Authorize(admin, "listings.reveiw"));
         Assert.NotNull(AdminAccess.AuthorizeSuper(admin, "listings.reveiw"));
     }
+
+    [Fact]
+    public void Reading_business_owner_accounts_is_super_admin_work()
+    {
+        /* The 2026-11-07 regression, pinned. `users.view` is required only by
+           SuperAdminDirectoryEndpoints — the admin site has no screen for business owner accounts
+           — but it sat on the admin list, so AuthorizeSuper refused /accounts to everyone, for
+           ever, however the account was granted.
+
+           Note what the tests above could not see: they check that each list is internally
+           consistent, which stayed true the whole time. The mistake was in which list an endpoint
+           read from, and nothing here ties an endpoint to its permission. This assertion is the
+           cheap guard against the same move being made back; it is not a guard against the next
+           endpoint naming the wrong one. */
+        Assert.Contains(AdminPermissions.UsersView, AdminPermissions.SuperAdminOnly);
+        Assert.False(AdminPermissions.IsAdminSurface(AdminPermissions.UsersView));
+
+        var super = new AdminIdentity(
+            1, "super@example.com", "Super", ["super_admin"],
+            [.. AdminPermissions.AdminSurface, .. AdminPermissions.SuperAdminOnly]);
+
+        Assert.Null(AdminAccess.AuthorizeSuper(super, AdminPermissions.UsersView));
+    }
 }

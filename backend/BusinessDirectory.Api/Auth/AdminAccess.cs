@@ -146,6 +146,16 @@ public static class AdminAccess
     /// </summary>
     public static IResult? AuthorizeSuper(AdminIdentity admin, string permission)
     {
+        /* Note the failure mode this has, which cost an afternoon on 2026-11-07: a handler that
+           names a permission from the *other* surface is refused here identically to an account
+           that simply does not hold it. /api/v1/super-admin/accounts required `users.view`, which
+           was on the admin list, so it answered "You do not have permission to do that" to a super
+           admin holding every permission there is — for ever, and with every test green, because a
+           permanent refusal is indistinguishable from a real one.
+
+           Refusing is still the right behaviour: nothing is performed either way, which is the
+           defence this guard exists for. What is missing is a test that ties each endpoint to the
+           permission it names; the list-based tests in AdminPermissionSurfaceTests cannot see it. */
         if (!AdminPermissions.SuperAdminOnly.Contains(permission) || !admin.Can(permission))
         {
             return Results.Problem("You do not have permission to do that.", statusCode: StatusCodes.Status403Forbidden);
