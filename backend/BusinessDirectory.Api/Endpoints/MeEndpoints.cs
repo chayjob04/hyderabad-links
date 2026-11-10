@@ -22,9 +22,10 @@ public static class MeEndpoints
         group.MapOwnerOnboardingEndpoints();
         group.MapOwnerOverviewEndpoints();
         group.MapOwnerEnquiryEndpoints();
-        group.MapCustomerReviewEndpoints();
         group.MapOwnerProfileEndpoints();
-        group.MapFavouriteEndpoints();   // listings this person saved; private to them
+        /* Favourites and reviews used to hang here. They are customer things, not owner things, and
+           they moved to /api/v1/customer with the identity split: an owner saving a business or
+           writing a review does it as a customer, on the customer sign-in. */
         group.MapOwnerListingEndpoints();
         group.MapOwnerSubscriptionOverview();   // every listing's plan in one request
         return group;

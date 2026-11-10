@@ -11,9 +11,12 @@ export const metadata: Metadata = { title: "Business profile" };
 /**
  * The owner's own details, and a summary of the businesses they are responsible for.
  *
- * Only the name and email are editable here, because they are the only owner-level fields the
+ * Only the name and email are editable here, because they are the only account-level fields the
  * database holds. Everything else a visitor sees — address, description, hours, contact numbers —
  * belongs to a *listing*, so this page links to the listing editor rather than duplicating it.
+ *
+ * This is the business account. A customer's own details are at /my/profile, on a different
+ * account entirely.
  */
 type Props = { searchParams: Promise<{ saved?: string }> };
 

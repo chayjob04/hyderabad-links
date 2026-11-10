@@ -14,9 +14,11 @@ export const initialLoginState: LoginState = { step: "phone", phone: "" };
 /**
  * Where a sign-in ends, when the person did not ask for somewhere in particular.
  *
- * The business tab keeps the destination it has always had. The user tab lands on favourites, which
- * is the only part of the account a visitor with no business has a reason to open.
+ * The business tab keeps the destination it has always had: the dashboard they came to work in.
+ * The user tab lands on the public home page, because someone who signed in to save a place or
+ * leave a review came to browse the directory, not to sit in an account screen. Their account is
+ * one click away in the header menu.
  */
 export function defaultDestination(tab: LoginTab): string {
-  return tab === "business" ? "/account/listings" : "/account/favourites";
+  return tab === "business" ? "/account/listings" : "/";
 }

@@ -301,6 +301,13 @@ builder.Services
         options.MapInboundClaims = false;
         options.TokenValidationParameters = tokenService.ValidationParameters;
     })
+    // Customers are a realm of their own, in their own table. Without this scheme an owner token
+    // would satisfy a customer route, and the identity split would be a naming convention.
+    .AddJwtBearer(CustomerAccess.Scheme, options =>
+    {
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = tokenService.CustomerValidationParameters;
+    })
     .AddJwtBearer(AdminAccess.Scheme, options =>
     {
         options.MapInboundClaims = false;
@@ -325,9 +332,13 @@ builder.Services
     });
 builder.Services.AddAuthorization(options =>
 {
-    // Separate audiences keep owner, admin and super-admin tokens from being accepted by each other's endpoints.
+    // Separate audiences keep customer, owner, admin and super-admin tokens from being accepted by
+    // each other's endpoints.
     options.AddPolicy("Owner", policy => policy
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireAuthenticatedUser());
+    options.AddPolicy(CustomerAccess.Policy, policy => policy
+        .AddAuthenticationSchemes(CustomerAccess.Scheme)
         .RequireAuthenticatedUser());
     options.AddPolicy(AdminAccess.Policy, policy => policy
         .AddAuthenticationSchemes(AdminAccess.Scheme)
@@ -464,6 +475,9 @@ app.MapPaymentWebhookEndpoints();   // /api/v1/webhooks/razorpay: the path that 
 
 app.MapOwnerAuthEndpoints();   // /api/v1/auth/owner: request code, verify code, refresh, logout
 app.MapMeEndpoints();          // /api/v1/me: signed-in owner
+
+app.MapCustomerAuthEndpoints();  // /api/v1/auth/customer: the other public sign-in, into `customers`
+app.MapCustomerEndpoints();      // /api/v1/customer: saved businesses, reviews, the customer's own details
 
 app.MapAdminAuthEndpoints()   // /api/v1/auth/admin: email + password, then the mandatory second step
    .MapAdminMfaEndpoints();   // /mfa/verify and /mfa/enroll/*: where an admin session is actually created

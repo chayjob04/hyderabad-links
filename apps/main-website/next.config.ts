@@ -57,6 +57,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  /* The customer half of the account moved out of /account and into /my when customers became an
+     identity of their own. These two paths were live, so they are redirected rather than left to
+     404 — and permanently, because they are never coming back: /account is the business owner's
+     dashboard now, and a customer has no session that would open it. */
+  async redirects() {
+    return [
+      { source: "/account/favourites", destination: "/my/saved", permanent: true },
+      { source: "/account/chat", destination: "/my/chat", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

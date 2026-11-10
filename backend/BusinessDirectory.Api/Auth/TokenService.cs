@@ -18,6 +18,9 @@ public sealed class TokenService(AuthSettings settings)
 {
     public TokenValidationParameters ValidationParameters => ParametersFor(settings.Audience);
 
+    /// <summary>Accepts only the customer audience, so an owner token cannot satisfy it.</summary>
+    public TokenValidationParameters CustomerValidationParameters => ParametersFor(AuthSettings.CustomerAudience);
+
     public TokenValidationParameters AdminValidationParameters => ParametersFor(AuthSettings.AdminAudience);
 
     /// <summary>Accepts only the super-admin audience, so an admin token cannot satisfy it.</summary>
@@ -31,6 +34,14 @@ public sealed class TokenService(AuthSettings settings)
 
     public (string Token, int ExpiresInSeconds) CreateAccessToken(long userId) =>
         Create(userId, settings.Audience, settings.AccessTokenMinutes);
+
+    /// <summary>
+    /// A customer's access token. The same signing key and the same short clock as an owner's, and
+    /// a different audience — which is the whole of the separation. The id inside is a `customers`
+    /// id and means nothing to a route that reads `users`.
+    /// </summary>
+    public (string Token, int ExpiresInSeconds) CreateCustomerAccessToken(long customerId) =>
+        Create(customerId, AuthSettings.CustomerAudience, settings.AccessTokenMinutes);
 
     public (string Token, int ExpiresInSeconds) CreateAdminAccessToken(long adminUserId) =>
         Create(adminUserId, AuthSettings.AdminAudience, settings.AdminAccessTokenMinutes);

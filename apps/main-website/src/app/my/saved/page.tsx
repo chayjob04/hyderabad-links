@@ -3,7 +3,7 @@ import Link from "next/link";
 import { initialsOf } from "@/components/ui/BusinessCard";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { listFavourites } from "@/lib/owner-api";
+import { listFavourites } from "@/lib/customer-api";
 import { telHref } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Saved businesses" };
@@ -19,24 +19,25 @@ export default async function FavouritesPage() {
 
   if (!result.ok) {
     return (
-      <main className="mx-auto max-w-5xl px-5 py-10 sm:px-8">
+      <>
         <h1 className="text-3xl font-black tracking-tight text-brand-800">Saved</h1>
         <div className="mt-6">
           <EmptyState tone="error" mark="&#9888;" title="We could not load your saved businesses">
             <p>{result.message}</p>
           </EmptyState>
         </div>
-      </main>
+      </>
     );
   }
 
   const favourites = result.data;
 
   return (
-    <main className="mx-auto max-w-5xl px-5 py-10 sm:px-8">
+    <>
       <div className="border-b border-line pb-5">
-        <p className="text-[11px] font-black tracking-[0.22em] text-muted">BUSINESS OWNER</p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-brand-800">Saved businesses</h1>
+        {/* No "BUSINESS OWNER" eyebrow: this page belongs to anyone signed in, and most people
+            who save a business do not own one. */}
+        <h1 className="text-3xl font-black tracking-tight text-brand-800">Saved businesses</h1>
         <p className="mt-2 text-muted">
           Businesses you saved while browsing. Only you can see this list.
         </p>
@@ -110,6 +111,6 @@ export default async function FavouritesPage() {
           ))}
         </ul>
       )}
-    </main>
+    </>
   );
 }

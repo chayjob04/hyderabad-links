@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
- * The signed-in owner's menu, in place of the Login button.
+ * The signed-in person's menu, in place of the Login button.
  *
- * It is the same menu everywhere, including inside the dashboard — one component rather than two
- * that drift apart, and the extra links do no harm on a page that already has them in its sidebar.
+ * There are two kinds of account and a browser may hold both at once: a customer session and a
+ * business session are separate cookies, separate tokens and separate identities. So this menu is
+ * told which one it is showing, and offers the links that account actually has. A customer is never
+ * shown a listings link, because a customer has no listings and no session that would open one.
  *
  * Logout is not a link. It revokes the refresh token on the server, so it has to be a form posting
  * a server action; the action is passed in from the server component that renders this, because a
@@ -17,10 +19,13 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 export function ProfileMenu({
   name,
   phone,
+  realm,
   signOut,
 }: {
   name: string | null;
   phone: string;
+  /** Which account this menu belongs to. Decided on the server, from the cookie that was present. */
+  realm: "customer" | "business";
   signOut: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -59,6 +64,8 @@ export function ProfileMenu({
     .map((word) => word[0]?.toUpperCase() ?? "")
     .join("") || phone.slice(-2);
 
+  const business = realm === "business";
+
   return (
     <div ref={container} className="relative shrink-0">
       <button
@@ -93,17 +100,40 @@ export function ProfileMenu({
           <div className="border-b border-line px-3 pt-2 pb-3">
             <p className="truncate text-sm font-black text-brand-800">{name?.trim() || "Your account"}</p>
             <p className="mt-0.5 truncate text-xs text-muted">{phone}</p>
+            <p className="mt-1 text-[11px] font-black tracking-[0.1em] text-muted uppercase">
+              {business ? "Business account" : "Customer account"}
+            </p>
           </div>
 
-          <Link href="/account" role="menuitem" className={ITEM_CLASS}>
-            Your profile
-          </Link>
-          <Link href="/account/listings" role="menuitem" className={ITEM_CLASS}>
-            Your listings
-          </Link>
+          {business ? (
+            <>
+              <Link href="/account" role="menuitem" className={ITEM_CLASS}>
+                Dashboard
+              </Link>
+              <Link href="/account/listings" role="menuitem" className={ITEM_CLASS}>
+                Your listings
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/my/saved" role="menuitem" className={ITEM_CLASS}>
+                Saved
+              </Link>
+              <Link href="/my/profile" role="menuitem" className={ITEM_CLASS}>
+                Your profile
+              </Link>
+            </>
+          )}
+
           <Link href="/help" role="menuitem" className={ITEM_CLASS}>
             Help &amp; feedback
           </Link>
+
+          {business ? null : (
+            <Link href="/list-your-business" role="menuitem" className={ITEM_CLASS}>
+              List your business
+            </Link>
+          )}
 
           <div className="mt-1 border-t border-line pt-1">{signOut}</div>
         </div>

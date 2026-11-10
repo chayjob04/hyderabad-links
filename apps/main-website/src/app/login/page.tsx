@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AuthLayout } from "@/components/ui/AuthLayout";
 import { LoginTabs, readLoginTab } from "@/components/ui/LoginTabs";
+import { safeCustomerNextPath } from "@/lib/customer-session";
 import { safeNextPath } from "@/lib/session";
 import { LoginForm } from "./LoginForm";
 import { defaultDestination } from "./state";
@@ -44,8 +45,14 @@ export default async function LoginPage({ searchParams }: Props) {
   const { next, tab } = await searchParams;
   const active = readLoginTab(tab, next);
   const copy = COPY[active];
-  // Resolved here so the tab links can carry it, and so an unsafe value never reaches the markup.
-  const destination = safeNextPath(next, defaultDestination(active));
+  /* Resolved here so the tab links can carry it, and so an unsafe value never reaches the markup.
+     The two realms hold `next` to different rules: an owner may only be sent back inside /account,
+     while a customer may be sent back to the business page they were reading when they signed in to
+     save it. Both refuse anything that is not a path on this site. */
+  const destination =
+    active === "business"
+      ? safeNextPath(next, defaultDestination("business"))
+      : safeCustomerNextPath(next, defaultDestination("user"));
 
   return (
     <AuthLayout title={copy.title} subtitle={copy.subtitle} aside={copy.aside}>

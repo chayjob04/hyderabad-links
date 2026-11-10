@@ -5,11 +5,18 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 /**
- * The dashboard's navigation, in both of its forms: a fixed sidebar on a wide screen and a drawer
- * behind a toggle on a narrow one. One list of items drives both, so they can never drift apart.
+ * The business owner's dashboard navigation, in both of its forms: a fixed sidebar on a wide screen
+ * and a drawer behind a toggle on a narrow one. One list drives both, so they cannot drift apart.
  *
- * Logout is not here. It is a server action that has to revoke the refresh token, so it lives in
- * the layout as a plain form rather than a link.
+ * It holds one list again. It briefly held two, for the days when /account served both a customer
+ * and an owner out of one identity; customers have their own account now, at /my, with their own
+ * nav in components/my/CustomerNav.tsx. Nobody without a business reaches this file.
+ *
+ * Saved is not here. Saving a business is a customer action, on a customer account: an owner who
+ * wants to save one signs in on the user tab like anybody else.
+ *
+ * Logout is not here either. It is a server action that has to revoke the refresh token, so it
+ * lives in the layout as a plain form rather than a link.
  */
 
 type NavItem = { href: string; label: string; icon: ReactNode };
@@ -66,15 +73,6 @@ const NAV_ITEMS: NavItem[] = [
       <svg {...iconProps}>
         <rect x="3" y="5" width="18" height="14" rx="2" />
         <path d="m3.5 6.5 8.5 6 8.5-6" />
-      </svg>
-    ),
-  },
-  {
-    href: "/account/favourites",
-    label: "Saved",
-    icon: (
-      <svg {...iconProps}>
-        <path d="M12 20s-7-4.4-7-9.2A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 7 2.8C19 15.6 12 20 12 20Z" />
       </svg>
     ),
   },

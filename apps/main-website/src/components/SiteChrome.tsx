@@ -1,16 +1,32 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signOutAction } from "@/app/account/actions";
+import { signOutCustomerAction } from "@/app/my/actions";
 import { CategoryNav } from "@/components/CategoryNav";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { getCategories } from "@/lib/api";
 import { BRAND_NAME, POWERED_BY, SOCIAL_LINKS, SUPPORT_EMAIL, WHATSAPP_CONTACT } from "@/lib/brand";
+import { getCustomerIfSignedIn } from "@/lib/customer-api";
 import { getMeIfSignedIn } from "@/lib/owner-api";
 
 export async function SiteHeader() {
-  // Both in one round trip. getMeIfSignedIn answers rather than redirects, so a logged-out visitor
-  // on a public page is not bounced to the login screen by the header.
-  const [tree, me] = await Promise.all([getCategories(), getMeIfSignedIn()]);
+  /* All three in one round trip. Both "am I signed in?" calls answer rather than redirect, so a
+     logged-out visitor on a public page is not bounced to the login screen by the header.
+
+     Two of them, because a browser may hold a customer session and a business session at the same
+     time: they are separate accounts on separate cookies. When somebody holds both, the customer
+     account is shown, since that is the one that belongs to the public pages this header sits on —
+     and their business dashboard is one click away inside it. */
+  const [tree, customer, owner] = await Promise.all([
+    getCategories(),
+    getCustomerIfSignedIn(),
+    getMeIfSignedIn(),
+  ]);
+  const me = customer
+    ? { realm: "customer" as const, name: customer.name, phone: customer.phone, signOut: signOutCustomerAction }
+    : owner
+      ? { realm: "business" as const, name: owner.name, phone: owner.phone, signOut: signOutAction }
+      : null;
 
   return (
     <header className="sticky top-0 z-40 bg-white shadow-[0_3px_18px_#002a3410]">
@@ -83,8 +99,9 @@ export async function SiteHeader() {
           <ProfileMenu
             name={me.name}
             phone={me.phone}
+            realm={me.realm}
             signOut={
-              <form action={signOutAction}>
+              <form action={me.signOut}>
                 <button
                   type="submit"
                   className="w-full cursor-pointer rounded-lg px-3 py-2.5 text-left text-sm font-bold text-red-700 hover:bg-red-50"

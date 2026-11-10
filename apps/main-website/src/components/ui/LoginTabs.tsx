@@ -3,15 +3,18 @@ import Link from "next/link";
 /**
  * Which of the two public sign-in tabs is showing.
  *
- * Both tabs run the *same* authentication — one mobile number, one OTP, one account — because that
- * is what the API has always done: verifying a code upserts a row in `users` and creates a session,
- * whether or not that person owns a business. Ownership is a `business_members` row, decided after
- * sign-in, not a second kind of login.
+ * The tabs are two *separate* authentications, not two labels on one. Each sends its own OTP, with
+ * its own purpose, and opens an account in its own table:
  *
- * So the tab is not an account type. It is what the person came here to do, and it decides two
- * things: the words on the form, and where they land afterwards. A first-time number on the
- * business tab goes to /onboarding to register a business; on the user tab it goes straight to the
- * account, because a visitor saving a favourite should never be asked to name a business.
+ *     user      -> `customers`, customer_login, the `customer` token audience, hl_cust_* cookies
+ *     business  -> `users`,     owner_login,    the `owner` token audience,    hl_* cookies
+ *
+ * Nothing links them. The same mobile number may hold both, and holding one gives no access to the
+ * other — which is the point: signing in to save a shop must never quietly create a business
+ * account, as it did while there was one identity behind both tabs.
+ *
+ * A first-time number on the business tab goes to /onboarding to register a business. On the user
+ * tab there is nothing to register, so it goes back to wherever they were.
  */
 export type LoginTab = "user" | "business";
 

@@ -14,8 +14,8 @@ import { ListingGallery } from "@/components/ListingGallery";
 import { ReportListing } from "@/components/ReportListing";
 import { initialsOf } from "@/components/ui/BusinessCard";
 import { getListing, getPageMeta, getReviews, withPageMeta } from "@/lib/api";
-import { listFavourites } from "@/lib/owner-api";
-import { readTokens } from "@/lib/session";
+import { listFavourites } from "@/lib/customer-api";
+import { readCustomerTokens } from "@/lib/customer-session";
 import { absoluteUrl, mapsHref, telHref, whatsappHref } from "@/lib/format";
 import type { ListingDetail } from "@/lib/types";
 
@@ -133,14 +133,18 @@ export default async function ListingPage({ params }: Props) {
   const city = listing.citySlug;
   const locality = listing.localitySlug;
 
-  // Reviews are public, so they are fetched for everyone. Whether this visitor can *write* one
-  // depends on a session cookie: readTokens() just reads it, unlike the owner helpers, which
-  // redirect to sign-in when there is none - wrong behaviour on a public page.
-  const [reviews, tokens] = await Promise.all([getReviews(city, locality, slug), readTokens()]);
+  /* Reviews are public, so they are fetched for everyone. Saving one and writing a review are
+     customer actions, so what matters here is the *customer* cookie, not the business one: an owner
+     signed in at /account has no standing to save a business, and must be offered the sign-in like
+     anybody else. readCustomerTokens() just reads the cookie, unlike the API helpers, which
+     redirect to sign-in when there is none — wrong behaviour on a public page. */
+  const [reviews, tokens] = await Promise.all([
+    getReviews(city, locality, slug),
+    readCustomerTokens(),
+  ]);
   const signedIn = tokens.access !== null;
 
-  // Whether this visitor has already saved it. Only asked when signed in: with no session the
-  // owner helpers redirect to sign-in, which would be the wrong behaviour on a public page.
+  // Whether this visitor has already saved it. Only asked when signed in, for the same reason.
   let saved = false;
   if (signedIn) {
     const favourites = await listFavourites();
@@ -268,7 +272,7 @@ export default async function ListingPage({ params }: Props) {
             slug={slug}
             saved={saved}
             signedIn={signedIn}
-            signInHref={`/login?next=${encodeURIComponent(`/${category}/${subcategory}/${slug}`)}`}
+            signInHref={`/login?tab=user&next=${encodeURIComponent(`/${category}/${subcategory}/${slug}`)}`}
           />
         </div>
 
@@ -358,7 +362,7 @@ export default async function ListingPage({ params }: Props) {
         summary={reviews}
         businessName={listing.name}
         signedIn={signedIn}
-        writeHref={`/login?next=${encodeURIComponent(`/${category}/${subcategory}/${slug}`)}`}
+        writeHref={`/login?tab=user&next=${encodeURIComponent(`/${category}/${subcategory}/${slug}`)}`}
       >
         <ReviewForm city={city} locality={locality} slug={slug} />
       </Reviews>

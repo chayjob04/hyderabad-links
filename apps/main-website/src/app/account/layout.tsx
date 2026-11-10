@@ -13,11 +13,13 @@ export const dynamic = "force-dynamic";
  * `getMe()` is the gate: anyone without a usable token is sent to sign in again, on the server,
  * before any page inside renders — hiding links would not be a control.
  *
- * What is deliberately *not* here any more is the business-registration gate. It used to redirect
- * every signed-in account with no name to /onboarding, which made favourites and profile
- * unreachable for anyone who had not registered a business — so the user tab on the login page had
- * nowhere to land. Registering a business is now required by the pages that need a business, which
- * is `account/listings/layout.tsx` and the dashboard below it, and nowhere else.
+ * This is the *business* account. A customer has their own, at /my, with its own session and its
+ * own token audience — a customer token is refused by every route under /api/v1/me, so nobody
+ * arrives here by holding the wrong cookie.
+ *
+ * The business-registration gate is not on this shell. It lives on the pages that need a business,
+ * which is `account/listings/layout.tsx` and the dashboard below it, so correcting your name or
+ * email does not require finishing onboarding first.
  */
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();

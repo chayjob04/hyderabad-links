@@ -1,10 +1,14 @@
 import { redirect } from "next/navigation";
 import { readTokens } from "./session";
+import { API_BASE_URL } from "./api-base";
+import { json, send, toFailure, type ApiResult } from "./api-call";
 import type { SessionTokens } from "./session-cookies";
 
 // Server-side only. The browser never calls the API: server components and server actions do,
 // attaching the owner's token from the httpOnly cookie.
-import { API_BASE_URL } from "./api-base";
+//
+// Favourites and reviews are NOT here. They belong to a customer, not to a business owner, and
+// live in customer-api.ts against /api/v1/customer.
 export type OwnerListing = {
   id: number;
   slug: string;
@@ -107,43 +111,9 @@ export type ListingFormInput = {
   websiteUrl: string;
 };
 
-export type ApiFailure = { ok: false; status: number; message: string; fieldErrors: Record<string, string> };
-export type ApiResult<T> = { ok: true; data: T } | ApiFailure;
-
-async function toFailure(response: Response): Promise<ApiFailure> {
-  let message = "Something went wrong. Please try again.";
-  const fieldErrors: Record<string, string> = {};
-  try {
-    const body = (await response.json()) as { detail?: unknown; errors?: Record<string, unknown> };
-    if (body.errors && typeof body.errors === "object") {
-      for (const [field, messages] of Object.entries(body.errors)) {
-        if (Array.isArray(messages) && typeof messages[0] === "string") fieldErrors[field] = messages[0];
-      }
-      message = "Please fix the fields marked below.";
-    } else if (typeof body.detail === "string") {
-      message = body.detail;
-    }
-  } catch {
-    // Not JSON: keep the generic message.
-  }
-  return { ok: false, status: response.status, message, fieldErrors };
-}
-
-async function send<T>(path: string, init: RequestInit, accessToken?: string): Promise<ApiResult<T>> {
-  const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-  if (init.body) headers.set("Content-Type", "application/json");
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, cache: "no-store" });
-  } catch {
-    return { ok: false, status: 0, message: "We could not reach the server. Please try again in a moment.", fieldErrors: {} };
-  }
-  if (!response.ok) return toFailure(response);
-  if (response.status === 204) return { ok: true, data: undefined as T };
-  return { ok: true, data: (await response.json()) as T };
-}
+// The HTTP helper and the result types live in api-call.ts, shared with customer-api.ts.
+// Re-exported here because many pages already import them from this module.
+export type { ApiFailure, ApiResult } from "./api-call";
 
 /** Calls an owner endpoint with the signed-in owner's token. No token or a rejected token sends the person to sign in again. */
 async function authed<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
@@ -154,7 +124,6 @@ async function authed<T>(path: string, init: RequestInit = {}): Promise<ApiResul
   return result;
 }
 
-const json = (value: unknown): string => JSON.stringify(value);
 const orNull = (value: string | undefined) => (value && value.trim() !== "" ? value.trim() : null);
 
 function toPayload(input: ListingFormInput) {
@@ -249,58 +218,6 @@ export const listEnquiries = (options: { status?: string; page?: number } = {}) 
 
 export const setEnquiryStatus = (id: number, status: string) =>
   authed<void>('/api/v1/me/enquiries/' + id + '/status', { method: 'PUT', body: json({ status }) });
-
-/** A review this person wrote, including what moderation decided about it. */
-export type MyReview = {
-  id: number;
-  listingId: number;
-  listingName: string;
-  url: string;
-  rating: number;
-  body: string;
-  status: string;
-  moderationNote: string | null;
-  createdAt: string;
-};
-
-export const submitReview = (
-  target: { city: string; locality: string; slug: string },
-  input: { rating: number; body: string },
-) =>
-  authed<{ id: number; status: string }>(
-    `/api/v1/me/reviews/${[target.city, target.locality, target.slug].map(encodeURIComponent).join("/")}`,
-    { method: "POST", body: json(input) },
-  );
-
-export const listMyReviews = () => authed<MyReview[]>("/api/v1/me/reviews");
-
-/**
- * A listing this person saved. `isAvailable` is false once it stops being live: the entry is
- * kept, because they saved it, but it is not offered as somewhere to go.
- */
-export type Favourite = {
-  listingId: number;
-  name: string;
-  categoryName: string;
-  localityName: string;
-  phonePrimary: string;
-  url: string;
-  logoUrl: string | null;
-  isAvailable: boolean;
-  savedAt: string;
-};
-
-const favouritePath = (target: { city: string; locality: string; slug: string }) =>
-  "/api/v1/me/favourites/" + [target.city, target.locality, target.slug].map(encodeURIComponent).join("/");
-
-export const listFavourites = () => authed<Favourite[]>("/api/v1/me/favourites");
-
-/** PUT, not POST: saving one that is already saved is the same favourite. */
-export const saveFavourite = (target: { city: string; locality: string; slug: string }) =>
-  authed<void>(favouritePath(target), { method: "PUT" });
-
-export const forgetFavourite = (target: { city: string; locality: string; slug: string }) =>
-  authed<void>(favouritePath(target), { method: "DELETE" });
 
 export const listMyListings = () => authed<OwnerListing[]>("/api/v1/me/listings");
 export const getMyListing = (id: number) => authed<OwnerListing>(`/api/v1/me/listings/${id}`);

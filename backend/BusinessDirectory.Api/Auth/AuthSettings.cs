@@ -16,6 +16,14 @@ public sealed class AuthSettings
     /// fails validation outright instead of relying on a permission check further in.
     /// (The super-admin surface gets "superadmin" when it is built; see docs/security.md.)
     /// </summary>
+    /// <summary>
+    /// Customers: people who save businesses and write reviews. A separate identity from
+    /// <see cref="OwnerAudience"/>, held in a separate table, so signing in to save a shop can
+    /// never make somebody a business account. Its own scheme validates it, so neither token works
+    /// on the other's routes.
+    /// </summary>
+    public const string CustomerAudience = "customer";
+
     public const string AdminAudience = "admin";
 
     /// <summary>

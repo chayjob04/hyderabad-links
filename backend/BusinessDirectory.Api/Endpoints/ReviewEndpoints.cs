@@ -96,10 +96,16 @@ public static class ReviewEndpoints
                   WHERE ci.slug = @city AND lo.slug = @locality AND li.slug = @slug AND li.status = 'active'
               ),
               approved AS (
-                  SELECT r.id, r.rating, r.body, r.created_at, u.name AS author_name
+                  /* Two LEFT JOINs, not one JOIN. A review written since the identity split has a
+                     customer_id and no user_id; one written before it may still have only a
+                     user_id until S0027 drops the column. An inner join on either would silently
+                     drop half the reviews. */
+                  SELECT r.id, r.rating, r.body, r.created_at,
+                         COALESCE(c.name, u.name) AS author_name
                   FROM reviews r
                   JOIN target t ON t.id = r.listing_id
-                  JOIN users u ON u.id = r.user_id
+                  LEFT JOIN customers c ON c.id = r.customer_id
+                  LEFT JOIN users u ON u.id = r.user_id
                   WHERE r.status = 'approved'
               )
               SELECT (SELECT COUNT_BIG(*) FROM approved),
@@ -162,7 +168,7 @@ public static class ReviewEndpoints
         SqlDatabase db,
         CancellationToken ct)
     {
-        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        if (!CustomerAccess.TryGetCustomerId(principal, out var customerId))
         {
             return Results.Unauthorized();
         }
@@ -176,20 +182,27 @@ public static class ReviewEndpoints
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginSqlTransactionAsync(ct);
 
-        // D11: the reviewer must have verified a phone number. Every user reaches the site through
-        // the OTP flow, so this is belt and braces against a future path that does not.
+        /* D11: the reviewer must have verified a phone number. Every customer reaches the site
+           through the OTP flow, so this is belt and braces against a future path that does not.
+
+           The phone comes back with it, because it is the only thing that connects a customer to
+           the businesses they own. Since the identity split, a customer id means nothing to
+           `business_members`; the number is what the two identities share. */
+        string reviewerPhone;
         await using (var verified = new SqlCommand(
             // A yes/no answer is a bit in SQL Server, not a bare condition.
-            @"SELECT CAST(CASE WHEN phone_verified_at IS NOT NULL THEN 1 ELSE 0 END AS bit)
-              FROM users WHERE id = @id AND status = 'active'", conn, tx))
+            @"SELECT phone_e164, CAST(CASE WHEN phone_verified_at IS NOT NULL THEN 1 ELSE 0 END AS bit)
+              FROM customers WHERE id = @id AND status = 'active'", conn, tx))
         {
-            verified.Parameters.AddWithValue("id", userId);
-            if (await verified.ExecuteScalarAsync(ct) is not true)
+            verified.Parameters.AddWithValue("id", customerId);
+            await using var reader = await verified.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct) || !reader.GetBoolean(1))
             {
                 return Results.Problem(
                     "Verify your mobile number before writing a review.",
                     statusCode: StatusCodes.Status403Forbidden);
             }
+            reviewerPhone = reader.GetString(0);
         }
 
         long listingId;
@@ -197,8 +210,11 @@ public static class ReviewEndpoints
         await using (var find = new SqlCommand(
             @"SELECT li.id,
                      -- EXISTS is a condition, so reading it as a column means wrapping it in a CASE.
+                     -- Matched on the verified phone number, not on an id: a customer id is not a
+                     -- business member and never will be. The owner account with the same number is.
                      CAST(CASE WHEN EXISTS (SELECT 1 FROM business_members bm
-                                            WHERE bm.business_id = li.business_id AND bm.user_id = @user)
+                                            JOIN users ou ON ou.id = bm.user_id
+                                            WHERE bm.business_id = li.business_id AND ou.phone_e164 = @phone)
                                THEN 1 ELSE 0 END AS bit)
               FROM listings li
               JOIN localities lo ON lo.id = li.locality_id
@@ -208,7 +224,7 @@ public static class ReviewEndpoints
             find.Parameters.AddWithValue("city", citySlug);
             find.Parameters.AddWithValue("locality", localitySlug);
             find.Parameters.AddWithValue("slug", slug);
-            find.Parameters.AddWithValue("user", userId);
+            find.Parameters.AddWithValue("phone", reviewerPhone);
             await using var reader = await find.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
             {
@@ -229,18 +245,18 @@ public static class ReviewEndpoints
         try
         {
             await using var insert = new SqlCommand(
-                @"INSERT INTO reviews (listing_id, user_id, rating, body)
+                @"INSERT INTO reviews (listing_id, customer_id, rating, body)
                   OUTPUT inserted.id
-                  VALUES (@listing, @user, @rating, @body)", conn, tx);
+                  VALUES (@listing, @customer, @rating, @body)", conn, tx);
             insert.Parameters.AddWithValue("listing", listingId);
-            insert.Parameters.AddWithValue("user", userId);
+            insert.Parameters.AddWithValue("customer", customerId);
             insert.Parameters.AddWithValue("rating", review.Rating);
             insert.Parameters.AddWithValue("body", review.Body);
             var id = (long)(await insert.ExecuteScalarAsync(ct))!;
             await tx.CommitAsync(ct);
 
             // 202, not 201: it exists, but nothing is public until a moderator approves it.
-            return Results.Accepted($"/api/v1/me/reviews", new { id, status = "pending" });
+            return Results.Accepted($"/api/v1/customer/reviews", new { id, status = "pending" });
         }
         catch (SqlException ex) when (SqlErrors.IsUniqueViolation(ex))
         {
@@ -254,7 +270,7 @@ public static class ReviewEndpoints
     // ------------------------------------------------------------------ customer: see their own
     private static async Task<IResult> ListMine(ClaimsPrincipal principal, SqlDatabase db, CancellationToken ct)
     {
-        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        if (!CustomerAccess.TryGetCustomerId(principal, out var customerId))
         {
             return Results.Unauthorized();
         }
@@ -268,9 +284,9 @@ public static class ReviewEndpoints
               JOIN cities ci ON ci.id = lo.city_id
               JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               JOIN categories pc ON pc.id = lc.category_id
-              WHERE r.user_id = @user
+              WHERE r.customer_id = @customer
               ORDER BY r.created_at DESC");
-        command.Parameters.AddWithValue("user", userId);
+        command.Parameters.AddWithValue("customer", customerId);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
         var items = new List<MyReviewDto>();
@@ -319,11 +335,14 @@ public static class ReviewEndpoints
 
         await using var command = db.CreateCommand(
             @"WITH matching AS (
+                  -- LEFT JOINs for the same reason as the public query above: a review has a
+                  -- customer_id or a user_id, and the moderator must see it either way.
                   SELECT r.id, r.listing_id, li.name AS listing_name, r.rating, r.body,
-                         u.phone_e164, r.created_at
+                         COALESCE(c.phone_e164, u.phone_e164) AS phone_e164, r.created_at
                   FROM reviews r
                   JOIN listings li ON li.id = r.listing_id
-                  JOIN users u ON u.id = r.user_id
+                  LEFT JOIN customers c ON c.id = r.customer_id
+                  LEFT JOIN users u ON u.id = r.user_id
                   WHERE r.status = @status
               ),
               page AS (

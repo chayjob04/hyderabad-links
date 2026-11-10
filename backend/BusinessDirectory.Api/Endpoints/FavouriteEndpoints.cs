@@ -1,15 +1,20 @@
 using BusinessDirectory.Api.Data;
 using System.Security.Claims;
+using BusinessDirectory.Api.Auth;
 using Microsoft.Data.SqlClient;
 
 namespace BusinessDirectory.Api.Endpoints;
 
 /// <summary>
-/// Listings a signed-in person has saved (V0009), under <c>/api/v1/me/favourites</c>.
+/// Listings a signed-in person has saved (V0009), under <c>/api/v1/customer/favourites</c>.
 ///
 /// A favourite is private to the person who saved it: nothing public counts them, and no owner is
 /// told who saved their listing. The list is keyed by the slug a visitor already has in the URL
 /// rather than by a numeric id, so the public page can save and unsave without first looking an id up.
+///
+/// A favourite belongs to a *customer*, not to a business owner: `favourites.customer_id`. Saving a
+/// business is the customer half of the site, and an owner who wants to save one signs in on the
+/// user tab like anybody else.
 /// </summary>
 public static class FavouriteEndpoints
 {
@@ -28,9 +33,9 @@ public static class FavouriteEndpoints
         bool IsAvailable,
         DateTimeOffset SavedAt);
 
-    public static RouteGroupBuilder MapFavouriteEndpoints(this RouteGroupBuilder me)
+    public static RouteGroupBuilder MapFavouriteEndpoints(this RouteGroupBuilder customer)
     {
-        var group = me.MapGroup("/favourites");
+        var group = customer.MapGroup("/favourites");
         group.MapGet("", List);
         group.MapPut("/{citySlug}/{localitySlug}/{slug}", Save);
         group.MapDelete("/{citySlug}/{localitySlug}/{slug}", Forget);
@@ -40,7 +45,7 @@ public static class FavouriteEndpoints
     private static async Task<IResult> List(
         ClaimsPrincipal principal, SqlDatabase db, Media.IMediaStorage storage, CancellationToken ct)
     {
-        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        if (!CustomerAccess.TryGetCustomerId(principal, out var customerId))
         {
             return Results.Unauthorized();
         }
@@ -60,9 +65,9 @@ public static class FavouriteEndpoints
               JOIN cities ci ON ci.id = lo.city_id
               JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               JOIN categories pc ON pc.id = lc.category_id
-              WHERE f.user_id = @user
+              WHERE f.customer_id = @customer
               ORDER BY f.created_at DESC");
-        command.Parameters.AddWithValue("user", userId);
+        command.Parameters.AddWithValue("customer", customerId);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
         var items = new List<FavouriteDto>();
@@ -84,12 +89,12 @@ public static class FavouriteEndpoints
 
     /// <summary>
     /// Saves a listing. PUT, not POST: saving one that is already saved is the same favourite, which
-    /// the primary key enforces, and the answer is the same either way.
+    /// the unique index enforces, and the answer is the same either way.
     /// </summary>
     private static async Task<IResult> Save(
         string citySlug, string localitySlug, string slug, ClaimsPrincipal principal, SqlDatabase db, CancellationToken ct)
     {
-        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        if (!CustomerAccess.TryGetCustomerId(principal, out var customerId))
         {
             return Results.Unauthorized();
         }
@@ -97,20 +102,20 @@ public static class FavouriteEndpoints
         // Only a live listing can be saved: a draft or a suspended one has no page to come back to.
         await using var command = db.CreateCommand(
             /* ON CONFLICT DO NOTHING becomes "insert only what is not already there". The primary
-               key still has the last word if two requests arrive together: one of them inserts and
+               index still has the last word if two requests arrive together: one of them inserts and
                the other's NOT EXISTS was true a moment too early, which surfaces as a duplicate-key
                error -- and saving something already saved is a no-op either way, so the caller is
                told the same thing. */
-            @"INSERT INTO favourites (user_id, listing_id)
+            @"INSERT INTO favourites (customer_id, listing_id)
               OUTPUT inserted.listing_id
-              SELECT @user, li.id
+              SELECT @customer, li.id
               FROM listings li
               JOIN localities lo ON lo.id = li.locality_id
               JOIN cities ci ON ci.id = lo.city_id
               WHERE ci.slug = @city AND lo.slug = @locality AND li.slug = @slug AND li.status = 'active'
                 AND NOT EXISTS (SELECT 1 FROM favourites f
-                                WHERE f.user_id = @user AND f.listing_id = li.id)");
-        command.Parameters.AddWithValue("user", userId);
+                                WHERE f.customer_id = @customer AND f.listing_id = li.id)");
+        command.Parameters.AddWithValue("customer", customerId);
         command.Parameters.AddWithValue("city", citySlug);
         command.Parameters.AddWithValue("locality", localitySlug);
         command.Parameters.AddWithValue("slug", slug);
@@ -129,8 +134,8 @@ public static class FavouriteEndpoints
               JOIN listings li ON li.id = f.listing_id
               JOIN localities lo ON lo.id = li.locality_id
               JOIN cities ci ON ci.id = lo.city_id
-              WHERE f.user_id = @user AND ci.slug = @city AND lo.slug = @locality AND li.slug = @slug");
-        exists.Parameters.AddWithValue("user", userId);
+              WHERE f.customer_id = @customer AND ci.slug = @city AND lo.slug = @locality AND li.slug = @slug");
+        exists.Parameters.AddWithValue("customer", customerId);
         exists.Parameters.AddWithValue("city", citySlug);
         exists.Parameters.AddWithValue("locality", localitySlug);
         exists.Parameters.AddWithValue("slug", slug);
@@ -141,7 +146,7 @@ public static class FavouriteEndpoints
     private static async Task<IResult> Forget(
         string citySlug, string localitySlug, string slug, ClaimsPrincipal principal, SqlDatabase db, CancellationToken ct)
     {
-        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        if (!CustomerAccess.TryGetCustomerId(principal, out var customerId))
         {
             return Results.Unauthorized();
         }
@@ -156,9 +161,9 @@ public static class FavouriteEndpoints
               JOIN listings li ON li.id = f.listing_id
               JOIN localities lo ON lo.id = li.locality_id
               JOIN cities ci ON ci.id = lo.city_id
-              WHERE f.user_id = @user
+              WHERE f.customer_id = @customer
                 AND ci.slug = @city AND lo.slug = @locality AND li.slug = @slug");
-        command.Parameters.AddWithValue("user", userId);
+        command.Parameters.AddWithValue("customer", customerId);
         command.Parameters.AddWithValue("city", citySlug);
         command.Parameters.AddWithValue("locality", localitySlug);
         command.Parameters.AddWithValue("slug", slug);

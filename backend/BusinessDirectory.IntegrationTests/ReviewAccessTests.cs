@@ -19,7 +19,7 @@ public class ReviewAccessTests(WebApplicationFactory<Program> factory) : IClassF
     public async Task Writing_a_review_requires_sign_in()
     {
         var response = await _client.PostAsJsonAsync(
-            "/api/v1/me/reviews/hyderabad/madhapur/some-business",
+            "/api/v1/customer/reviews/hyderabad/madhapur/some-business",
             new { rating = 5, body = "A perfectly reasonable review of adequate length." });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -27,7 +27,7 @@ public class ReviewAccessTests(WebApplicationFactory<Program> factory) : IClassF
 
     [Fact]
     public async Task Listing_your_own_reviews_requires_sign_in() =>
-        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/api/v1/me/reviews")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/api/v1/customer/reviews")).StatusCode);
 
     [Theory]
     [InlineData("/api/v1/admin/reviews")]

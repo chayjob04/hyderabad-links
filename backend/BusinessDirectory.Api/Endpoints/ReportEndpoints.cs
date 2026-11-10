@@ -2,6 +2,7 @@ using BusinessDirectory.Api.Data;
 using System.Data;
 using System.Security.Claims;
 using BusinessDirectory.Api.Auth;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.Data.SqlClient;
 
 namespace BusinessDirectory.Api.Endpoints;
@@ -150,8 +151,22 @@ public static class ReportEndpoints
             });
         }
 
-        // A signed-in reporter is recorded; a visitor is not, and that is fine (see the class comment).
+        /* A signed-in reporter is recorded; a visitor is not, and that is fine (see the class
+           comment). This is a public route, so the default scheme has already run and `principal`
+           holds an owner if one is signed in. A customer token carries a different audience and is
+           invisible to that scheme, so it is asked for separately — otherwise every report from a
+           customer would be anonymous, which is a step backwards from where this started. */
         long? userId = MeEndpoints.TryGetUserId(principal, out var id) ? id : null;
+        long? customerId = null;
+        if (userId is null)
+        {
+            var customer = await http.AuthenticateAsync(CustomerAccess.Scheme);
+            if (customer.Principal is { } customerPrincipal
+                && CustomerAccess.TryGetCustomerId(customerPrincipal, out var foundCustomerId))
+            {
+                customerId = foundCustomerId;
+            }
+        }
         var ip = http.Connection.RemoteIpAddress;
 
         await using var conn = await db.OpenConnectionAsync(ct);
@@ -178,14 +193,16 @@ public static class ReportEndpoints
         }
 
         await using (var insert = new SqlCommand(
-            @"INSERT INTO reports (subject_type, subject_id, reason, details, reported_by_user_id, reporter_ip)
-              VALUES (@type, @subject, @reason, @details, @user, @ip)", conn))
+            @"INSERT INTO reports (subject_type, subject_id, reason, details,
+                                   reported_by_user_id, reported_by_customer_id, reporter_ip)
+              VALUES (@type, @subject, @reason, @details, @user, @customer, @ip)", conn))
         {
             insert.Parameters.AddWithValue("type", subjectType);
             insert.Parameters.AddWithValue("subject", subjectId);
             insert.Parameters.AddWithValue("reason", reason);
             insert.Parameters.AddWithValue("details", (object?)details ?? DBNull.Value);
             insert.Parameters.AddWithValue("user", (object?)userId ?? DBNull.Value);
+            insert.Parameters.AddWithValue("customer", (object?)customerId ?? DBNull.Value);
             insert.Parameters.Add(new SqlParameter("ip", SqlDbType.VarChar) { Value = (object?)ip?.ToString() ?? DBNull.Value });
             await insert.ExecuteNonQueryAsync(ct);
         }

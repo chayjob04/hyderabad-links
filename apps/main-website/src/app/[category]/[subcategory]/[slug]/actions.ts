@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { reportListing, sendEnquiry } from "@/lib/api";
-import { forgetFavourite, saveFavourite, submitReview } from "@/lib/owner-api";
+import { forgetFavourite, saveFavourite, submitReview } from "@/lib/customer-api";
 import type { EnquiryFormState } from "./enquiry-state";
 import type { FavouriteState, ReportFormState } from "./report-state";
 import type { ReviewFormState } from "./review-state";
@@ -110,6 +110,6 @@ export async function toggleFavouriteAction(
 
   // The listing page shows the pressed state, so it has to be re-rendered.
   revalidatePath(`/areas/${target.locality}`, "layout");
-  revalidatePath("/account/favourites");
+  revalidatePath("/my/saved");
   return { saved: !currentlySaved };
 }

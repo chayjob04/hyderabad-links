@@ -37,9 +37,9 @@ function StatCard({ label, value, href, hint }: Stat) {
 }
 
 export default async function OverviewPage() {
-  /* This dashboard counts a business owner's own rows, so it keeps the registration gate the
-     /account shell used to apply to everything. An account that has not registered a business has
-     nothing to count here, and /onboarding is where it is asked for. */
+  /* This dashboard counts a business owner's own rows. Everyone here signed in on the business tab,
+     which is a separate account from a customer's, so an account with nothing to count is one that
+     has not finished registering its business — and /onboarding is where that is asked for. */
   const me = await getMe();
   if (me.ok && me.data.needsOnboarding) redirect("/onboarding");
 

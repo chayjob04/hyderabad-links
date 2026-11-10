@@ -28,11 +28,16 @@ Three independent Next.js websites, one ASP.NET Core API, one SQL Server databas
 
 - The browser never calls the API directly. It calls its own Next.js server, which calls the API
   server-to-server. Frontends never connect to the database.
-- Route groups follow the audience: `/api/v1/public`, `/api/v1/me` (owners), `/api/v1/admin`,
+- Route groups follow the audience: `/api/v1/public`, `/api/v1/customer` (customers),
+  `/api/v1/me` (business owners), `/api/v1/admin`,
   `/api/v1/super-admin`. Separate token audiences keep them apart.
 - Every permission is enforced in the API. Hiding a button in the UI is never the control.
 - Owners may only touch businesses they are authorised for. A matching phone number is not proof
   of ownership.
+- **A customer is not a business owner** (decision D56). They are separate identities in separate
+  tables, `customers` and `users`, with separate OTP purposes, sessions, token audiences and
+  cookies. The same mobile number may hold both, independently. Signing in to one must never create
+  or open the other. See `docs/customer-identity-split.md`.
 
 ## How to work here
 
@@ -59,7 +64,7 @@ dotnet test backend/BusinessDirectory.sln
 ```
 
 Database behaviour is checked by the transactional scripts in `database/sqlserver/checks/` — they
-insert, assert and roll back, so they are safe to re-run. All thirteen at once:
+insert, assert and roll back, so they are safe to re-run. All of them at once:
 
 ```powershell
 npm run db:check
@@ -126,13 +131,16 @@ Vercel. Do not reintroduce a container to solve a local problem.
 ## Where things are
 
 ```
-apps/main-website         public site (home, search, locality pages, listings, owner screens)
+apps/main-website         public site (home, search, locality pages, listings),
+                          /my (customer account) and /account (business owner dashboard)
 apps/staff-website        one staff app: /login with two tabs, /admin (moderation),
                           /super-admin (staff accounts, roles, audit log)
 backend/BusinessDirectory.Api   the API: Endpoints/, Listings/, Auth/, Data/
 database/sqlserver/migrations   versioned T-SQL, forward-only (the live path)
 database/sqlserver/seeds        reference and dev seed data
 database/sqlserver/checks       transactional smoke checks
+database/sqlserver/manual       scripts DbUp must never run: a rollback, and a finalising migration
+                                applied by hand after a deployment is verified. See its README
 database/migrations             the original PostgreSQL migrations, kept as history; never run
 database/seeds, database/checks the original PostgreSQL seeds and checks, likewise
 docs/                     requirements, architecture, decisions, security, deployment
