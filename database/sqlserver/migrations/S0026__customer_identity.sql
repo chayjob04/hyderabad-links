@@ -26,7 +26,7 @@
 -- by hand and adopted into the DbUp journal by `npm run db:baseline`, so across that database 56
 -- primary keys, 31 foreign keys and 129 defaults carry server-generated names like
 -- `PK__favourit__E123B678E7D5A97B`, while CHECK constraints and indexes happen to be named
--- correctly. `ALTER TABLE favourites DROP CONSTRAINT favourites_pkey` therefore fails there and
+-- correctly. `ALTER TABLE dbo.favourites DROP CONSTRAINT favourites_pkey` therefore fails there and
 -- succeeds on a database built from these migrations.
 --
 -- So every constraint this migration drops is found in `sys` by what it *is* -- the primary key of
@@ -36,6 +36,21 @@
 --
 -- While it is in there, it also renames the two foreign keys it has to touch to the canonical
 -- `favourites_user_fk` and `reviews_user_fk`, so S0027 can find them deterministically afterwards.
+--
+-- ---------------------------------------------------------------------------------------------
+-- AND WHY EVERY NAME IS PREFIXED dbo.
+--
+-- The production login's default schema is **not dbo**. It is `hyderab3_workingmodeluser`, while
+-- all 103 existing tables are in `dbo`. Reading and altering an existing table unqualified still
+-- works, because SQL Server falls back to dbo when the name is not in the default schema -- but
+-- CREATE does no such thing. `CREATE TABLE customers` puts the table in the *login's* schema, and
+-- the first run of this migration did exactly that: everything else succeeded, `dbo.customers` did
+-- not exist, and the assertion at the bottom threw 51036 and rolled the whole thing back.
+--
+-- That is the assertion earning its place. Every object here is therefore schema-qualified, which
+-- is also why the earlier migrations got away without it: they were never executed by this login.
+-- The schema was built by hand and adopted into the journal by `db:baseline`, so S0026 is the first
+-- script this login has actually run.
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
@@ -52,7 +67,7 @@ GO
 -- -- and a cross-type comparison on every one of those is worth avoiding. On a database built from
 -- S0002 this makes `customers` the nvarchar one and `users` the varchar one; the comparison still
 -- works, and the live database is the one that matters.
-CREATE TABLE customers (
+CREATE TABLE dbo.customers (
     id                 bigint IDENTITY(1,1) NOT NULL CONSTRAINT customers_pkey PRIMARY KEY,
     phone_e164         nvarchar(20) NOT NULL,
     phone_verified_at  datetimeoffset(3) NULL,
@@ -78,9 +93,9 @@ GO
 -- presenting an already-rotated one revokes the whole family as theft. A separate table so that a
 -- stolen customer token can never be rotated into an owner session. Lengths match the live
 -- `user_sessions` (user_agent nvarchar(500)).
-CREATE TABLE customer_sessions (
+CREATE TABLE dbo.customer_sessions (
     id                  bigint IDENTITY(1,1) NOT NULL CONSTRAINT customer_sessions_pkey PRIMARY KEY,
-    customer_id         bigint NOT NULL CONSTRAINT customer_sessions_customer_fk REFERENCES customers (id),
+    customer_id         bigint NOT NULL CONSTRAINT customer_sessions_customer_fk REFERENCES dbo.customers (id),
     family_id           uniqueidentifier NOT NULL CONSTRAINT customer_sessions_family_default DEFAULT NEWID(),
     refresh_token_hash  varbinary(64) NOT NULL,
     created_at          datetimeoffset(3) NOT NULL CONSTRAINT customer_sessions_created_default DEFAULT SYSDATETIMEOFFSET(),
@@ -93,8 +108,8 @@ CREATE TABLE customer_sessions (
     CONSTRAINT customer_sessions_token_key UNIQUE (refresh_token_hash)
 );
 GO
-CREATE INDEX customer_sessions_customer_idx ON customer_sessions (customer_id);
-CREATE INDEX customer_sessions_family_idx ON customer_sessions (family_id);
+CREATE INDEX customer_sessions_customer_idx ON dbo.customer_sessions (customer_id);
+CREATE INDEX customer_sessions_family_idx ON dbo.customer_sessions (family_id);
 GO
 
 -- ------------------------------------------------------------ otp_challenges
@@ -120,7 +135,7 @@ BEGIN
 END;
 GO
 
-ALTER TABLE otp_challenges WITH CHECK ADD CONSTRAINT otp_challenges_purpose_check
+ALTER TABLE dbo.otp_challenges WITH CHECK ADD CONSTRAINT otp_challenges_purpose_check
     CHECK (purpose IN ('owner_login', 'customer_login'));
 GO
 
@@ -143,51 +158,51 @@ BEGIN
 END;
 GO
 
-ALTER TABLE audit_logs WITH CHECK ADD CONSTRAINT audit_logs_actor_type_check
+ALTER TABLE dbo.audit_logs WITH CHECK ADD CONSTRAINT audit_logs_actor_type_check
     CHECK (actor_type IN ('owner', 'customer', 'admin', 'system'));
 GO
 
 -- ------------------------------------------------- the new columns
-ALTER TABLE favourites ADD customer_id bigint NULL CONSTRAINT favourites_customer_fk REFERENCES customers (id);
+ALTER TABLE dbo.favourites ADD customer_id bigint NULL CONSTRAINT favourites_customer_fk REFERENCES dbo.customers (id);
 GO
-ALTER TABLE reviews ADD customer_id bigint NULL CONSTRAINT reviews_customer_fk REFERENCES customers (id);
+ALTER TABLE dbo.reviews ADD customer_id bigint NULL CONSTRAINT reviews_customer_fk REFERENCES dbo.customers (id);
 GO
 -- A report is made from a public page by whoever happens to be signed in, so it now has a customer
 -- to attribute as well. Both stay nullable: an anonymous report has neither, and that is allowed.
-ALTER TABLE reports ADD reported_by_customer_id bigint NULL
-    CONSTRAINT reports_reported_by_customer_fk REFERENCES customers (id);
+ALTER TABLE dbo.reports ADD reported_by_customer_id bigint NULL
+    CONSTRAINT reports_reported_by_customer_fk REFERENCES dbo.customers (id);
 GO
 
 -- ------------------------------------------------------------------ backfill
 -- A customer twin for every user who has actually behaved as a customer. An owner who never saved
 -- or reviewed anything gets no row: they can create one by signing in on the user tab, like anyone
 -- else. status and phone_verified_at are copied so a suspended account stays suspended.
-INSERT INTO customers (phone_e164, phone_verified_at, name, email, email_verified_at, status, created_at)
+INSERT INTO dbo.customers (phone_e164, phone_verified_at, name, email, email_verified_at, status, created_at)
 SELECT u.phone_e164, u.phone_verified_at, u.name, u.email, u.email_verified_at, u.status, u.created_at
-FROM users u
-WHERE EXISTS (SELECT 1 FROM favourites f WHERE f.user_id = u.id)
-   OR EXISTS (SELECT 1 FROM reviews r WHERE r.user_id = u.id);
+FROM dbo.users u
+WHERE EXISTS (SELECT 1 FROM dbo.favourites f WHERE f.user_id = u.id)
+   OR EXISTS (SELECT 1 FROM dbo.reviews r WHERE r.user_id = u.id);
 GO
 
 UPDATE f
 SET customer_id = c.id
-FROM favourites f
-JOIN users u ON u.id = f.user_id
-JOIN customers c ON c.phone_e164 = u.phone_e164
+FROM dbo.favourites f
+JOIN dbo.users u ON u.id = f.user_id
+JOIN dbo.customers c ON c.phone_e164 = u.phone_e164
 WHERE f.customer_id IS NULL;
 GO
 
 UPDATE r
 SET customer_id = c.id
-FROM reviews r
-JOIN users u ON u.id = r.user_id
-JOIN customers c ON c.phone_e164 = u.phone_e164
+FROM dbo.reviews r
+JOIN dbo.users u ON u.id = r.user_id
+JOIN dbo.customers c ON c.phone_e164 = u.phone_e164
 WHERE r.customer_id IS NULL;
 GO
 
 -- Stop rather than journal a half-applied identity split.
-IF EXISTS (SELECT 1 FROM favourites WHERE customer_id IS NULL)
-   OR EXISTS (SELECT 1 FROM reviews WHERE customer_id IS NULL)
+IF EXISTS (SELECT 1 FROM dbo.favourites WHERE customer_id IS NULL)
+   OR EXISTS (SELECT 1 FROM dbo.reviews WHERE customer_id IS NULL)
 BEGIN
     THROW 51035, 'S0026 backfill left a favourite or review without a customer_id.', 1;
 END
@@ -202,7 +217,7 @@ GO
 -- The index on user_id is dropped first and rebuilt filtered afterwards. SQL Server refuses
 -- ALTER COLUMN while an index depends on the column, and rebuilding it filtered is what it should
 -- have been anyway once the column became nullable.
-DROP INDEX IF EXISTS favourites_user_idx ON favourites;
+DROP INDEX IF EXISTS favourites_user_idx ON dbo.favourites;
 GO
 
 -- The primary key, by what it is rather than what it is called.
@@ -244,24 +259,24 @@ BEGIN
 END;
 GO
 
-ALTER TABLE favourites ALTER COLUMN user_id bigint NULL;
+ALTER TABLE dbo.favourites ALTER COLUMN user_id bigint NULL;
 GO
 
 -- Back, named, and validated against the rows that are there.
-ALTER TABLE favourites WITH CHECK ADD CONSTRAINT favourites_user_fk
-    FOREIGN KEY (user_id) REFERENCES users (id);
+ALTER TABLE dbo.favourites WITH CHECK ADD CONSTRAINT favourites_user_fk
+    FOREIGN KEY (user_id) REFERENCES dbo.users (id);
 GO
 
-CREATE UNIQUE INDEX favourites_user_listing_uq ON favourites (user_id, listing_id) WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX favourites_customer_listing_uq ON favourites (customer_id, listing_id) WHERE customer_id IS NOT NULL;
-CREATE INDEX favourites_user_idx ON favourites (user_id, created_at DESC) WHERE user_id IS NOT NULL;
-CREATE INDEX favourites_customer_idx ON favourites (customer_id, created_at DESC) WHERE customer_id IS NOT NULL;
+CREATE UNIQUE INDEX favourites_user_listing_uq ON dbo.favourites (user_id, listing_id) WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX favourites_customer_listing_uq ON dbo.favourites (customer_id, listing_id) WHERE customer_id IS NOT NULL;
+CREATE INDEX favourites_user_idx ON dbo.favourites (user_id, created_at DESC) WHERE user_id IS NOT NULL;
+CREATE INDEX favourites_customer_idx ON dbo.favourites (customer_id, created_at DESC) WHERE customer_id IS NOT NULL;
 GO
-ALTER TABLE favourites WITH CHECK ADD CONSTRAINT favourites_one_owner
+ALTER TABLE dbo.favourites WITH CHECK ADD CONSTRAINT favourites_one_owner
     CHECK (user_id IS NOT NULL OR customer_id IS NOT NULL);
 GO
 
-DROP INDEX IF EXISTS reviews_user_idx ON reviews;
+DROP INDEX IF EXISTS reviews_user_idx ON dbo.reviews;
 GO
 
 /* The "one review per person per listing" unique key, found by its columns. On a database built
@@ -310,19 +325,19 @@ BEGIN
 END;
 GO
 
-ALTER TABLE reviews ALTER COLUMN user_id bigint NULL;
+ALTER TABLE dbo.reviews ALTER COLUMN user_id bigint NULL;
 GO
 
-ALTER TABLE reviews WITH CHECK ADD CONSTRAINT reviews_user_fk
-    FOREIGN KEY (user_id) REFERENCES users (id);
+ALTER TABLE dbo.reviews WITH CHECK ADD CONSTRAINT reviews_user_fk
+    FOREIGN KEY (user_id) REFERENCES dbo.users (id);
 GO
 
-CREATE UNIQUE INDEX reviews_user_listing_uq ON reviews (listing_id, user_id) WHERE user_id IS NOT NULL;
-CREATE UNIQUE INDEX reviews_customer_listing_uq ON reviews (listing_id, customer_id) WHERE customer_id IS NOT NULL;
-CREATE INDEX reviews_user_idx ON reviews (user_id) WHERE user_id IS NOT NULL;
-CREATE INDEX reviews_customer_idx ON reviews (customer_id) WHERE customer_id IS NOT NULL;
+CREATE UNIQUE INDEX reviews_user_listing_uq ON dbo.reviews (listing_id, user_id) WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX reviews_customer_listing_uq ON dbo.reviews (listing_id, customer_id) WHERE customer_id IS NOT NULL;
+CREATE INDEX reviews_user_idx ON dbo.reviews (user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX reviews_customer_idx ON dbo.reviews (customer_id) WHERE customer_id IS NOT NULL;
 GO
-ALTER TABLE reviews WITH CHECK ADD CONSTRAINT reviews_one_author
+ALTER TABLE dbo.reviews WITH CHECK ADD CONSTRAINT reviews_one_author
     CHECK (user_id IS NOT NULL OR customer_id IS NOT NULL);
 GO
 

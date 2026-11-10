@@ -19,18 +19,18 @@ SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
 GO
 
-IF EXISTS (SELECT 1 FROM favourites WHERE user_id IS NULL)
-   OR EXISTS (SELECT 1 FROM reviews WHERE user_id IS NULL)
+IF EXISTS (SELECT 1 FROM dbo.favourites WHERE user_id IS NULL)
+   OR EXISTS (SELECT 1 FROM dbo.reviews WHERE user_id IS NULL)
 BEGIN
     THROW 51037, 'Rows written by the new API have no user_id. Fix forward, or restore from an export.', 1;
 END
 GO
 
 -- ---------------------------------------------------------------- favourites
-DROP INDEX IF EXISTS favourites_user_listing_uq ON favourites;
-DROP INDEX IF EXISTS favourites_customer_listing_uq ON favourites;
-DROP INDEX IF EXISTS favourites_customer_idx ON favourites;
-DROP INDEX IF EXISTS favourites_user_idx ON favourites;
+DROP INDEX IF EXISTS favourites_user_listing_uq ON dbo.favourites;
+DROP INDEX IF EXISTS favourites_customer_listing_uq ON dbo.favourites;
+DROP INDEX IF EXISTS favourites_customer_idx ON dbo.favourites;
+DROP INDEX IF EXISTS favourites_user_idx ON dbo.favourites;
 GO
 
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'favourites_one_owner')
@@ -38,19 +38,19 @@ IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'favourites_one_owne
 IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'favourites_customer_fk')
     ALTER TABLE dbo.favourites DROP CONSTRAINT favourites_customer_fk;
 GO
-ALTER TABLE favourites DROP COLUMN customer_id;
+ALTER TABLE dbo.favourites DROP COLUMN customer_id;
 GO
-ALTER TABLE favourites ALTER COLUMN user_id bigint NOT NULL;
+ALTER TABLE dbo.favourites ALTER COLUMN user_id bigint NOT NULL;
 GO
-ALTER TABLE favourites ADD CONSTRAINT favourites_pkey PRIMARY KEY (user_id, listing_id);
-CREATE INDEX favourites_user_idx ON favourites (user_id, created_at DESC);
+ALTER TABLE dbo.favourites ADD CONSTRAINT favourites_pkey PRIMARY KEY (user_id, listing_id);
+CREATE INDEX favourites_user_idx ON dbo.favourites (user_id, created_at DESC);
 GO
 
 -- ------------------------------------------------------------------- reviews
-DROP INDEX IF EXISTS reviews_user_listing_uq ON reviews;
-DROP INDEX IF EXISTS reviews_customer_listing_uq ON reviews;
-DROP INDEX IF EXISTS reviews_customer_idx ON reviews;
-DROP INDEX IF EXISTS reviews_user_idx ON reviews;
+DROP INDEX IF EXISTS reviews_user_listing_uq ON dbo.reviews;
+DROP INDEX IF EXISTS reviews_customer_listing_uq ON dbo.reviews;
+DROP INDEX IF EXISTS reviews_customer_idx ON dbo.reviews;
+DROP INDEX IF EXISTS reviews_user_idx ON dbo.reviews;
 GO
 
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'reviews_one_author')
@@ -58,25 +58,25 @@ IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'reviews_one_author'
 IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'reviews_customer_fk')
     ALTER TABLE dbo.reviews DROP CONSTRAINT reviews_customer_fk;
 GO
-ALTER TABLE reviews DROP COLUMN customer_id;
+ALTER TABLE dbo.reviews DROP COLUMN customer_id;
 GO
-ALTER TABLE reviews ALTER COLUMN user_id bigint NOT NULL;
+ALTER TABLE dbo.reviews ALTER COLUMN user_id bigint NOT NULL;
 GO
-ALTER TABLE reviews ADD CONSTRAINT reviews_one_per_person UNIQUE (listing_id, user_id);
-CREATE INDEX reviews_user_idx ON reviews (user_id);
+ALTER TABLE dbo.reviews ADD CONSTRAINT reviews_one_per_person UNIQUE (listing_id, user_id);
+CREATE INDEX reviews_user_idx ON dbo.reviews (user_id);
 GO
 
 -- ------------------------------------------------------------------- reports
 IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'reports_reported_by_customer_fk')
     ALTER TABLE dbo.reports DROP CONSTRAINT reports_reported_by_customer_fk;
 GO
-ALTER TABLE reports DROP COLUMN reported_by_customer_id;
+ALTER TABLE dbo.reports DROP COLUMN reported_by_customer_id;
 GO
 
 -- ---------------------------------------------------------------- audit_logs
 -- Customer rows become unrepresentable, so they are relabelled rather than deleted: an audit trail
 -- that loses entries on a rollback is not an audit trail.
-UPDATE audit_logs SET actor_type = 'system' WHERE actor_type = 'customer';
+UPDATE dbo.audit_logs SET actor_type = 'system' WHERE actor_type = 'customer';
 GO
 DECLARE @actorCheck sysname = (
     SELECT TOP (1) cc.name
@@ -90,14 +90,14 @@ BEGIN
     EXEC sp_executesql @dropActor;
 END;
 GO
-ALTER TABLE audit_logs WITH CHECK ADD CONSTRAINT audit_logs_actor_type_check
+ALTER TABLE dbo.audit_logs WITH CHECK ADD CONSTRAINT audit_logs_actor_type_check
     CHECK (actor_type IN ('owner', 'admin', 'system'));
 GO
 
 -- ------------------------------------------------------------- otp_challenges
 -- Any customer_login rows are historic challenges, not accounts; they are deleted so the old
 -- check constraint can be restored. No session and no identity depends on them.
-DELETE FROM otp_challenges WHERE purpose = 'customer_login';
+DELETE FROM dbo.otp_challenges WHERE purpose = 'customer_login';
 GO
 DECLARE @purposeCheck sysname = (
     SELECT TOP (1) cc.name
@@ -111,12 +111,12 @@ BEGIN
     EXEC sp_executesql @dropPurpose;
 END;
 GO
-ALTER TABLE otp_challenges WITH CHECK ADD CONSTRAINT otp_challenges_purpose_check
+ALTER TABLE dbo.otp_challenges WITH CHECK ADD CONSTRAINT otp_challenges_purpose_check
     CHECK (purpose IN ('owner_login'));
 GO
 
 -- ------------------------------------------------------------------ identity
-DROP TABLE customer_sessions;
+DROP TABLE dbo.customer_sessions;
 GO
-DROP TABLE customers;
+DROP TABLE dbo.customers;
 GO

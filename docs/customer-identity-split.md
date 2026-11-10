@@ -1,7 +1,8 @@
 # Customers and business owners are separate accounts
 
-Status: **built locally on 2026-11-10. S0026 is written but not applied to any database, and nothing
-is deployed.** See "Before this goes out" at the end.
+Status: **S0026 applied to production (198.38.93.235/hyderab3_workingmodel) on 2026-11-11 and
+verified. S0027 has NOT been run, so the rollback window is open. Nothing is deployed: the API and
+the websites are still the pre-split build.**
 
 ## What changed, in one paragraph
 

@@ -20,18 +20,18 @@ GO
 
 -- Refuse if any row is still owned by a user. That would mean an old instance is still writing,
 -- and dropping the column would take those favourites and reviews with it.
-IF EXISTS (SELECT 1 FROM favourites WHERE customer_id IS NULL)
-   OR EXISTS (SELECT 1 FROM reviews WHERE customer_id IS NULL)
+IF EXISTS (SELECT 1 FROM dbo.favourites WHERE customer_id IS NULL)
+   OR EXISTS (SELECT 1 FROM dbo.reviews WHERE customer_id IS NULL)
 BEGIN
     THROW 51038, 'A favourite or review still has no customer_id. The old API is still writing.', 1;
 END
 GO
 
 -- ---------------------------------------------------------------- favourites
-DROP INDEX IF EXISTS favourites_user_listing_uq ON favourites;
-DROP INDEX IF EXISTS favourites_customer_listing_uq ON favourites;
-DROP INDEX IF EXISTS favourites_customer_idx ON favourites;
-DROP INDEX IF EXISTS favourites_user_idx ON favourites;
+DROP INDEX IF EXISTS favourites_user_listing_uq ON dbo.favourites;
+DROP INDEX IF EXISTS favourites_customer_listing_uq ON dbo.favourites;
+DROP INDEX IF EXISTS favourites_customer_idx ON dbo.favourites;
+DROP INDEX IF EXISTS favourites_user_idx ON dbo.favourites;
 GO
 
 DECLARE @favOwner sysname = (
@@ -56,19 +56,19 @@ BEGIN
 END;
 GO
 
-ALTER TABLE favourites DROP COLUMN user_id;
+ALTER TABLE dbo.favourites DROP COLUMN user_id;
 GO
-ALTER TABLE favourites ALTER COLUMN customer_id bigint NOT NULL;
+ALTER TABLE dbo.favourites ALTER COLUMN customer_id bigint NOT NULL;
 GO
-ALTER TABLE favourites ADD CONSTRAINT favourites_pkey PRIMARY KEY (customer_id, listing_id);
-CREATE INDEX favourites_customer_idx ON favourites (customer_id, created_at DESC);
+ALTER TABLE dbo.favourites ADD CONSTRAINT favourites_pkey PRIMARY KEY (customer_id, listing_id);
+CREATE INDEX favourites_customer_idx ON dbo.favourites (customer_id, created_at DESC);
 GO
 
 -- ------------------------------------------------------------------- reviews
-DROP INDEX IF EXISTS reviews_user_listing_uq ON reviews;
-DROP INDEX IF EXISTS reviews_customer_listing_uq ON reviews;
-DROP INDEX IF EXISTS reviews_customer_idx ON reviews;
-DROP INDEX IF EXISTS reviews_user_idx ON reviews;
+DROP INDEX IF EXISTS reviews_user_listing_uq ON dbo.reviews;
+DROP INDEX IF EXISTS reviews_customer_listing_uq ON dbo.reviews;
+DROP INDEX IF EXISTS reviews_customer_idx ON dbo.reviews;
+DROP INDEX IF EXISTS reviews_user_idx ON dbo.reviews;
 GO
 
 DECLARE @reviewAuthor sysname = (
@@ -92,12 +92,12 @@ BEGIN
 END;
 GO
 
-ALTER TABLE reviews DROP COLUMN user_id;
+ALTER TABLE dbo.reviews DROP COLUMN user_id;
 GO
-ALTER TABLE reviews ALTER COLUMN customer_id bigint NOT NULL;
+ALTER TABLE dbo.reviews ALTER COLUMN customer_id bigint NOT NULL;
 GO
-ALTER TABLE reviews ADD CONSTRAINT reviews_one_per_person UNIQUE (listing_id, customer_id);
-CREATE INDEX reviews_customer_idx ON reviews (customer_id);
+ALTER TABLE dbo.reviews ADD CONSTRAINT reviews_one_per_person UNIQUE (listing_id, customer_id);
+CREATE INDEX reviews_customer_idx ON dbo.reviews (customer_id);
 GO
 
 IF COL_LENGTH('dbo.favourites', 'user_id') IS NOT NULL
