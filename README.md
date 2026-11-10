@@ -7,8 +7,7 @@ Three independent Next.js websites share **one ASP.NET Core API** and **one Micr
 | App | Folder | Local URL | Production domain |
 |---|---|---|---|
 | Main website | `apps/main-website` | http://localhost:3000 | hyderabadlinks.com |
-| Admin website | `apps/admin-website` | http://localhost:3001 | *to be decided* (env-configured) |
-| Super-admin website | `apps/super-admin-website` | http://localhost:3002 | *to be decided* (env-configured) |
+| Staff website | `apps/staff-website` | http://localhost:3001 | *to be decided* (env-configured) |
 | API | `backend/BusinessDirectory.Api` | http://localhost:5080 | *to be decided* |
 
 **Status:** Running on **SQL Server** (Azure SQL Database in production) since 2026-10-21; the PostgreSQL migrations are kept as history and never run. Schema `S0001`-`S0008` and the Hyderabad reference seeds exist. The public site has the home page,
@@ -61,8 +60,7 @@ npm run db:migrate -- --what-if                        # list what would be appl
 npm run db:seed-dev                                    # optional: sample listings for local testing (Development only)
 dotnet run --project backend/BusinessDirectory.Api     # API on :5080   (terminal 1)
 npm run dev:main                                       # main site :3000 (terminal 2)
-npm run dev:admin                                      # admin :3001     (terminal 3, optional)
-npm run dev:super-admin                                # super-admin :3002 (terminal 4)
+npm run dev:staff                                      # staff :3001     (terminal 3, optional)
 ```
 
 Each website reads its own settings from `apps/<app>/.env.local`; copy `apps/<app>/.env.example` to start one.

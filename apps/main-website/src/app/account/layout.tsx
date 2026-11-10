@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { AccountDrawerNav, AccountSidebarNav } from "@/components/account/AccountNav";
 import { getMe } from "@/lib/owner-api";
 import { signOutAction } from "./actions";
@@ -11,13 +10,17 @@ export const dynamic = "force-dynamic";
  * The authenticated shell every owner page sits inside: a sidebar on a wide screen, a drawer on a
  * narrow one, and a bar showing who is signed in.
  *
- * `getMe()` is the gate. It sends anyone without a usable token to sign in again, and anyone who
- * has verified a phone but not finished registering to onboarding. Both redirects happen on the
- * server, before any owner page renders — hiding links would not be a control.
+ * `getMe()` is the gate: anyone without a usable token is sent to sign in again, on the server,
+ * before any page inside renders — hiding links would not be a control.
+ *
+ * What is deliberately *not* here any more is the business-registration gate. It used to redirect
+ * every signed-in account with no name to /onboarding, which made favourites and profile
+ * unreachable for anyone who had not registered a business — so the user tab on the login page had
+ * nowhere to land. Registering a business is now required by the pages that need a business, which
+ * is `account/listings/layout.tsx` and the dashboard below it, and nowhere else.
  */
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
-  if (me.ok && me.data.needsOnboarding) redirect("/onboarding");
 
   const signOutButton = (
     <form action={signOutAction}>
@@ -40,8 +43,10 @@ export default async function AccountLayout({ children }: { children: React.Reac
       <div className="mt-4 gap-10 lg:mt-0 lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
         <aside aria-label="Dashboard" className="hidden lg:block">
           <div className="sticky top-[136px] rounded-2xl border border-line bg-white p-4 shadow-[0_8px_22px_#002a340b]">
+            {/* Not "Business owner" any more: this shell is also where someone who only saves
+                favourites now lands, and labelling their account as a business would be wrong. */}
             <p className="px-3 pt-1 pb-3 text-xs font-black tracking-[0.12em] text-muted uppercase">
-              Business owner
+              Your account
             </p>
             <AccountSidebarNav />
             <div className="mt-2 border-t border-line pt-2">{signOutButton}</div>

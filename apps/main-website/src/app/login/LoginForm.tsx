@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Field, describedBy, fieldClass } from "@/components/ui/Field";
+import type { LoginTab } from "@/components/ui/LoginTabs";
 import { loginAction } from "./actions";
 import { initialLoginState } from "./state";
 
@@ -16,13 +17,23 @@ function maskPhone(phone: string): string {
   return `${phone.slice(0, 2)}${"*".repeat(phone.length - 6)}${phone.slice(-4)}`;
 }
 
-export function LoginForm({ next, devHint }: { next: string; devHint: boolean }) {
+export function LoginForm({
+  next,
+  tab,
+  devHint,
+}: {
+  next: string;
+  tab: LoginTab;
+  devHint: boolean;
+}) {
   const [state, formAction, pending] = useActionState(loginAction, initialLoginState);
   const onCodeStep = state.step === "code";
 
   return (
     <form action={formAction} className="rounded-2xl border border-line bg-white p-6 shadow-[0_10px_30px_#002a3412]">
       <input type="hidden" name="next" value={next} />
+      {/* The tab only decides where the sign-in lands; the action re-checks it, never trusting this. */}
+      <input type="hidden" name="tab" value={tab} />
 
       {onCodeStep ? (
         <>
@@ -73,7 +84,11 @@ export function LoginForm({ next, devHint }: { next: string; devHint: boolean })
           <Field
             id="phone-input"
             label="Mobile number"
-            help="We will text you a 6-digit code. Standard rates apply."
+            help={
+              tab === "business"
+                ? "Use the number registered to your business. We will text you a 6-digit code."
+                : "We will text you a 6-digit code. Standard rates apply."
+            }
           >
             <div className="flex">
               <span className="flex items-center rounded-l-lg border border-r-0 border-line bg-brand-50 px-3.5 text-base font-bold text-brand-800">

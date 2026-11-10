@@ -1,0 +1,41 @@
+name: CI · staff-website
+
+# Runs only when this app (or shared code) changes, so the three websites build independently.
+on:
+  pull_request:
+    paths:
+      - "apps/staff-website/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ci-staff-website.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/staff-website/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ci-staff-website.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-staff-website-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck -w apps/staff-website
+      - name: Build
+        run: npm run build -w apps/staff-website

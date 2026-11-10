@@ -20,9 +20,18 @@ export async function readTokens(): Promise<{ access: string | null; refresh: st
   return { access: jar.get(ACCESS_COOKIE)?.value ?? null, refresh: jar.get(REFRESH_COOKIE)?.value ?? null };
 }
 
-/** Only allow sending the owner back to a page inside /account after login (no open redirects). */
-export function safeNextPath(value: string | null | undefined): string {
-  const fallback = "/account/listings";
+/**
+ * Only allow sending someone back to a page inside /account after login (no open redirects).
+ *
+ * The fallback is a parameter because the two login tabs end in different places — a user tab
+ * sign-in lands on favourites, a business one on the listings dashboard. It is only ever a
+ * destination we chose ourselves; the untrusted `value` is still held to the same rule it always
+ * was, so a caller cannot widen what counts as safe by passing a different fallback.
+ */
+export function safeNextPath(
+  value: string | null | undefined,
+  fallback: string = "/account/listings",
+): string {
   if (!value || !value.startsWith("/account") || value.startsWith("//") || value.includes("\\")) return fallback;
   return value;
 }

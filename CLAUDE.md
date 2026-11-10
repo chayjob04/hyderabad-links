@@ -127,8 +127,8 @@ Vercel. Do not reintroduce a container to solve a local problem.
 
 ```
 apps/main-website         public site (home, search, locality pages, listings, owner screens)
-apps/admin-website        listing, review and report moderation
-apps/super-admin-website  staff accounts, roles and the audit log
+apps/staff-website        one staff app: /login with two tabs, /admin (moderation),
+                          /super-admin (staff accounts, roles, audit log)
 backend/BusinessDirectory.Api   the API: Endpoints/, Listings/, Auth/, Data/
 database/sqlserver/migrations   versioned T-SQL, forward-only (the live path)
 database/sqlserver/seeds        reference and dev seed data

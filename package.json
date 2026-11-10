@@ -8,14 +8,11 @@
   },
   "workspaces": [
     "apps/main-website",
-    "apps/admin-website",
-    "apps/super-admin-website",
+    "apps/staff-website",
     "packages/*"
   ],
   "scripts": {
     "dev:main": "npm run dev -w apps/main-website",
-    "dev:admin": "npm run dev -w apps/admin-website",
-    "dev:super-admin": "npm run dev -w apps/super-admin-website",
     "db:migrate": "dotnet run --project backend/BusinessDirectory.Api -- migrate",
     "db:baseline": "dotnet run --project backend/BusinessDirectory.Api -- db-baseline",
     "db:export": "dotnet run --project backend/BusinessDirectory.Api -- db-export",
@@ -28,6 +25,7 @@
     "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
     "verify": "npm run check:migrations && npm run test:scripts && npm run typecheck && npm run build && dotnet build backend/BusinessDirectory.sln && dotnet test backend/BusinessDirectory.sln",
     "db:reset": "dotnet run --project backend/BusinessDirectory.Api -- db-reset",
-    "db:repair": "dotnet run --project backend/BusinessDirectory.Api -- db-repair"
+    "db:repair": "dotnet run --project backend/BusinessDirectory.Api -- db-repair",
+    "dev:staff": "npm run dev -w apps/staff-website"
   }
 }

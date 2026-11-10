@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getOverview } from "@/lib/owner-api";
+import { getMe, getOverview } from "@/lib/owner-api";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -36,6 +37,12 @@ function StatCard({ label, value, href, hint }: Stat) {
 }
 
 export default async function OverviewPage() {
+  /* This dashboard counts a business owner's own rows, so it keeps the registration gate the
+     /account shell used to apply to everything. An account that has not registered a business has
+     nothing to count here, and /onboarding is where it is asked for. */
+  const me = await getMe();
+  if (me.ok && me.data.needsOnboarding) redirect("/onboarding");
+
   const result = await getOverview();
 
   if (!result.ok) {
