@@ -9,6 +9,12 @@ of them is that a human decides when they run.
 Reverses `S0026__customer_identity.sql`: restores the original primary key and unique constraint
 from `user_id`, and drops `customers`, `customer_sessions` and the new columns.
 
+Like S0026, it finds anything it did not create by looking it up in `sys` rather than by name
+(decision D57) — production's constraint names are server-generated. One thing it cannot restore is
+a *name*: the primary key on `favourites` comes back as `favourites_pkey` rather than under the
+generated name it had before, and the foreign keys on `user_id` keep the canonical names S0026 gave
+them. The columns and the behaviour are identical; only the labels differ.
+
 It works **only while S0027 has not run**, because it rebuilds the constraints from `user_id`, which
 S0027 removes. That is the rollback window: after S0027, the only way back is a restore from
 `npm run db:export`.

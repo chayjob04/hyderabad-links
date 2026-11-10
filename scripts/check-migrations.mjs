@@ -14,6 +14,15 @@
 //     ALTER COLUMN ... TYPE) are rejected unless the file contains an approval comment:
 //         -- approved-destructive: <reason or ticket>
 //     That comment is how a human approval is recorded in code review.
+//  5. From S0026 onward, DROP CONSTRAINT with a hard-coded name is rejected. The production
+//     database's schema was applied by hand and adopted with `npm run db:baseline`, so its primary
+//     keys, foreign keys, unique keys and defaults carry server-generated names
+//     (`PK__favourit__E123B678E7D5A97B`) rather than the ones these scripts declare. A migration
+//     that names a constraint it did not create works on a clean database and fails there, which is
+//     the worst way for a migration to be wrong: it passes every test and breaks in production.
+//     Find the constraint in `sys` by what it is, then drop it through QUOTENAME -- S0013, S0017
+//     and S0026 all show the pattern. The floor is S0026 because earlier migrations are already
+//     applied and cannot be changed.
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -46,6 +55,25 @@ export function stripSql(sql) {
     }
   }
   return out;
+}
+
+/** Rule 5 applies from this version on. Earlier migrations are already applied and cannot change. */
+export const DYNAMIC_DROP_FLOOR = 26;
+
+/**
+ * The constraint names a file drops literally, e.g. `DROP CONSTRAINT favourites_pkey`.
+ *
+ * A drop built through QUOTENAME is the approved form and does not match, because what follows
+ * DROP CONSTRAINT there is a `'` (inside the string being built) rather than an identifier.
+ * Pass the stripped SQL: comments and string literals must already be gone, or the pattern inside
+ * the dynamic SQL would be read as real code.
+ */
+export function literalDropConstraints(code) {
+  const names = [];
+  const pattern = /\bDROP\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?([A-Za-z_@#][A-Za-z0-9_@#$]*|\[[^\]]+\])/gi;
+  let m;
+  while ((m = pattern.exec(code)) !== null) names.push(m[1]);
+  return [...new Set(names)];
 }
 
 const DESTRUCTIVE_RULES = [
@@ -91,6 +119,17 @@ export function checkMigrations(dir) {
         `${file}: destructive statement(s) found (${hits.join(", ")}). ` +
           `Add a line "-- approved-destructive: <reason>" only after explicit approval.`,
       );
+    }
+
+    if (Number(match[1]) >= DYNAMIC_DROP_FLOOR) {
+      const named = literalDropConstraints(code);
+      if (named.length > 0) {
+        problems.push(
+          `${file}: DROP CONSTRAINT names a constraint directly (${named.join(", ")}). ` +
+            `Production's constraint names are server-generated, so find it in sys by what it is ` +
+            `and drop it through QUOTENAME (see S0026 for the pattern).`,
+        );
+      }
     }
   }
 

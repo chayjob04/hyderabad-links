@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { checkMigrations, stripSql } from "./check-migrations.mjs";
+import { checkMigrations, literalDropConstraints, stripSql } from "./check-migrations.mjs";
 
 function withMigrations(files, fn) {
   const dir = mkdtempSync(path.join(tmpdir(), "mig-"));
@@ -89,4 +89,72 @@ test("words inside comments and string literals are ignored", () => {
 
 test("stripSql handles escaped quotes and block comments", () => {
   assert.equal(stripSql("SELECT 'it''s'; /* DROP TABLE x */ SELECT 1;").replace(/\s+/g, " "), "SELECT ''; SELECT 1;");
+});
+
+// ---------------------------------------------------------------- rule 5
+// Production's constraint names are server-generated, so a migration that drops one by the name
+// these scripts declare works on a clean database and fails there. Rule 5 catches that before it
+// is written, from S0026 on.
+
+/** A contiguous run of trivial migrations S0001..S<last-1>, so a test file can sit at the top. */
+function runUpTo(last, topName, topSql) {
+  const files = {};
+  for (let v = 1; v < last; v++) {
+    files[`S${String(v).padStart(4, "0")}__filler.sql`] = `ALTER TABLE t ADD c${v} int NULL;`;
+  }
+  files[topName] = topSql;
+  return files;
+}
+
+test("literalDropConstraints finds a hard-coded name and ignores a QUOTENAME drop", () => {
+  assert.deepEqual(
+    literalDropConstraints("ALTER TABLE dbo.favourites DROP CONSTRAINT favourites_pkey;"),
+    ["favourites_pkey"],
+  );
+  assert.deepEqual(
+    literalDropConstraints("ALTER TABLE dbo.reviews DROP CONSTRAINT [reviews_one_per_person];"),
+    ["[reviews_one_per_person]"],
+  );
+  // The approved form: the name is a variable, so there is no identifier after DROP CONSTRAINT.
+  assert.deepEqual(
+    literalDropConstraints(
+      stripSql("SET @sql = N'ALTER TABLE dbo.favourites DROP CONSTRAINT ' + QUOTENAME(@name);"),
+    ),
+    [],
+  );
+});
+
+test("a migration at or above the floor may not drop a constraint by name", () => {
+  const problems = withMigrations(
+    runUpTo(26, "S0026__identity.sql", "ALTER TABLE dbo.favourites DROP CONSTRAINT favourites_pkey;"),
+    (d) => checkMigrations(d),
+  );
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /DROP CONSTRAINT names a constraint directly \(favourites_pkey\)/);
+});
+
+test("the same migration passes when the name is discovered and quoted", () => {
+  const sql = [
+    "DECLARE @name sysname = (SELECT TOP (1) kc.name FROM sys.key_constraints kc",
+    "  WHERE kc.parent_object_id = OBJECT_ID('dbo.favourites') AND kc.type = 'PK');",
+    "DECLARE @sql nvarchar(400) = N'ALTER TABLE dbo.favourites DROP CONSTRAINT ' + QUOTENAME(@name) + N';';",
+    "EXEC sp_executesql @sql;",
+  ].join("\n");
+  assert.deepEqual(withMigrations(runUpTo(26, "S0026__identity.sql", sql), (d) => checkMigrations(d)), []);
+});
+
+test("migrations below the floor are left alone: they are already applied", () => {
+  assert.deepEqual(
+    withMigrations(
+      runUpTo(10, "S0010__fix_check.sql", "ALTER TABLE dbo.permissions DROP CONSTRAINT permissions_code_format;"),
+      (d) => checkMigrations(d),
+    ),
+    [],
+  );
+});
+
+test("the real S0026 discovers every constraint it drops", () => {
+  const dir = path.join(path.dirname(new URL(import.meta.url).pathname.slice(1)), "..", "database", "sqlserver", "migrations");
+  const sql = readFileSync(path.join(dir, "S0026__customer_identity.sql"), "utf8");
+  assert.deepEqual(literalDropConstraints(stripSql(sql)), []);
 });
