@@ -94,11 +94,7 @@ function RegisterBand({ heading, body }: { heading: string; body: string }) {
       <h2 className="text-2xl font-black tracking-tight sm:text-3xl">{heading}</h2>
       <p className="mx-auto mt-3 max-w-2xl text-[15px] text-brand-100">{body}</p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
-        <ButtonLink
-          tone="cta"
-          href={REGISTER_HREF}
-          className="bg-white text-brand-800 hover:bg-brand-50"
-        >
+        <ButtonLink tone="inverse" href={REGISTER_HREF}>
           Register Your Business <span aria-hidden="true">&rarr;</span>
         </ButtonLink>
       </div>
@@ -119,7 +115,7 @@ export default async function ListYourBusinessPage() {
         title="List your business on Hyderabad Links"
         subtitle="Be found by the people already searching your category, in your part of the city."
         aside={
-          <ButtonLink tone="cta" href={REGISTER_HREF} className="bg-white text-brand-800 hover:bg-brand-50">
+          <ButtonLink tone="inverse" href={REGISTER_HREF}>
             Register Your Business
           </ButtonLink>
         }
