@@ -549,3 +549,17 @@ export const deleteScrollingText = (id: number) =>
 
 /** Curating the homepage: popular categories and the scrolling strip (S0025). */
 export const PERMISSION_HOMEPAGE = "homepage.manage";
+
+// ---- your own password -------------------------------------------------------------------------
+// Mounted on both staff surfaces, because a session carries one audience or the other. Neither the
+// current nor the new password is stored anywhere on this side; they go straight up in the body.
+
+export type PasswordState = { mustChangePassword: boolean };
+
+export const getPasswordState = () => authed<PasswordState>("/api/v1/admin/me/password");
+
+export const changeMyPassword = (input: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}) => authed<PasswordState>("/api/v1/admin/me/password", { method: "POST", body: json(input) });

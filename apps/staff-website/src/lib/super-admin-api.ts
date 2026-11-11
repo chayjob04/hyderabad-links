@@ -581,3 +581,118 @@ export const LINK_TYPES = [
   "x",
   "other",
 ] as const;
+
+// ---- admin account management ------------------------------------------------------------------
+// The Admin Accounts screen (S0028). Creating, editing, resetting a password and ending sessions;
+// roles, status and reset-MFA are above, unchanged.
+//
+// A password only ever travels one way: up, in the body of a request. The one exception is the
+// temporary password the API echoes back when it is set, so it can be handed to the person once.
+// Nothing here stores it, and no response ever carries a hash.
+
+export type AdminSummary = {
+  total: number;
+  active: number;
+  superAdmins: number;
+  disabled: number;
+};
+
+export type AdminRow = {
+  id: number;
+  email: string;
+  displayName: string;
+  status: string;
+  roles: string[];
+  mfaEnrolled: boolean;
+  unusedRecoveryCodes: number;
+  mustChangePassword: boolean;
+  locked: boolean;
+  lastLoginAt: string | null;
+  passwordChangedAt: string | null;
+  createdAt: string;
+};
+
+export type AdminPage = {
+  items: AdminRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+export type AdminSession = {
+  createdAt: string;
+  expiresAt: string;
+  revoked: boolean;
+  ip: string | null;
+};
+
+export type AdminDetail = {
+  account: AdminRow;
+  activeSessions: number;
+  lockedUntil: string | null;
+  failedLoginCount: number;
+  invitedByName: string | null;
+  recentSessions: AdminSession[];
+};
+
+export type AdminFilters = {
+  search?: string;
+  role?: string;
+  status?: string;
+  sort?: string;
+  page?: number;
+};
+
+export const getAdminSummary = () => authed<AdminSummary>("/api/v1/super-admin/admins/summary");
+
+export function listAdminPage(filters: AdminFilters = {}) {
+  const query = new URLSearchParams();
+  if (filters.search) query.set("search", filters.search);
+  if (filters.role && filters.role !== "all") query.set("role", filters.role);
+  if (filters.status && filters.status !== "all") query.set("status", filters.status);
+  if (filters.sort) query.set("sort", filters.sort);
+  if (filters.page && filters.page > 1) query.set("page", String(filters.page));
+  const suffix = query.toString();
+  return authed<AdminPage>(`/api/v1/super-admin/admins/page${suffix ? `?${suffix}` : ""}`);
+}
+
+export const getAdminDetail = (id: number) => authed<AdminDetail>(`/api/v1/super-admin/admins/${id}`);
+
+/** The response carries the temporary password once. Show it, then forget it. */
+export const createAdmin = (input: {
+  email: string;
+  displayName: string;
+  password: string;
+  confirmPassword: string;
+  role: string;
+}) => authed<{ id: number; temporaryPassword: string }>("/api/v1/super-admin/admins", {
+  method: "POST",
+  body: json(input),
+});
+
+export const editAdmin = (id: number, input: { email: string; displayName: string }) =>
+  authed<void>(`/api/v1/super-admin/admins/${id}`, { method: "PUT", body: json(input) });
+
+export const resetAdminPassword = (id: number, input: { password: string; confirmPassword: string }) =>
+  authed<{ id: number; temporaryPassword: string }>(`/api/v1/super-admin/admins/${id}/password`, {
+    method: "POST",
+    body: json(input),
+  });
+
+export const revokeAdminSessions = (id: number) =>
+  authed<void>(`/api/v1/super-admin/admins/${id}/revoke-sessions`, { method: "POST" });
+
+// ---- your own password -------------------------------------------------------------------------
+// Mounted on both staff surfaces, because a session carries one audience or the other. Neither the
+// current nor the new password is stored anywhere on this side; they go straight up in the body.
+
+export type PasswordState = { mustChangePassword: boolean };
+
+export const getPasswordState = () => authed<PasswordState>("/api/v1/super-admin/me/password");
+
+export const changeMyPassword = (input: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}) => authed<PasswordState>("/api/v1/super-admin/me/password", { method: "POST", body: json(input) });

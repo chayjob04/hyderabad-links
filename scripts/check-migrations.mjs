@@ -8,7 +8,10 @@
 // Rules enforced:
 //  1. Files are named S0001__short_description.sql, with an optional ".notx" before the extension
 //     for a migration that has to run outside a transaction (see MigrationRunner).
-//  2. Version numbers start at 1, have no gaps and no duplicates.
+//  2. Version numbers start at 1, have no gaps and no duplicates. A version is also allowed to be
+//     missing from this folder when a script of that number sits in ../manual, which holds the
+//     scripts DbUp must never run -- S0027, the finalising half of the identity split, is applied
+//     by hand after a deployment is verified, so it reserves its number without being here.
 //  3. No file is empty.
 //  4. Destructive statements (DROP TABLE/COLUMN/SCHEMA/DATABASE/TYPE, TRUNCATE, DELETE without WHERE,
 //     ALTER COLUMN ... TYPE) are rejected unless the file contains an approval comment:
@@ -133,13 +136,35 @@ export function checkMigrations(dir) {
     }
   }
 
+  /* Numbers reserved by ../manual. Those scripts are deliberately outside this folder (DbUp would
+     run them otherwise), but they still own their version, and a later migration must not reuse it
+     or the two would be impossible to tell apart in the journal and in conversation. */
+  const reserved = new Set();
+  const manualDir = path.join(dir, "..", "manual");
+  if (existsSync(manualDir)) {
+    for (const file of readdirSync(manualDir)) {
+      /* The double underscore is what distinguishes a migration of its own, like
+         S0027__customer_identity_finalise.sql, from a script belonging to one that is already in
+         the migrations folder, like S0026_down.sql -- that one shares S0026's number on purpose,
+         because it is S0026's rollback. */
+      const match = /^S(\d{4})__/.exec(file);
+      if (!match) continue;
+      const version = Number(match[1]);
+      reserved.add(version);
+      if (versions.includes(version)) {
+        problems.push(`${file}: version S${match[1]} is also used in the migrations folder.`);
+      }
+    }
+  }
+
   const seen = new Set();
   for (const v of versions) {
     if (seen.has(v)) problems.push(`Duplicate migration version ${String(v).padStart(4, "0")}.`);
     seen.add(v);
   }
-  const unique = [...seen].sort((a, b) => a - b);
-  unique.forEach((v, idx) => {
+  // Contiguous once the manual folder's reserved numbers are counted alongside this folder's.
+  const all = [...new Set([...seen, ...reserved])].sort((a, b) => a - b);
+  all.forEach((v, idx) => {
     if (v !== idx + 1) {
       problems.push(`Version gap or bad start: expected S${String(idx + 1).padStart(4, "0")} but found S${String(v).padStart(4, "0")}.`);
     }

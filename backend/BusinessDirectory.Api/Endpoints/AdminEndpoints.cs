@@ -23,6 +23,10 @@ public static class AdminEndpoints
     {
         var group = app.MapGroup("/api/v1/admin").RequireAuthorization(AdminAccess.Policy);
         group.MapGet("/me", GetMe);
+        /* Changing your own password. On this surface, not the super-admin one, because every
+           administrator must be able to do it -- and with no permission of its own, which is what
+           keeps it reachable while must_change_password blocks everything else (S0028). */
+        group.MapAdminPasswordEndpoints();
         group.MapAdminListingEndpoints();
         group.MapAdminTaxonomyEndpoints();   // categories, subcategories and Hyderabad's localities
         group.MapAdminSeoEndpoints();        // page titles, descriptions and indexing

@@ -80,6 +80,13 @@ public static class SuperAdminEndpoints
         group.MapPut("/admins/{id:long}/status", SetStatus);
         group.MapPost("/admins/{id:long}/reset-mfa", ResetMfa);
         group.MapGet("/audit", GetAudit);
+        // Creating, editing, resetting a password and ending sessions: the rest of Admin Accounts.
+        group.MapSuperAdminAccountEndpoints();
+        /* Changing your own password, mounted here as well as on /api/v1/admin. It has to be on
+           both: signing in on the super-admin tab keeps only the super-admin token, which the admin
+           surface refuses by audience, so a super admin could otherwise never reach it. The handler
+           acts on the id inside the token and nothing else, so mounting it twice grants nothing. */
+        group.MapAdminPasswordEndpoints();
         group.MapSuperAdminDirectoryEndpoints();  // category counts and business accounts
         group.MapSuperAdminListingEndpoints();   // add, correct, archive and delete listings
         group.MapSuperAdminHomepageGroupEndpoints();  // named shelves for the homepage
@@ -282,9 +289,15 @@ public static class SuperAdminEndpoints
             }
         }
 
-        // Taking the last super admin's own power away would leave nobody able to put it back, so it
-        // is refused. Checked inside the transaction, against the rows as they are about to be.
-        if (id == admin.Id && !wanted.Contains("super_admin"))
+        /* Taking the last super admin's power away would leave nobody able to put it back, so it is
+           refused. Checked inside the transaction, against the rows as they are about to be.
+
+           This used to fire only when you were editing yourself, which missed the case that
+           actually strands a platform: a super admin removing the role from the *other* super
+           admin and then losing their own account. The question asked is simply "would any active
+           super admin remain?", so it no longer matters whose account is being edited. An account
+           that does not hold the role cannot trip it: removing nothing leaves the count as it was. */
+        if (!wanted.Contains("super_admin"))
         {
             await using var others = new SqlCommand(
                 @"SELECT COUNT_BIG(*)
@@ -296,7 +309,9 @@ public static class SuperAdminEndpoints
             if ((long)(await others.ExecuteScalarAsync(ct))! == 0)
             {
                 return Results.Problem(
-                    "You are the only active super admin. Give someone else the role first.",
+                    id == admin.Id
+                        ? "You are the only active super admin. Give someone else the role first."
+                        : "That is the only active super admin. Give someone else the role first.",
                     statusCode: StatusCodes.Status409Conflict);
             }
         }
@@ -391,6 +406,27 @@ public static class SuperAdminEndpoints
 
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginSqlTransactionAsync(ct);
+
+        /* Disabling the last active super admin strands the platform exactly as removing the role
+           would, so it is refused for the same reason and in the same place — inside the
+           transaction, against the rows as they are about to be. Disabling somebody who is not a
+           super admin cannot trip it: the count of the others is unchanged. */
+        if (status == "disabled")
+        {
+            await using var others = new SqlCommand(
+                @"SELECT COUNT_BIG(*)
+                  FROM admin_user_roles aur
+                  JOIN roles r ON r.id = aur.role_id
+                  JOIN admin_users au ON au.id = aur.admin_user_id
+                  WHERE r.slug = 'super_admin' AND au.status = 'active' AND au.id <> @id", conn, tx);
+            others.Parameters.AddWithValue("id", id);
+            if ((long)(await others.ExecuteScalarAsync(ct))! == 0)
+            {
+                return Results.Problem(
+                    "That is the only active super admin. Make someone else one first.",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+        }
 
         await using (var update = new SqlCommand(
             "UPDATE admin_users SET status = @status, updated_at = SYSDATETIMEOFFSET() OUTPUT inserted.id WHERE id = @id", conn, tx))

@@ -18,6 +18,8 @@ const ITEMS: NavItem[] = [
   { href: "/super-admin/featured", label: "Featured", mark: "★" },
   { href: "/super-admin/admins", label: "Admin accounts", mark: "☺" },
   { href: "/super-admin/audit", label: "Audit log", mark: "⌗" },
+  // Reachable even while a temporary password blocks everything else, which is the point of it.
+  { href: "/super-admin/password", label: "My password", mark: "⚿" },
 ];
 
 export async function SuperAdminChrome({ children }: { children: React.ReactNode }) {

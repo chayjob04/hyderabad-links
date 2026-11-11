@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { checkMigrations, literalDropConstraints, stripSql } from "./check-migrations.mjs";
@@ -157,4 +157,71 @@ test("the real S0026 discovers every constraint it drops", () => {
   const dir = path.join(path.dirname(new URL(import.meta.url).pathname.slice(1)), "..", "database", "sqlserver", "migrations");
   const sql = readFileSync(path.join(dir, "S0026__customer_identity.sql"), "utf8");
   assert.deepEqual(literalDropConstraints(stripSql(sql)), []);
+});
+
+// ------------------------------------------------- reserved numbers in ../manual
+// S0027 is the finalising half of the identity split and is run by hand, so it lives outside the
+// migrations folder. It still owns its number: a later migration reusing it would be impossible to
+// tell apart in the journal.
+
+function withManual(migrations, manual, fn) {
+  const root = mkdtempSync(path.join(tmpdir(), "mig-root-"));
+  const dir = path.join(root, "migrations");
+  const manualDir = path.join(root, "manual");
+  try {
+    for (const d of [dir, manualDir]) mkdirSync(d);
+    for (const [name, sql] of Object.entries(migrations)) writeFileSync(path.join(dir, name), sql);
+    for (const [name, sql] of Object.entries(manual)) writeFileSync(path.join(manualDir, name), sql);
+    return fn(dir);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("a number held by ../manual fills the gap rather than failing", () => {
+  const problems = withManual(
+    {
+      "S0001__first.sql": "ALTER TABLE t ADD a int NULL;",
+      "S0003__third.sql": "ALTER TABLE t ADD c int NULL;",
+    },
+    { "S0002__done_by_hand.sql": "ALTER TABLE t ADD b int NULL;" },
+    (d) => checkMigrations(d),
+  );
+  assert.deepEqual(problems, []);
+});
+
+test("a gap that ../manual does not account for is still rejected", () => {
+  const problems = withManual(
+    { "S0001__first.sql": "ALTER TABLE t ADD a int NULL;", "S0003__third.sql": "ALTER TABLE t ADD c int NULL;" },
+    {},
+    (d) => checkMigrations(d),
+  );
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /expected S0002 but found S0003/);
+});
+
+test("the same number in both folders is rejected", () => {
+  const problems = withManual(
+    { "S0001__first.sql": "ALTER TABLE t ADD a int NULL;" },
+    { "S0001__also_first.sql": "ALTER TABLE t ADD b int NULL;" },
+    (d) => checkMigrations(d),
+  );
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /also used in the migrations folder/);
+});
+
+test("a rollback script does not reserve its migration's number", () => {
+  // S0026_down.sql belongs to S0026 and shares its number on purpose. One underscore, not two.
+  const problems = withManual(
+    { "S0001__first.sql": "ALTER TABLE t ADD a int NULL;" },
+    { "S0001_down.sql": "ALTER TABLE t DROP COLUMN a;", "README.md": "notes" },
+    (d) => checkMigrations(d),
+  );
+  assert.deepEqual(problems, []);
+});
+
+test("the real folders pass, with S0027 reserved by manual", () => {
+  const here = path.dirname(new URL(import.meta.url).pathname.slice(1));
+  const dir = path.join(here, "..", "database", "sqlserver", "migrations");
+  assert.deepEqual(checkMigrations(dir), []);
 });

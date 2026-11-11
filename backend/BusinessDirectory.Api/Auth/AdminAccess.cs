@@ -11,7 +11,19 @@ public sealed record AdminIdentity(
     string Email,
     string DisplayName,
     IReadOnlyList<string> Roles,
-    IReadOnlyList<string> Permissions)
+    IReadOnlyList<string> Permissions,
+    /// <summary>
+    /// True while the account is on a password somebody else chose for it -- set when the account
+    /// is created and when a super admin resets its password (S0028). While it is true the two
+    /// Authorize methods below refuse everything, so the only thing such a session can reach is the
+    /// endpoint that changes the password.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to false so that the many places constructing a fake identity in tests read as
+    /// "an ordinary account". The one real caller, <see cref="AdminAccess.Load"/>, always passes
+    /// the value it read from the database.
+    /// </remarks>
+    bool MustChangePassword = false)
 {
     public bool Can(string permission) => Permissions.Contains(permission);
 }
@@ -55,6 +67,7 @@ public static class AdminAccess
     private const string LoadSql =
         @"SELECT au.email,
                  au.display_name,
+                 au.must_change_password,
                  (SELECT STRING_AGG(x.slug, ',')
                   FROM (SELECT DISTINCT r.slug
                         FROM admin_user_roles aur
@@ -121,8 +134,9 @@ public static class AdminAccess
             adminUserId,
             reader.GetString(0),
             reader.GetString(1),
-            SplitList(reader, 2),
-            SplitList(reader, 3));
+            SplitList(reader, 3),
+            SplitList(reader, 4),
+            MustChangePassword: reader.GetBoolean(2));
     }
 
     /// <summary>
@@ -130,8 +144,31 @@ public static class AdminAccess
     /// A permission reserved for the super-admin surface is refused here even to someone who holds it:
     /// that capability must be reached with a super-admin token, not an admin one.
     /// </summary>
+    /// <summary>
+    /// The refusal every permission check starts with: an account still carrying a password
+    /// somebody else chose for it may do nothing until it chooses its own (S0028).
+    ///
+    /// It sits here, in the two gates, rather than in each handler, because here it cannot be
+    /// forgotten. The password-change endpoint deliberately does not call these methods -- it needs
+    /// no permission, since you can only ever change your own password -- so it stays reachable
+    /// while everything else is closed. MFA is untouched: this is checked after a session exists,
+    /// and a session only exists once the authenticator code was accepted.
+    /// </summary>
+    private static IResult? PasswordChangeRequired(AdminIdentity admin) =>
+        admin.MustChangePassword
+            ? Results.Problem(
+                "Change your password before continuing.",
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Password change required")
+            : null;
+
     public static IResult? Authorize(AdminIdentity admin, string permission)
     {
+        if (PasswordChangeRequired(admin) is { } mustChange)
+        {
+            return mustChange;
+        }
+
         if (!AdminPermissions.IsAdminSurface(permission) || !admin.Can(permission))
         {
             return Results.Problem("You do not have permission to do that.", statusCode: StatusCodes.Status403Forbidden);
@@ -146,6 +183,11 @@ public static class AdminAccess
     /// </summary>
     public static IResult? AuthorizeSuper(AdminIdentity admin, string permission)
     {
+        if (PasswordChangeRequired(admin) is { } mustChange)
+        {
+            return mustChange;
+        }
+
         /* Note the failure mode this has, which cost an afternoon on 2026-11-07: a handler that
            names a permission from the *other* surface is refused here identically to an account
            that simply does not hold it. /api/v1/super-admin/accounts required `users.view`, which

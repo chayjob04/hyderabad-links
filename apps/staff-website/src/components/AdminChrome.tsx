@@ -21,6 +21,8 @@ const ITEMS: NavItem[] = [
   { href: "/admin/locations", label: "Locations", mark: "⚑" },
   { href: "/admin/homepage/popular-categories", label: "Popular categories", mark: "◉" },
   { href: "/admin/homepage/scrolling-text", label: "Scrolling text", mark: "⇄" },
+  // Reachable even while a temporary password blocks everything else, which is the point of it.
+  { href: "/admin/password", label: "My password", mark: "⚿" },
 ];
 
 export async function AdminChrome({ children }: { children: React.ReactNode }) {
