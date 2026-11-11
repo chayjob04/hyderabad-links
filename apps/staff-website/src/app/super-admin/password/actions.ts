@@ -1,6 +1,7 @@
 "use server";
 
 import { changeMyPassword } from "@/lib/super-admin-api";
+import type { ChangePasswordState } from "./password-state";
 
 /**
  * Changing your own password from the super-admin surface. The admin surface has its own copy
@@ -8,15 +9,10 @@ import { changeMyPassword } from "@/lib/super-admin-api";
  *
  * Nothing here keeps a password. Both values go straight into the request body and the state that
  * comes back carries only whether it worked.
+ *
+ * The state type and the initial state are in password-state.ts, because a "use server" file may
+ * export nothing but async functions.
  */
-export type ChangePasswordState = {
-  message?: string;
-  success?: boolean;
-  fieldErrors: Record<string, string>;
-};
-
-export const emptyPasswordState: ChangePasswordState = { fieldErrors: {} };
-
 export async function changePasswordAction(
   _previous: ChangePasswordState,
   formData: FormData,

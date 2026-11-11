@@ -34,7 +34,7 @@ async function refreshPublicPages(listingId: number): Promise<void> {
 
 async function done(listingId: number, screen: string, message: string): Promise<never> {
   await refreshPublicPages(listingId);
-  const path = `/listings/${listingId}/${screen}`;
+  const path = `/super-admin/listings/${listingId}/${screen}`;
   revalidatePath(path);
   redirect(`${path}?done=${encodeURIComponent(message)}`);
 }

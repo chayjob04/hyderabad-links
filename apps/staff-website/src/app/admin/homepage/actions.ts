@@ -28,10 +28,10 @@ function fail(path: string, message: string): never {
 
 export async function togglePopularAction(id: number, isPopular: boolean): Promise<void> {
   const result = await setCategoryPopular(id, isPopular);
-  if (!result.ok) fail("/homepage/popular-categories", result.message);
+  if (!result.ok) fail("/admin/homepage/popular-categories", result.message);
 
   await back(
-    "/homepage/popular-categories",
+    "/admin/homepage/popular-categories",
     isPopular ? "Added to the homepage." : "Removed from the homepage.",
   );
 }
@@ -40,13 +40,13 @@ export async function moveCategoryAction(formData: FormData): Promise<void> {
   const id = Number.parseInt(String(formData.get("id") ?? ""), 10);
   const sortOrder = Number.parseInt(String(formData.get("sortOrder") ?? ""), 10);
   if (!Number.isSafeInteger(id) || !Number.isSafeInteger(sortOrder)) {
-    fail("/homepage/popular-categories", "That position is not a number.");
+    fail("/admin/homepage/popular-categories", "That position is not a number.");
   }
 
   const result = await setCategorySortOrder(id, sortOrder);
-  if (!result.ok) fail("/homepage/popular-categories", result.message);
+  if (!result.ok) fail("/admin/homepage/popular-categories", result.message);
 
-  await back("/homepage/popular-categories", "Order saved.");
+  await back("/admin/homepage/popular-categories", "Order saved.");
 }
 
 export async function addLineAction(formData: FormData): Promise<void> {
@@ -60,22 +60,22 @@ export async function addLineAction(formData: FormData): Promise<void> {
     Number.isSafeInteger(sortOrder) ? sortOrder : 0,
   );
   if (!result.ok) {
-    fail("/homepage/scrolling-text", Object.values(result.fieldErrors)[0] ?? result.message);
+    fail("/admin/homepage/scrolling-text", Object.values(result.fieldErrors)[0] ?? result.message);
   }
 
-  await back("/homepage/scrolling-text", "Added.");
+  await back("/admin/homepage/scrolling-text", "Added.");
 }
 
 export async function toggleLineAction(id: number, isActive: boolean): Promise<void> {
   const result = await setScrollingTextActive(id, isActive);
-  if (!result.ok) fail("/homepage/scrolling-text", result.message);
+  if (!result.ok) fail("/admin/homepage/scrolling-text", result.message);
 
-  await back("/homepage/scrolling-text", isActive ? "Switched on." : "Switched off.");
+  await back("/admin/homepage/scrolling-text", isActive ? "Switched on." : "Switched off.");
 }
 
 export async function deleteLineAction(id: number): Promise<void> {
   const result = await deleteScrollingText(id);
-  if (!result.ok) fail("/homepage/scrolling-text", result.message);
+  if (!result.ok) fail("/admin/homepage/scrolling-text", result.message);
 
-  await back("/homepage/scrolling-text", "Removed.");
+  await back("/admin/homepage/scrolling-text", "Removed.");
 }

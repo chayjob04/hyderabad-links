@@ -114,7 +114,7 @@ export default async function ListingsBySubcategoryPage({ searchParams }: Props)
                 <tr key={row.slug} className={row.activeCount === 0 ? "bg-amber-50/40" : undefined}>
                   <th scope="row" className="px-4 py-3 font-semibold">
                     <Link
-                      href={`/listings/by-subcategory/${row.slug}`}
+                      href={`/super-admin/listings/by-subcategory/${row.slug}`}
                       className="text-brand-700 hover:underline"
                     >
                       {row.name}

@@ -98,7 +98,7 @@ export default async function FeaturedPage({ searchParams }: Props) {
                     <div className="min-w-0">
                       <p className="font-semibold text-neutral-900">
                         <span className="mr-2 text-neutral-400">{index + 1}.</span>
-                        <Link href={`/listings/${row.id}`} className="underline-offset-2 hover:underline">
+                        <Link href={`/super-admin/listings/${row.id}`} className="underline-offset-2 hover:underline">
                           {row.name}
                         </Link>
                       </p>

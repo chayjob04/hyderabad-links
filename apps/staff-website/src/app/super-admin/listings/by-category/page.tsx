@@ -97,7 +97,7 @@ export default async function ListingsByCategoryPage() {
               <tr key={row.slug} className={row.activeCount === 0 ? "bg-amber-50/40" : undefined}>
                 <th scope="row" className="px-4 py-3 font-semibold">
                   <Link
-                    href={`/listings/by-category/${row.slug}`}
+                    href={`/super-admin/listings/by-category/${row.slug}`}
                     className="text-brand-700 hover:underline"
                   >
                     {row.name}

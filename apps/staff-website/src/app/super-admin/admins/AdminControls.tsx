@@ -5,13 +5,15 @@ import type { AdminRow } from "@/lib/super-admin-api";
 import {
   createAdminAction,
   editAdminAction,
-  emptyCreateState,
   resetPasswordAction,
   revokeSessionsAction,
+} from "./account-actions";
+import {
+  emptyCreateState,
   type CreateAdminState,
   type EditAdminState,
   type ResetPasswordState,
-} from "./account-actions";
+} from "./account-state";
 
 /**
  * The interactive parts of Admin Accounts: the Create modal, the edit and reset forms inside the

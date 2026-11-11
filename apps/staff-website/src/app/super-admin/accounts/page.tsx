@@ -42,7 +42,7 @@ export default async function AccountsPage({ searchParams }: Props) {
     if (q) params.set("q", q);
     if (status) params.set("status", status);
     params.set("page", String(target));
-    return `/accounts?${params}`;
+    return `/super-admin/accounts?${params}`;
   };
 
   return (
@@ -113,7 +113,7 @@ export default async function AccountsPage({ searchParams }: Props) {
                 {result.data.items.map((account) => (
                   <tr key={account.id}>
                     <th scope="row" className="px-4 py-3 font-semibold">
-                      <Link href={`/accounts/${account.id}`} className="text-brand-700 hover:underline">
+                      <Link href={`/super-admin/accounts/${account.id}`} className="text-brand-700 hover:underline">
                         {/* An account can legitimately have no name: sign-in is by phone, and the
                             name is asked for later. The phone is the identity, so it stands in. */}
                         {account.name?.trim() || account.phoneE164}

@@ -31,7 +31,7 @@ export default async function ModerationQueuePage({ searchParams }: Props) {
           return (
             <Link
               key={value}
-              href={`/listings?status=${value}`}
+              href={`/admin/listings?status=${value}`}
               aria-current={selected ? "page" : undefined}
               className={
                 selected
@@ -81,7 +81,7 @@ export default async function ModerationQueuePage({ searchParams }: Props) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="text-base font-semibold">
-                      <Link href={`/listings/${listing.id}`} className="text-brand-900 underline-offset-2 hover:underline">
+                      <Link href={`/admin/listings/${listing.id}`} className="text-brand-900 underline-offset-2 hover:underline">
                         {listing.name}
                       </Link>
                     </h2>
@@ -110,7 +110,7 @@ export default async function ModerationQueuePage({ searchParams }: Props) {
                     Submitted {formatWhen(listing.createdAt)} &middot; last change {formatWhen(listing.updatedAt)}
                   </p>
                   <Link
-                    href={`/listings/${listing.id}`}
+                    href={`/admin/listings/${listing.id}`}
                     className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
                   >
                     {listing.status === "pending_review" ? "Review" : "Open"}
@@ -120,7 +120,7 @@ export default async function ModerationQueuePage({ searchParams }: Props) {
             ))}
           </ul>
 
-          <Pagination page={result.data.page} totalPages={result.data.totalPages} params={{ status }} basePath="/listings" />
+          <Pagination page={result.data.page} totalPages={result.data.totalPages} params={{ status }} basePath="/admin/listings" />
         </>
       )}
     </main>

@@ -45,7 +45,7 @@ export default async function ReportsPage({ searchParams }: Props) {
           return (
             <Link
               key={value}
-              href={`/reports?status=${value}`}
+              href={`/admin/reports?status=${value}`}
               aria-current={selected ? "page" : undefined}
               className={
                 selected
@@ -115,7 +115,7 @@ export default async function ReportsPage({ searchParams }: Props) {
                 {report.subjectType === "listing" ? (
                   <p className="mt-3">
                     <Link
-                      href={`/listings/${report.subjectId}`}
+                      href={`/admin/listings/${report.subjectId}`}
                       className="text-sm font-medium text-brand-700 underline-offset-2 hover:underline"
                     >
                       Open the listing &rarr;
@@ -147,7 +147,7 @@ export default async function ReportsPage({ searchParams }: Props) {
             page={result.data.page}
             totalPages={result.data.totalPages}
             params={{ status }}
-            basePath="/reports"
+            basePath="/admin/reports"
           />
         </>
       )}

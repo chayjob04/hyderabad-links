@@ -50,7 +50,7 @@ export default async function ReviewModerationPage({ searchParams }: Props) {
           return (
             <Link
               key={value}
-              href={`/reviews?status=${value}`}
+              href={`/admin/reviews?status=${value}`}
               aria-current={selected ? "page" : undefined}
               className={
                 selected
@@ -131,7 +131,7 @@ export default async function ReviewModerationPage({ searchParams }: Props) {
             page={result.data.page}
             totalPages={result.data.totalPages}
             params={{ status }}
-            basePath="/reviews"
+            basePath="/admin/reviews"
           />
         </>
       )}

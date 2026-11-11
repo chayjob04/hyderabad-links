@@ -33,7 +33,7 @@ export default async function ListingsPage({ searchParams }: Props) {
   if (q) params.set("q", q);
   if (status) params.set("status", status);
   if (rawPage) params.set("page", rawPage);
-  const returnTo = params.size > 0 ? `/listings?${params}` : "/listings";
+  const returnTo = params.size > 0 ? `/super-admin/listings?${params}` : "/super-admin/listings";
 
   const [result, me] = await Promise.all([
     listListings({ q, status, page: Number.isSafeInteger(page) && page > 0 ? page : 1 }),
@@ -124,7 +124,7 @@ export default async function ListingsPage({ searchParams }: Props) {
                 <li key={listing.id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <Link href={`/listings/${listing.id}`} className="font-semibold text-neutral-900 underline-offset-2 hover:underline">
+                      <Link href={`/super-admin/listings/${listing.id}`} className="font-semibold text-neutral-900 underline-offset-2 hover:underline">
                         {listing.name}
                       </Link>
                       <p className="mt-1 text-sm text-neutral-600">
@@ -182,7 +182,7 @@ function Pager({
     if (q) query.set("q", q);
     if (status) query.set("status", status);
     query.set("page", String(target));
-    return `/listings?${query.toString()}`;
+    return `/super-admin/listings?${query.toString()}`;
   };
 
   return (

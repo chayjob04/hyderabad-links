@@ -31,7 +31,7 @@ export default async function AuditPage({ searchParams }: Props) {
       if (value) query.set(key, value);
     }
     const suffix = query.toString();
-    return "/audit" + (suffix ? "?" + suffix : "");
+    return "/super-admin/audit" + (suffix ? "?" + suffix : "");
   };
 
   return (

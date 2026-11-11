@@ -23,7 +23,7 @@ export async function setAccountStatusAction(
   revalidatePath(`/super-admin/accounts/${id}`);
   revalidatePath("/super-admin/accounts");
   redirect(
-    `/accounts/${id}?done=${encodeURIComponent(
+    `/super-admin/accounts/${id}?done=${encodeURIComponent(
       status === "suspended" ? "Account suspended." : "Account reinstated.",
     )}`,
   );

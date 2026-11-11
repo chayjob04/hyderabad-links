@@ -150,7 +150,7 @@ export async function setFeaturedAction(listingId: number, formData: FormData): 
      site is accepted: a returnTo read from the form is caller-supplied, and following an arbitrary
      one would be an open redirect. */
   const raw = String(formData.get("returnTo") ?? "");
-  const returnTo = raw.startsWith("/") && !raw.startsWith("//") ? raw : `/listings/${listingId}`;
+  const returnTo = raw.startsWith("/") && !raw.startsWith("//") ? raw : `/super-admin/listings/${listingId}`;
   const joiner = returnTo.includes("?") ? "&" : "?";
 
   const result = featuring ? await featureListing(listingId) : await unfeatureListing(listingId);

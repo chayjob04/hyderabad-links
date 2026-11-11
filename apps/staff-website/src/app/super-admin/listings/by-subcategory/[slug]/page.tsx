@@ -76,7 +76,7 @@ export default async function SubcategoryDrillPage({ params, searchParams }: Pro
           <>
             In{" "}
             <Link
-              href={`/listings/by-category/${subcategory.parentSlug}`}
+              href={`/super-admin/listings/by-category/${subcategory.parentSlug}`}
               className="font-semibold text-brand-700 hover:underline"
             >
               {subcategory.parentName}
@@ -105,7 +105,7 @@ export default async function SubcategoryDrillPage({ params, searchParams }: Pro
                 <li key={listing.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <Link
-                      href={`/listings/${listing.id}`}
+                      href={`/super-admin/listings/${listing.id}`}
                       className="font-semibold text-brand-700 hover:underline"
                     >
                       {listing.name}
@@ -133,7 +133,7 @@ export default async function SubcategoryDrillPage({ params, searchParams }: Pro
             <nav className="mt-6 flex items-center justify-between gap-4" aria-label="Pages">
               {currentPage > 1 ? (
                 <Link
-                  href={`/listings/by-subcategory/${slug}?page=${currentPage - 1}`}
+                  href={`/super-admin/listings/by-subcategory/${slug}?page=${currentPage - 1}`}
                   className="font-semibold text-brand-700 hover:underline"
                 >
                   &larr; Previous
@@ -146,7 +146,7 @@ export default async function SubcategoryDrillPage({ params, searchParams }: Pro
               </span>
               {currentPage < listings.data.totalPages ? (
                 <Link
-                  href={`/listings/by-subcategory/${slug}?page=${currentPage + 1}`}
+                  href={`/super-admin/listings/by-subcategory/${slug}?page=${currentPage + 1}`}
                   className="font-semibold text-brand-700 hover:underline"
                 >
                   Next &rarr;

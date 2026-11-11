@@ -7,6 +7,12 @@ import {
   resetAdminPassword,
   revokeAdminSessions,
 } from "@/lib/super-admin-api";
+import type {
+  CreateAdminState,
+  EditAdminState,
+  ResetPasswordState,
+  RevokeState,
+} from "./account-state";
 
 /**
  * The Admin Accounts actions that are new with S0028: create, edit, reset a password and end
@@ -15,21 +21,10 @@ import {
  * A temporary password is returned by the API once and carried back to the screen in this state
  * object, which lives for one render. It is never written to a cookie, a log or the audit trail —
  * the super admin reads it, passes it on, and it is gone on the next navigation.
+ *
+ * The state types and the initial state are in account-state.ts, because a "use server" file may
+ * export nothing but async functions.
  */
-
-export type CreateAdminState = {
-  values: { email: string; displayName: string; role: string };
-  message?: string;
-  fieldErrors: Record<string, string>;
-  /** Shown once, immediately after creation. */
-  temporaryPassword?: string;
-  createdName?: string;
-};
-
-export const emptyCreateState: CreateAdminState = {
-  values: { email: "", displayName: "", role: "admin" },
-  fieldErrors: {},
-};
 
 export async function createAdminAction(
   _previous: CreateAdminState,
@@ -50,19 +45,12 @@ export async function createAdminAction(
 
   revalidatePath("/super-admin/admins");
   return {
-    values: emptyCreateState.values,
+    values: { email: "", displayName: "", role: "admin" },
     fieldErrors: {},
     temporaryPassword: result.data.temporaryPassword,
     createdName: values.displayName,
   };
 }
-
-export type EditAdminState = {
-  values: { email: string; displayName: string };
-  message?: string;
-  success?: boolean;
-  fieldErrors: Record<string, string>;
-};
 
 export async function editAdminAction(
   adminId: number,
@@ -83,13 +71,6 @@ export async function editAdminAction(
   return { values, success: true, message: "Details saved.", fieldErrors: {} };
 }
 
-export type ResetPasswordState = {
-  message?: string;
-  fieldErrors: Record<string, string>;
-  /** Shown once, immediately after the reset. */
-  temporaryPassword?: string;
-};
-
 export async function resetPasswordAction(
   adminId: number,
   _previous: ResetPasswordState,
@@ -106,8 +87,6 @@ export async function resetPasswordAction(
   revalidatePath("/super-admin/admins");
   return { fieldErrors: {}, temporaryPassword: result.data.temporaryPassword };
 }
-
-export type RevokeState = { message?: string; success?: boolean };
 
 export async function revokeSessionsAction(adminId: number): Promise<RevokeState> {
   const result = await revokeAdminSessions(adminId);

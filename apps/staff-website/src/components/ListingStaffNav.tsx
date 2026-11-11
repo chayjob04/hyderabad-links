@@ -32,7 +32,7 @@ export function ListingStaffNav({
         return (
           <Link
             key={screen.key}
-            href={`/listings/${listingId}${screen.path}`}
+            href={`/super-admin/listings/${listingId}${screen.path}`}
             aria-current={active ? "page" : undefined}
             className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
               active ?

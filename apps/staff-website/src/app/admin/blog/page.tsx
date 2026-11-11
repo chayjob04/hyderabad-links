@@ -58,7 +58,7 @@ export default async function BlogListPage({ searchParams }: Props) {
               className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm"
             >
               <div className="min-w-0">
-                <Link href={`/blog/${post.id}`} className="font-semibold text-neutral-900 underline-offset-2 hover:underline">
+                <Link href={`/admin/blog/${post.id}`} className="font-semibold text-neutral-900 underline-offset-2 hover:underline">
                   {post.title}
                 </Link>
                 <p className="mt-1 text-xs text-neutral-500">

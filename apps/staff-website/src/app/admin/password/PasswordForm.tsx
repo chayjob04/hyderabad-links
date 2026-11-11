@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { changePasswordAction, emptyPasswordState, type ChangePasswordState } from "./actions";
+import { changePasswordAction } from "./actions";
+import { emptyPasswordState, type ChangePasswordState } from "./password-state";
 
 const input =
   "mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100";

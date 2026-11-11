@@ -134,7 +134,7 @@ export default async function AccountPage({ params, searchParams }: Props) {
               return (
                 <li key={listing.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                   <Link
-                    href={`/listings/${listing.id}`}
+                    href={`/super-admin/listings/${listing.id}`}
                     className="min-w-0 flex-1 font-semibold text-brand-700 hover:underline"
                   >
                     {listing.name}
