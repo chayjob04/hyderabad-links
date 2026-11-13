@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Pagination } from "@/components/Pagination";
+import { EmptyState, FilterTabs } from "@/components/minia/FilterTabs";
+import { PageTitle } from "@/components/minia/PageTitle";
 import {
   PERMISSION_REPORTS,
   REPORT_REASON_LABELS,
@@ -22,6 +24,13 @@ const STATUS_LABEL: Record<string, string> = {
   dismissed: "Dismissed",
 };
 
+/**
+ * The report queue, on the original's Minia layout.
+ *
+ * Like the review queue, each entry carries prose — the reporter's own words, and often the review
+ * being complained about — so it stays a block rather than a table row. The quote keeps its left
+ * rule, as a `blockquote` with the theme's border utilities.
+ */
 export default async function ReportsPage({ searchParams }: Props) {
   const { status: rawStatus, page: rawPage, decided } = await searchParams;
 
@@ -32,125 +41,121 @@ export default async function ReportsPage({ searchParams }: Props) {
   const mayHandle = me.ok && me.data.permissions.includes(PERMISSION_REPORTS);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-8 pb-12">
-      <h1 className="text-2xl font-bold">Reports</h1>
-      <p className="mt-1 text-neutral-600">
-        Anyone can report a listing or a published review, with or without an account. Closing a
-        report does not change the listing: suspend it or reject the review separately.
-      </p>
+    <>
+      <PageTitle title="Reports" breadcrumb={[{ label: "Listings" }, { label: STATUS_LABEL[status] ?? "Reports" }]} />
 
-      <nav aria-label="Filter by status" className="mt-5 flex flex-wrap gap-2">
-        {REPORT_STATUSES.map((value) => {
-          const selected = value === status;
-          return (
-            <Link
-              key={value}
-              href={`/admin/reports?status=${value}`}
-              aria-current={selected ? "page" : undefined}
-              className={
-                selected
-                  ? "rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white"
-                  : "rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-              }
-            >
-              {STATUS_LABEL[value]}
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="row mb-3">
+        <div className="col-12">
+          <div className="card">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Reported listings and reviews</h4>
+              <p className="card-title-desc mb-3">
+                Anyone can report a listing or a published review, with or without an account.
+                Closing a report does not change the listing: suspend it or reject the review
+                separately.
+              </p>
 
-      {decided ? (
-        <p role="status" className="mt-5 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-900">
-          Report closed.
-        </p>
-      ) : null}
+              <FilterTabs
+                tabs={REPORT_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] ?? value }))}
+                current={status}
+                hrefFor={(value) => `/admin/reports?status=${value}`}
+              />
 
-      {!result.ok ? (
-        <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
-          {result.status === 403 ? "Your account does not have permission to handle reports." : result.message}
-        </p>
-      ) : result.data.items.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center">
-          <h2 className="text-lg font-semibold">
-            {status === "open" ? "Nothing has been reported" : `No ${STATUS_LABEL[status]!.toLowerCase()} reports`}
-          </h2>
-          <p className="mt-1 text-neutral-600">
-            {result.data.total > 0 ? "That page is past the end of the list." : "Reports appear here as they come in."}
-          </p>
-        </div>
-      ) : (
-        <>
-          <p className="mt-6 text-sm text-neutral-600">
-            {result.data.total} {result.data.total === 1 ? "report" : "reports"}
-          </p>
-
-          <ul className="mt-3 space-y-4">
-            {result.data.items.map((report) => (
-              <li key={report.id} className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-semibold">{report.subjectName}</h2>
-                    <p className="mt-0.5 text-sm text-neutral-600">
-                      {report.subjectType === "listing" ? "A listing" : "A review"} &middot;{" "}
-                      {formatWhen(report.createdAt)}
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-lg bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-900">
-                    {REPORT_REASON_LABELS[report.reason] ?? report.reason}
-                  </span>
+              {decided ? (
+                <div role="status" className="alert alert-success">
+                  Report closed.
                 </div>
+              ) : null}
 
-                {report.details ? (
-                  <p className="mt-3 text-[15px] leading-relaxed whitespace-pre-line text-neutral-800">
-                    {report.details}
+              {!result.ok ? (
+                <div role="alert" className="alert alert-danger mb-0">
+                  {result.status === 403
+                    ? "Your account does not have permission to handle reports."
+                    : result.message}
+                </div>
+              ) : result.data.items.length === 0 ? (
+                <EmptyState
+                  icon="bx bx-flag"
+                  title={
+                    status === "open"
+                      ? "Nothing has been reported"
+                      : `No ${STATUS_LABEL[status]!.toLowerCase()} reports`
+                  }
+                >
+                  {result.data.total > 0
+                    ? "That page is past the end of the list."
+                    : "Reports appear here as they come in."}
+                </EmptyState>
+              ) : (
+                <>
+                  <p className="text-muted font-size-13">
+                    {result.data.total} {result.data.total === 1 ? "report" : "reports"}
                   </p>
-                ) : null}
 
-                {report.reviewBody ? (
-                  <blockquote className="mt-3 border-l-4 border-neutral-200 pl-3 text-[15px] leading-relaxed whitespace-pre-line text-neutral-700">
-                    {report.reviewBody}
-                  </blockquote>
-                ) : null}
+                  {result.data.items.map((report) => (
+                    <div key={report.id} className="border rounded p-3 mb-3">
+                      <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                        <div className="min-w-0">
+                          <h5 className="font-size-15 mb-1">{report.subjectName}</h5>
+                          <p className="text-muted font-size-13 mb-0">
+                            {report.subjectType === "listing" ? "A listing" : "A review"} &middot;{" "}
+                            {formatWhen(report.createdAt)}
+                          </p>
+                        </div>
+                        <span className="badge bg-warning-subtle text-warning font-size-13">
+                          {REPORT_REASON_LABELS[report.reason] ?? report.reason}
+                        </span>
+                      </div>
 
-                {report.subjectType === "listing" ? (
-                  <p className="mt-3">
-                    <Link
-                      href={`/admin/listings/${report.subjectId}`}
-                      className="text-sm font-medium text-brand-700 underline-offset-2 hover:underline"
-                    >
-                      Open the listing &rarr;
-                    </Link>
-                  </p>
-                ) : (
-                  <p className="mt-3">
-                    <Link
-                      href="/admin/reviews?status=approved"
-                      className="text-sm font-medium text-brand-700 underline-offset-2 hover:underline"
-                    >
-                      Open the published reviews &rarr;
-                    </Link>
-                  </p>
-                )}
+                      {report.details ? (
+                        <p className="mt-3 mb-0" style={{ whiteSpace: "pre-line" }}>
+                          {report.details}
+                        </p>
+                      ) : null}
 
-                {report.resolutionNote ? (
-                  <p className="mt-3 rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
-                    <span className="font-semibold">Outcome:</span> {report.resolutionNote}
-                  </p>
-                ) : null}
+                      {report.reviewBody ? (
+                        <blockquote
+                          className="border-start border-3 ps-3 mt-3 mb-0 text-muted"
+                          style={{ whiteSpace: "pre-line" }}
+                        >
+                          {report.reviewBody}
+                        </blockquote>
+                      ) : null}
 
-                {status === "open" && mayHandle ? <ReportDecision reportId={report.id} /> : null}
-              </li>
-            ))}
-          </ul>
+                      <p className="mt-3 mb-0">
+                        {report.subjectType === "listing" ? (
+                          <Link href={`/admin/listings/${report.subjectId}`} className="font-size-13">
+                            Open the listing &rarr;
+                          </Link>
+                        ) : (
+                          <Link href="/admin/reviews?status=approved" className="font-size-13">
+                            Open the published reviews &rarr;
+                          </Link>
+                        )}
+                      </p>
 
-          <Pagination
-            page={result.data.page}
-            totalPages={result.data.totalPages}
-            params={{ status }}
-            basePath="/admin/reports"
-          />
-        </>
-      )}
-    </main>
+                      {report.resolutionNote ? (
+                        <div className="alert alert-light border mt-3 mb-0 py-2 px-3 font-size-13">
+                          <span className="fw-semibold">Outcome:</span> {report.resolutionNote}
+                        </div>
+                      ) : null}
+
+                      {status === "open" && mayHandle ? <ReportDecision reportId={report.id} /> : null}
+                    </div>
+                  ))}
+
+                  <Pagination
+                    page={result.data.page}
+                    totalPages={result.data.totalPages}
+                    params={{ status }}
+                    basePath="/admin/reports"
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

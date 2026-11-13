@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Pagination } from "@/components/Pagination";
+import { EmptyState, FilterTabs } from "@/components/minia/FilterTabs";
+import { PageTitle } from "@/components/minia/PageTitle";
 import {
   PERMISSION_REPORTS,
   REVIEW_STATUSES,
@@ -26,6 +27,14 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: "Rejected",
 };
 
+/**
+ * The review queue, on the original's Minia layout.
+ *
+ * A review is a paragraph of prose with a decision attached, so it stays a list of blocks rather
+ * than becoming a table — a table would either clip the text or make the rows unreadably tall. The
+ * blocks are the theme's own bordered panels, and the whole queue sits in one card the way the
+ * original's moderation screens do.
+ */
 export default async function ReviewModerationPage({ searchParams }: Props) {
   const { status: rawStatus, page: rawPage, decided } = await searchParams;
 
@@ -37,104 +46,102 @@ export default async function ReviewModerationPage({ searchParams }: Props) {
   const mayModerate = me.ok && me.data.permissions.includes(PERMISSION_REPORTS);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-8 pb-12">
-      <h1 className="text-2xl font-bold">Reviews</h1>
-      <p className="mt-1 text-neutral-600">
-        Customers write reviews from a listing page. Nothing appears on the site until someone
-        approves it here.
-      </p>
+    <>
+      <PageTitle title="Reviews" breadcrumb={[{ label: "Listings" }, { label: STATUS_LABEL[status] ?? "Reviews" }]} />
 
-      <nav aria-label="Filter by status" className="mt-5 flex flex-wrap gap-2">
-        {REVIEW_STATUSES.map((value) => {
-          const selected = value === status;
-          return (
-            <Link
-              key={value}
-              href={`/admin/reviews?status=${value}`}
-              aria-current={selected ? "page" : undefined}
-              className={
-                selected
-                  ? "rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white"
-                  : "rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-              }
-            >
-              {STATUS_LABEL[value]}
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="row mb-3">
+        <div className="col-12">
+          <div className="card">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Review moderation</h4>
+              <p className="card-title-desc mb-3">
+                Customers write reviews from a listing page. Nothing appears on the site until
+                someone approves it here.
+              </p>
 
-      {decided ? (
-        <p role="status" className="mt-5 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-900">
-          {decided === "approved"
-            ? "Review approved. It is on the listing page now."
-            : "Review rejected. The reviewer can see your reason."}
-        </p>
-      ) : null}
+              <FilterTabs
+                tabs={REVIEW_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] ?? value }))}
+                current={status}
+                hrefFor={(value) => `/admin/reviews?status=${value}`}
+              />
 
-      {!result.ok ? (
-        <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
-          {result.status === 403
-            ? "Your account does not have permission to moderate reviews."
-            : result.message}
-        </p>
-      ) : result.data.items.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center">
-          <h2 className="text-lg font-semibold">
-            {status === "pending" ? "Nothing is waiting for review" : `No ${STATUS_LABEL[status]!.toLowerCase()} reviews`}
-          </h2>
-          <p className="mt-1 text-neutral-600">
-            {result.data.total > 0
-              ? "That page is past the end of the list."
-              : status === "pending"
-                ? "New reviews appear here as soon as a customer writes one."
-                : "Try another status."}
-          </p>
-        </div>
-      ) : (
-        <>
-          <p className="mt-6 text-sm text-neutral-600">
-            {result.data.total} {result.data.total === 1 ? "review" : "reviews"}
-          </p>
-
-          <ul className="mt-3 space-y-4">
-            {result.data.items.map((review) => (
-              <li key={review.id} className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-base font-semibold">{review.listingName}</h2>
-                    <p className="mt-0.5 text-sm text-neutral-600">
-                      {maskPhone(review.reviewerPhone)} &middot; {formatWhen(review.createdAt)}
-                    </p>
-                  </div>
-                  <span
-                    aria-label={`${review.rating} out of 5`}
-                    className="shrink-0 rounded-lg bg-brand-50 px-3 py-1 text-sm font-bold text-brand-900"
-                  >
-                    {review.rating} / 5
-                  </span>
+              {decided ? (
+                <div role="status" className="alert alert-success">
+                  {decided === "approved"
+                    ? "Review approved. It is on the listing page now."
+                    : "Review rejected. The reviewer can see your reason."}
                 </div>
+              ) : null}
 
-                <p className="mt-3 text-[15px] leading-relaxed whitespace-pre-line text-neutral-800">{review.body}</p>
-
-                {status === "pending" && mayModerate ? <ReviewDecision reviewId={review.id} /> : null}
-                {status === "pending" && !mayModerate ? (
-                  <p className="mt-4 border-t border-neutral-200 pt-4 text-sm text-neutral-600">
-                    Your account can see this queue but not decide on it.
+              {!result.ok ? (
+                <div role="alert" className="alert alert-danger mb-0">
+                  {result.status === 403
+                    ? "Your account does not have permission to moderate reviews."
+                    : result.message}
+                </div>
+              ) : result.data.items.length === 0 ? (
+                <EmptyState
+                  icon="bx bx-star"
+                  title={
+                    status === "pending"
+                      ? "Nothing is waiting for review"
+                      : `No ${STATUS_LABEL[status]!.toLowerCase()} reviews`
+                  }
+                >
+                  {result.data.total > 0
+                    ? "That page is past the end of the list."
+                    : status === "pending"
+                      ? "New reviews appear here as soon as a customer writes one."
+                      : "Try another status."}
+                </EmptyState>
+              ) : (
+                <>
+                  <p className="text-muted font-size-13">
+                    {result.data.total} {result.data.total === 1 ? "review" : "reviews"}
                   </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
 
-          <Pagination
-            page={result.data.page}
-            totalPages={result.data.totalPages}
-            params={{ status }}
-            basePath="/admin/reviews"
-          />
-        </>
-      )}
-    </main>
+                  {result.data.items.map((review) => (
+                    <div key={review.id} className="border rounded p-3 mb-3">
+                      <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                        <div className="min-w-0">
+                          <h5 className="font-size-15 mb-1">{review.listingName}</h5>
+                          <p className="text-muted font-size-13 mb-0">
+                            {maskPhone(review.reviewerPhone)} &middot; {formatWhen(review.createdAt)}
+                          </p>
+                        </div>
+                        <span
+                          aria-label={`${review.rating} out of 5`}
+                          className="badge bg-primary-subtle text-primary font-size-13"
+                        >
+                          {review.rating} / 5
+                        </span>
+                      </div>
+
+                      <p className="mt-3 mb-0" style={{ whiteSpace: "pre-line" }}>
+                        {review.body}
+                      </p>
+
+                      {status === "pending" && mayModerate ? <ReviewDecision reviewId={review.id} /> : null}
+                      {status === "pending" && !mayModerate ? (
+                        <p className="text-muted font-size-13 border-top mt-3 pt-3 mb-0">
+                          Your account can see this queue but not decide on it.
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+
+                  <Pagination
+                    page={result.data.page}
+                    totalPages={result.data.totalPages}
+                    params={{ status }}
+                    basePath="/admin/reviews"
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
