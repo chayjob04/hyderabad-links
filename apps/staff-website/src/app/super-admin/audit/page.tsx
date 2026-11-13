@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SuperAdminChrome } from "@/components/SuperAdminChrome";
+import { PageTitle } from "@/components/minia/PageTitle";
 import { formatWhen, getAudit } from "@/lib/super-admin-api";
 
 export const metadata: Metadata = { title: "Audit log" };
@@ -17,6 +18,9 @@ const ENTITY_TYPES = ["listing", "review", "report", "admin_user"];
  * Read-only on purpose: nothing here can be edited or deleted from the application, which is what
  * makes it worth reading. An entry whose admin account has since been removed shows no name, because
  * the entry outlives the account.
+ *
+ * Presented on the original theme's classes. The filters are still links that set the query string,
+ * so a filtered view can be shared and the back button works; only their appearance changed.
  */
 export default async function AuditPage({ searchParams }: Props) {
   const { action, entityType, page: rawPage } = await searchParams;
@@ -36,119 +40,139 @@ export default async function AuditPage({ searchParams }: Props) {
 
   return (
     <SuperAdminChrome>
-      <main className="mx-auto max-w-5xl px-4 pt-8 pb-12">
-        <h1 className="text-2xl font-bold">Audit log</h1>
-        <p className="mt-1 text-neutral-600">
-          Every decision staff have taken, newest first. Nothing here can be changed or removed.
-        </p>
+      <PageTitle title="Audit log" breadcrumb={[{ label: "Mixed" }, { label: "Audit Dashboard" }]} />
 
-        <nav aria-label="Filter by what was changed" className="mt-5 flex flex-wrap gap-2">
-          <Link
-            href={hrefFor({ entityType: undefined, page: undefined })}
-            aria-current={entityType ? undefined : "page"}
-            className={
-              entityType
-                ? "rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-                : "rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
-            }
-          >
-            Everything
-          </Link>
-          {ENTITY_TYPES.map((value) => (
+      <div className="card">
+        <div className="card-body">
+          <h4 className="card-title mb-1">Every decision staff have taken</h4>
+          <p className="card-title-desc mb-3">
+            Newest first. Nothing here can be changed or removed.
+          </p>
+
+          {/* Filter by what was changed. Buttons rather than tabs, as the original's filter row. */}
+          <nav aria-label="Filter by what was changed" className="d-flex flex-wrap gap-2 mb-3">
             <Link
-              key={value}
-              href={hrefFor({ entityType: value, page: undefined })}
-              aria-current={entityType === value ? "page" : undefined}
-              className={
-                entityType === value
-                  ? "rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
-                  : "rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-              }
+              href={hrefFor({ entityType: undefined, page: undefined })}
+              aria-current={entityType ? undefined : "page"}
+              className={`btn btn-sm ${entityType ? "btn-outline-secondary" : "btn-primary"}`}
             >
-              {value.replace("_", " ")}
+              Everything
             </Link>
-          ))}
-        </nav>
+            {ENTITY_TYPES.map((value) => (
+              <Link
+                key={value}
+                href={hrefFor({ entityType: value, page: undefined })}
+                aria-current={entityType === value ? "page" : undefined}
+                className={`btn btn-sm ${entityType === value ? "btn-primary" : "btn-outline-secondary"}`}
+              >
+                {value.replace("_", " ")}
+              </Link>
+            ))}
+          </nav>
 
-        {action ? (
-          <p className="mt-4 text-sm text-neutral-700">
-            Filtered to <span className="font-mono">{action}</span>{" "}
-            <Link href={hrefFor({ action: undefined, page: undefined })} className="font-medium text-neutral-900 underline">
-              clear
-            </Link>
-          </p>
-        ) : null}
-
-        {!result.ok ? (
-          <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
-            {result.status === 403 ? "Your account cannot read the audit log." : result.message}
-          </p>
-        ) : result.data.items.length === 0 ? (
-          <div className="mt-6 rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center">
-            <h2 className="text-lg font-semibold">Nothing to show</h2>
-            <p className="mt-1 text-neutral-600">
-              {result.data.total > 0 ? "That page is past the end of the log." : "No entries match these filters."}
-            </p>
-          </div>
-        ) : (
-          <>
-            <p className="mt-5 text-sm text-neutral-600">{result.data.total} entries</p>
-
-            <div className="mt-3 overflow-x-auto rounded-xl border border-neutral-200 bg-white shadow-sm">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-neutral-200 bg-neutral-50">
-                  <tr>
-                    <th scope="col" className="px-4 py-2 font-semibold">When</th>
-                    <th scope="col" className="px-4 py-2 font-semibold">Who</th>
-                    <th scope="col" className="px-4 py-2 font-semibold">What</th>
-                    <th scope="col" className="px-4 py-2 font-semibold">On</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.data.items.map((entry) => (
-                    <tr key={entry.id} className="border-b border-neutral-100 last:border-b-0">
-                      <td className="px-4 py-2 whitespace-nowrap text-neutral-700">{formatWhen(entry.occurredAt)}</td>
-                      <td className="px-4 py-2">
-                        {entry.actorName ?? <span className="text-neutral-500">{entry.actorType}</span>}
-                      </td>
-                      <td className="px-4 py-2">
-                        <Link href={hrefFor({ action: entry.action, page: undefined })} className="font-mono text-neutral-900 underline-offset-2 hover:underline">
-                          {entry.action}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2 text-neutral-700">
-                        {entry.entityType ? `${entry.entityType} ${entry.entityId ?? ""}` : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {action ? (
+            <div className="alert alert-info py-2 px-3 font-size-13 d-flex align-items-center justify-content-between">
+              <span>
+                Filtered to <code className="text-body">{action}</code>
+              </span>
+              <Link href={hrefFor({ action: undefined, page: undefined })} className="btn btn-sm btn-light">
+                Clear
+              </Link>
             </div>
+          ) : null}
 
-            {result.data.totalPages > 1 ? (
-              <nav aria-label="Pagination" className="mt-6 flex items-center justify-between gap-3">
-                {result.data.page > 1 ? (
-                  <Link href={hrefFor({ page: String(result.data.page - 1) })} rel="prev" className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50">
-                    Previous
-                  </Link>
-                ) : (
-                  <span className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-400">Previous</span>
-                )}
-                <p className="text-sm text-neutral-600" aria-live="polite">
-                  Page {result.data.page} of {result.data.totalPages}
-                </p>
-                {result.data.page < result.data.totalPages ? (
-                  <Link href={hrefFor({ page: String(result.data.page + 1) })} rel="next" className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50">
-                    Next
-                  </Link>
-                ) : (
-                  <span className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-400">Next</span>
-                )}
-              </nav>
-            ) : null}
-          </>
-        )}
-      </main>
+          {!result.ok ? (
+            <div role="alert" className="alert alert-danger mb-0">
+              {result.status === 403 ? "Your account cannot read the audit log." : result.message}
+            </div>
+          ) : result.data.items.length === 0 ? (
+            <div className="text-center py-5">
+              <div className="avatar-md mx-auto mb-4">
+                <span className="avatar-title bg-light text-secondary rounded-circle font-size-24">
+                  <i className="bx bx-search-alt" />
+                </span>
+              </div>
+              <h5>Nothing to show</h5>
+              <p className="text-muted mb-0">
+                {result.data.total > 0
+                  ? "That page is past the end of the log."
+                  : "No entries match these filters."}
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="text-muted font-size-13">{result.data.total} entries</p>
+
+              <div className="table-responsive">
+                <table className="table table-hover align-middle table-nowrap mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th scope="col">When</th>
+                      <th scope="col">Who</th>
+                      <th scope="col">What</th>
+                      <th scope="col">On</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.data.items.map((entry) => (
+                      <tr key={entry.id}>
+                        <td className="text-muted">{formatWhen(entry.occurredAt)}</td>
+                        <td>{entry.actorName ?? <span className="text-muted">{entry.actorType}</span>}</td>
+                        <td>
+                          <Link
+                            href={hrefFor({ action: entry.action, page: undefined })}
+                            className="text-body"
+                          >
+                            <code className="text-reset">{entry.action}</code>
+                          </Link>
+                        </td>
+                        <td className="text-muted">
+                          {entry.entityType ? `${entry.entityType} ${entry.entityId ?? ""}` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {result.data.totalPages > 1 ? (
+                <nav
+                  aria-label="Pagination"
+                  className="d-flex align-items-center justify-content-between mt-3"
+                >
+                  <p className="text-muted mb-0 font-size-13" aria-live="polite">
+                    Page {result.data.page} of {result.data.totalPages}
+                  </p>
+                  <ul className="pagination pagination-rounded mb-0">
+                    <li className={`page-item${result.data.page > 1 ? "" : " disabled"}`}>
+                      {result.data.page > 1 ? (
+                        <Link href={hrefFor({ page: String(result.data.page - 1) })} rel="prev" className="page-link">
+                          <i className="mdi mdi-chevron-left" />
+                        </Link>
+                      ) : (
+                        <span className="page-link">
+                          <i className="mdi mdi-chevron-left" />
+                        </span>
+                      )}
+                    </li>
+                    <li className={`page-item${result.data.page < result.data.totalPages ? "" : " disabled"}`}>
+                      {result.data.page < result.data.totalPages ? (
+                        <Link href={hrefFor({ page: String(result.data.page + 1) })} rel="next" className="page-link">
+                          <i className="mdi mdi-chevron-right" />
+                        </Link>
+                      ) : (
+                        <span className="page-link">
+                          <i className="mdi mdi-chevron-right" />
+                        </span>
+                      )}
+                    </li>
+                  </ul>
+                </nav>
+              ) : null}
+            </>
+          )}
+        </div>
+      </div>
     </SuperAdminChrome>
   );
 }

@@ -19,25 +19,23 @@ import {
  * The interactive parts of Admin Accounts: the Create modal, the edit and reset forms inside the
  * details panel, and the revoke button.
  *
+ * Presented on the original theme's classes — `.modal`, `.card`, `.form-control`, `.btn`,
+ * `.alert` — so they look like the rest of Minia. The modal is React's own: Bootstrap's modal
+ * JavaScript moves the dialog in the DOM and traps focus by mutating it, which is the one thing a
+ * React tree cannot share, so the `.show`/`.modal-backdrop` classes are set here instead and the
+ * appearance comes entirely from the stylesheet.
+ *
  * One rule runs through all of it. **A password is never shown except once, in the response to the
  * request that set it.** There is no "view password" anywhere, because no password is stored in a
  * form anything could read back — only a hash the API never returns. The temporary password lives
  * in a server-action result for a single render; navigating away loses it, which is exactly right.
  */
 
-const input =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100";
-const label = "block text-xs font-semibold tracking-wide text-neutral-600 uppercase";
-const primary =
-  "inline-flex items-center justify-center rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60";
-const quiet =
-  "inline-flex items-center justify-center rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:border-neutral-400 hover:bg-neutral-50 disabled:opacity-60";
-
 function FieldError({ message }: { message?: string }) {
   return message ? (
-    <p role="alert" className="mt-1 text-xs font-medium text-red-700">
+    <div role="alert" className="invalid-feedback d-block">
       {message}
-    </p>
+    </div>
   ) : null;
 }
 
@@ -48,21 +46,20 @@ function FieldError({ message }: { message?: string }) {
 function TemporaryPassword({ password, who }: { password: string; who?: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div role="status" className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
-      <p className="text-sm font-semibold text-amber-900">
+    <div role="status" className="alert alert-warning mt-3 mb-0">
+      <h5 className="alert-heading font-size-14">
+        <i className="mdi mdi-key-variant me-1" />
         Temporary password{who ? ` for ${who}` : ""} — shown once
-      </p>
-      <p className="mt-1 text-xs text-amber-900">
+      </h5>
+      <p className="font-size-12 mb-2">
         Copy it now and give it to them directly. It is not stored anywhere and cannot be shown
         again; they must change it the first time they sign in.
       </p>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <code className="rounded border border-amber-300 bg-white px-3 py-2 font-mono text-sm break-all text-neutral-900">
-          {password}
-        </code>
+      <div className="d-flex flex-wrap align-items-center gap-2">
+        <code className="bg-white border rounded px-3 py-2 font-size-14 text-body">{password}</code>
         <button
           type="button"
-          className={quiet}
+          className="btn btn-sm btn-light"
           onClick={() => {
             void navigator.clipboard?.writeText(password).then(
               () => setCopied(true),
@@ -88,115 +85,163 @@ export function CreateAdminButton({ roleSlugs }: { roleSlugs: string[] }) {
 
   return (
     <>
-      <button type="button" className={primary} onClick={() => setOpen(true)}>
-        Create admin
+      <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
+        <i className="bx bx-plus align-middle me-1" /> Create admin
       </button>
 
       {open ? (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-neutral-900/40 p-4 sm:items-center"
-          // Clicking the backdrop closes it; clicking the panel must not.
-          onClick={() => setOpen(false)}
-        >
+        <>
           <div
+            className="modal fade show d-block"
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-6 shadow-xl"
+            tabIndex={-1}
+            // Clicking the backdrop closes it; clicking the panel must not.
+            onClick={() => setOpen(false)}
           >
-            <div className="flex items-start justify-between gap-4">
-              <h2 id={titleId} className="text-lg font-bold text-neutral-900">
-                Create admin
-              </h2>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-lg px-2 py-1 text-sm font-semibold text-neutral-500 hover:bg-neutral-100"
-              >
-                Close
-              </button>
+            <div
+              className="modal-dialog modal-dialog-centered modal-lg"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title" id={titleId}>
+                    Create admin
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    aria-label="Close"
+                    onClick={() => setOpen(false)}
+                  />
+                </div>
+
+                {state.temporaryPassword ? (
+                  <>
+                    <div className="modal-body">
+                      <TemporaryPassword password={state.temporaryPassword} who={state.createdName} />
+                    </div>
+                    <div className="modal-footer">
+                      <button type="button" className="btn btn-primary" onClick={() => setOpen(false)}>
+                        Done
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <form action={formAction}>
+                    <div className="modal-body">
+                      <div className="row g-3">
+                        <div className="col-12">
+                          <label htmlFor="displayName" className="form-label">
+                            Full name
+                          </label>
+                          <input
+                            id="displayName"
+                            name="displayName"
+                            defaultValue={state.values.displayName}
+                            required
+                            className={`form-control${state.fieldErrors.displayName ? " is-invalid" : ""}`}
+                          />
+                          <FieldError message={state.fieldErrors.displayName} />
+                        </div>
+
+                        <div className="col-12">
+                          <label htmlFor="email" className="form-label">
+                            Email address
+                          </label>
+                          <input
+                            id="email"
+                            name="email"
+                            type="email"
+                            defaultValue={state.values.email}
+                            required
+                            className={`form-control${state.fieldErrors.email ? " is-invalid" : ""}`}
+                          />
+                          <FieldError message={state.fieldErrors.email} />
+                        </div>
+
+                        <div className="col-md-6">
+                          <label htmlFor="password" className="form-label">
+                            Temporary password
+                          </label>
+                          <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            autoComplete="new-password"
+                            required
+                            className={`form-control${state.fieldErrors.password ? " is-invalid" : ""}`}
+                          />
+                          <div className="form-text">At least 12 characters.</div>
+                          <FieldError message={state.fieldErrors.password} />
+                        </div>
+
+                        <div className="col-md-6">
+                          <label htmlFor="confirmPassword" className="form-label">
+                            Confirm password
+                          </label>
+                          <input
+                            id="confirmPassword"
+                            name="confirmPassword"
+                            type="password"
+                            autoComplete="new-password"
+                            required
+                            className={`form-control${state.fieldErrors.confirmPassword ? " is-invalid" : ""}`}
+                          />
+                          <FieldError message={state.fieldErrors.confirmPassword} />
+                        </div>
+
+                        <div className="col-md-6">
+                          <label htmlFor="role" className="form-label">
+                            Role
+                          </label>
+                          <select
+                            id="role"
+                            name="role"
+                            defaultValue={state.values.role}
+                            className="form-select"
+                          >
+                            {roleSlugs.includes("admin") ? <option value="admin">Admin</option> : null}
+                            {roleSlugs.includes("super_admin") ? (
+                              <option value="super_admin">Super Admin</option>
+                            ) : null}
+                          </select>
+                          <FieldError message={state.fieldErrors.role} />
+                        </div>
+
+                        <div className="col-12">
+                          <p className="text-muted font-size-12 mb-0">
+                            They will be asked to change this password the first time they sign in,
+                            and to set up an authenticator before they can reach anything.
+                          </p>
+                        </div>
+
+                        {state.message && Object.keys(state.fieldErrors).length === 0 ? (
+                          <div className="col-12">
+                            <div role="alert" className="alert alert-danger mb-0">
+                              {state.message}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="modal-footer">
+                      <button type="button" className="btn btn-light" onClick={() => setOpen(false)}>
+                        Cancel
+                      </button>
+                      <button type="submit" disabled={pending} className="btn btn-primary">
+                        {pending ? "Creating..." : "Create admin"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
             </div>
-
-            {state.temporaryPassword ? (
-              <>
-                <TemporaryPassword password={state.temporaryPassword} who={state.createdName} />
-                <div className="mt-5 flex justify-end">
-                  <button type="button" className={primary} onClick={() => setOpen(false)}>
-                    Done
-                  </button>
-                </div>
-              </>
-            ) : (
-              <form action={formAction} className="mt-5 grid gap-4">
-                <div>
-                  <label htmlFor="displayName" className={label}>
-                    Full name
-                  </label>
-                  <input id="displayName" name="displayName" defaultValue={state.values.displayName} required className={`${input} mt-1`} />
-                  <FieldError message={state.fieldErrors.displayName} />
-                </div>
-
-                <div>
-                  <label htmlFor="email" className={label}>
-                    Email address
-                  </label>
-                  <input id="email" name="email" type="email" defaultValue={state.values.email} required className={`${input} mt-1`} />
-                  <FieldError message={state.fieldErrors.email} />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="password" className={label}>
-                      Temporary password
-                    </label>
-                    <input id="password" name="password" type="password" autoComplete="new-password" required className={`${input} mt-1`} />
-                    <p className="mt-1 text-xs text-neutral-500">At least 12 characters.</p>
-                    <FieldError message={state.fieldErrors.password} />
-                  </div>
-                  <div>
-                    <label htmlFor="confirmPassword" className={label}>
-                      Confirm password
-                    </label>
-                    <input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" required className={`${input} mt-1`} />
-                    <FieldError message={state.fieldErrors.confirmPassword} />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="role" className={label}>
-                    Role
-                  </label>
-                  <select id="role" name="role" defaultValue={state.values.role} className={`${input} mt-1`}>
-                    {roleSlugs.includes("admin") ? <option value="admin">Admin</option> : null}
-                    {roleSlugs.includes("super_admin") ? <option value="super_admin">Super Admin</option> : null}
-                  </select>
-                  <FieldError message={state.fieldErrors.role} />
-                </div>
-
-                <p className="text-xs text-neutral-500">
-                  They will be asked to change this password the first time they sign in, and to set
-                  up an authenticator before they can reach anything.
-                </p>
-
-                {state.message && Object.keys(state.fieldErrors).length === 0 ? (
-                  <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
-                    {state.message}
-                  </p>
-                ) : null}
-
-                <div className="flex justify-end gap-2">
-                  <button type="button" className={quiet} onClick={() => setOpen(false)}>
-                    Cancel
-                  </button>
-                  <button type="submit" disabled={pending} className={primary}>
-                    {pending ? "Creating..." : "Create admin"}
-                  </button>
-                </div>
-              </form>
-            )}
           </div>
-        </div>
+          <div className="modal-backdrop fade show" />
+        </>
       ) : null}
     </>
   );
@@ -214,34 +259,45 @@ export function EditAdminForm({ account }: { account: AdminRow }) {
   );
 
   return (
-    <form action={formAction} className="grid gap-3">
-      <div>
-        <label htmlFor={`name-${account.id}`} className={label}>
+    <form action={formAction}>
+      <div className="mb-3">
+        <label htmlFor={`name-${account.id}`} className="form-label">
           Full name
         </label>
-        <input id={`name-${account.id}`} name="displayName" defaultValue={state.values.displayName} required className={`${input} mt-1`} />
+        <input
+          id={`name-${account.id}`}
+          name="displayName"
+          defaultValue={state.values.displayName}
+          required
+          className={`form-control${state.fieldErrors.displayName ? " is-invalid" : ""}`}
+        />
         <FieldError message={state.fieldErrors.displayName} />
       </div>
-      <div>
-        <label htmlFor={`email-${account.id}`} className={label}>
+      <div className="mb-3">
+        <label htmlFor={`email-${account.id}`} className="form-label">
           Email address
         </label>
-        <input id={`email-${account.id}`} name="email" type="email" defaultValue={state.values.email} required className={`${input} mt-1`} />
+        <input
+          id={`email-${account.id}`}
+          name="email"
+          type="email"
+          defaultValue={state.values.email}
+          required
+          className={`form-control${state.fieldErrors.email ? " is-invalid" : ""}`}
+        />
         <FieldError message={state.fieldErrors.email} />
       </div>
       {state.message ? (
-        <p
+        <div
           role={state.success ? "status" : "alert"}
-          className={`rounded-lg px-3 py-2 text-sm ${state.success ? "bg-brand-50 text-brand-800" : "bg-red-50 text-red-800"}`}
+          className={`alert ${state.success ? "alert-success" : "alert-danger"} py-2 px-3 font-size-13`}
         >
           {state.message}
-        </p>
+        </div>
       ) : null}
-      <div>
-        <button type="submit" disabled={pending} className={primary}>
-          {pending ? "Saving..." : "Save details"}
-        </button>
-      </div>
+      <button type="submit" disabled={pending} className="btn btn-primary">
+        {pending ? "Saving..." : "Save details"}
+      </button>
     </form>
   );
 }
@@ -258,51 +314,69 @@ export function ResetPasswordForm({ account }: { account: AdminRow }) {
   }
 
   return (
-    <form action={formAction} className="grid gap-3">
-      <div>
-        <label htmlFor={`pw-${account.id}`} className={label}>
+    <form action={formAction}>
+      <div className="mb-3">
+        <label htmlFor={`pw-${account.id}`} className="form-label">
           New temporary password
         </label>
-        <input id={`pw-${account.id}`} name="password" type="password" autoComplete="new-password" required className={`${input} mt-1`} />
-        <p className="mt-1 text-xs text-neutral-500">At least 12 characters.</p>
+        <input
+          id={`pw-${account.id}`}
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          required
+          className={`form-control${state.fieldErrors.password ? " is-invalid" : ""}`}
+        />
+        <div className="form-text">At least 12 characters.</div>
         <FieldError message={state.fieldErrors.password} />
       </div>
-      <div>
-        <label htmlFor={`pw2-${account.id}`} className={label}>
+      <div className="mb-3">
+        <label htmlFor={`pw2-${account.id}`} className="form-label">
           Confirm password
         </label>
-        <input id={`pw2-${account.id}`} name="confirmPassword" type="password" autoComplete="new-password" required className={`${input} mt-1`} />
+        <input
+          id={`pw2-${account.id}`}
+          name="confirmPassword"
+          type="password"
+          autoComplete="new-password"
+          required
+          className={`form-control${state.fieldErrors.confirmPassword ? " is-invalid" : ""}`}
+        />
         <FieldError message={state.fieldErrors.confirmPassword} />
       </div>
-      <p className="text-xs text-neutral-500">
+      <p className="text-muted font-size-12">
         Every session for this account ends immediately, and they must choose a new password before
         they can do anything.
       </p>
       {state.message && Object.keys(state.fieldErrors).length === 0 ? (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+        <div role="alert" className="alert alert-danger py-2 px-3 font-size-13">
           {state.message}
-        </p>
+        </div>
       ) : null}
-      <div>
-        <button type="submit" disabled={pending} className={primary}>
-          {pending ? "Resetting..." : "Reset password"}
-        </button>
-      </div>
+      <button type="submit" disabled={pending} className="btn btn-danger">
+        {pending ? "Resetting..." : "Reset password"}
+      </button>
     </form>
   );
 }
 
 // ---------------------------------------------------------------------------- revoke sessions
-export function RevokeSessionsButton({ account, activeSessions }: { account: AdminRow; activeSessions: number }) {
+export function RevokeSessionsButton({
+  account,
+  activeSessions,
+}: {
+  account: AdminRow;
+  activeSessions: number;
+}) {
   const [state, setState] = useState<{ message?: string; success?: boolean }>({});
   const [pending, setPending] = useState(false);
 
   return (
-    <div className="grid gap-2">
+    <>
       <button
         type="button"
         disabled={pending || activeSessions === 0}
-        className={quiet}
+        className="btn btn-outline-secondary"
         onClick={async () => {
           setPending(true);
           setState(await revokeSessionsAction(account.id));
@@ -316,13 +390,13 @@ export function RevokeSessionsButton({ account, activeSessions }: { account: Adm
             : `End ${activeSessions} session${activeSessions === 1 ? "" : "s"}`}
       </button>
       {state.message ? (
-        <p
+        <div
           role={state.success ? "status" : "alert"}
-          className={`rounded-lg px-3 py-2 text-sm ${state.success ? "bg-brand-50 text-brand-800" : "bg-red-50 text-red-800"}`}
+          className={`alert ${state.success ? "alert-success" : "alert-danger"} py-2 px-3 mt-2 mb-0 font-size-13`}
         >
           {state.message}
-        </p>
+        </div>
       ) : null}
-    </div>
+    </>
   );
 }

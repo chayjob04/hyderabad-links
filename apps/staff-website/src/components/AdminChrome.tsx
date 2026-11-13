@@ -1,57 +1,39 @@
 import { signOutAction } from "@/app/admin/listings/actions";
-import { StaffSidebar, type NavItem } from "@/components/StaffSidebar";
+import { MiniaShell } from "@/components/minia/MiniaShell";
+import { MiniaStyles } from "@/components/minia/MiniaStyles";
+import { ADMIN_NAV, visibleNav } from "@/components/minia/nav";
 import { getAdminProfile } from "@/lib/admin-api";
 
 /**
  * The frame around every signed-in admin screen.
  *
- * A sidebar rather than a bar across the top, which is how the original's admin was laid out: by
- * the time there were eight queues the top bar had run out of room and started wrapping, and a
- * vertical list has no such limit.
+ * It is the original application's Admin layout — Minia 2.4.0, the same markup and the same
+ * stylesheets — rebuilt as React. The menu comes from `ADMIN_NAV`, transcribed row for row from
+ * `Views/Admin/Shared/_AdminLayout.cshtml`.
+ *
+ * The original decided what to show from a numeric RoleID. We read the account's real permissions
+ * instead, so nothing here invents a role the authorization model does not have. The API re-checks
+ * each permission on every request regardless.
  */
-const ITEMS: NavItem[] = [
-  { href: "/admin", label: "Dashboard", mark: "▦" },
-  { href: "/admin/listings", label: "Listings", mark: "☰" },
-  { href: "/admin/reviews", label: "Reviews", mark: "★" },
-  { href: "/admin/reports", label: "Reports", mark: "⚠" },
-  { href: "/admin/blog", label: "Blog", mark: "✎" },
-  { href: "/admin/seo", label: "SEO", mark: "⌕" },
-  { href: "/admin/search", label: "Search", mark: "⌘" },
-  { href: "/admin/categories", label: "Categories", mark: "⊞" },
-  { href: "/admin/locations", label: "Locations", mark: "⚑" },
-  { href: "/admin/homepage/popular-categories", label: "Popular categories", mark: "◉" },
-  { href: "/admin/homepage/scrolling-text", label: "Scrolling text", mark: "⇄" },
-  // Reachable even while a temporary password blocks everything else, which is the point of it.
-  { href: "/admin/password", label: "My password", mark: "⚿" },
-];
-
 export async function AdminChrome({ children }: { children: React.ReactNode }) {
   const me = await getAdminProfile();
+  const permissions = me.ok ? me.data.permissions : [];
 
   return (
-    <div className="lg:flex">
-      <StaffSidebar
-        title="HL ADMIN"
+    <>
+      <MiniaStyles />
+      <MiniaShell
         homeHref="/admin"
-        items={ITEMS}
-        footer={
-          <>
-            <p className="font-bold text-white">{me.ok ? me.data.displayName : "Signed in"}</p>
-            {me.ok ? (
-              <p className="mt-0.5 text-xs">{me.data.roles.join(", ") || "no role"}</p>
-            ) : null}
-            <form action={signOutAction} className="mt-3">
-              <button
-                type="submit"
-                className="rounded-lg border border-white/25 px-3 py-1.5 text-sm font-bold text-white hover:bg-white/10"
-              >
-                Sign out
-              </button>
-            </form>
-          </>
-        }
-      />
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
+        nav={visibleNav(ADMIN_NAV, permissions)}
+        displayName={me.ok ? me.data.displayName : "Signed in"}
+        subtitle={me.ok ? me.data.email : undefined}
+        profileHref="/admin/password"
+        signOut={signOutAction}
+        surfaceLabel="Admin"
+        environment={process.env.APP_ENV ?? "LOCAL"}
+      >
+        {children}
+      </MiniaShell>
+    </>
   );
 }

@@ -4,26 +4,27 @@ import { useActionState } from "react";
 import { resetMfaAction, setRolesAction, setStatusAction } from "./actions";
 import { initialAccountActionState, type AccountActionState } from "./state";
 
-const saveButton =
-  "rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-60";
-const plainButton =
-  "rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-neutral-50 disabled:opacity-60";
-const dangerButton =
-  "rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60";
+/**
+ * Roles, access and authenticator: the three one-click changes that sit beside each row.
+ *
+ * Restyled onto the original theme's classes — `.form-check`, `.btn`, `.alert` are Bootstrap's and
+ * are styled by the Minia stylesheet. The actions, the confirmations and the state they return are
+ * untouched; only the markup changed.
+ */
 
 function Outcome({ state }: { state: AccountActionState }) {
   if (state.error) {
     return (
-      <p role="alert" className="mt-2 text-sm text-red-700">
+      <div role="alert" className="alert alert-danger py-2 px-3 mt-2 mb-0 font-size-13">
         {state.error}
-      </p>
+      </div>
     );
   }
   if (state.done) {
     return (
-      <p role="status" className="mt-2 text-sm text-green-800">
+      <div role="status" className="alert alert-success py-2 px-3 mt-2 mb-0 font-size-13">
         {state.done}
-      </p>
+      </div>
     );
   }
   return null;
@@ -46,27 +47,26 @@ export function RolesForm({
 
   return (
     <form action={formAction}>
-      <fieldset>
-        <legend className="text-sm font-medium">Roles</legend>
-        <div className="mt-2 flex flex-wrap gap-4">
-          {allRoles.map((role) => (
-            <label key={role.slug} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="roles"
-                value={role.slug}
-                defaultChecked={roles.includes(role.slug)}
-                className="h-4 w-4"
-              />
-              <span>
-                {role.name}{" "}
-                <span className="text-neutral-500">({role.permissions.length} permissions)</span>
-              </span>
+      <fieldset className="border-0 p-0 m-0">
+        <legend className="font-size-13 fw-semibold text-muted text-uppercase mb-2">Roles</legend>
+        {allRoles.map((role) => (
+          <div key={role.slug} className="form-check mb-1">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              name="roles"
+              value={role.slug}
+              id={`role-${adminId}-${role.slug}`}
+              defaultChecked={roles.includes(role.slug)}
+            />
+            <label className="form-check-label font-size-13" htmlFor={`role-${adminId}-${role.slug}`}>
+              {role.name}{" "}
+              <span className="text-muted">({role.permissions.length} permissions)</span>
             </label>
-          ))}
-        </div>
+          </div>
+        ))}
       </fieldset>
-      <button type="submit" disabled={pending} className={`${saveButton} mt-3`}>
+      <button type="submit" disabled={pending} className="btn btn-sm btn-primary mt-2">
         {pending ? "Saving..." : "Save roles"}
       </button>
       <Outcome state={state} />
@@ -85,14 +85,18 @@ export function StatusForm({ adminId, status }: { adminId: number; status: strin
   return (
     <form
       action={formAction}
-      className="inline"
       onSubmit={(event) => {
         if (disabling && !window.confirm("Disable this account? They will be signed out straight away.")) {
           event.preventDefault();
         }
       }}
     >
-      <button type="submit" disabled={pending} className={disabling ? dangerButton : plainButton}>
+      <p className="font-size-13 fw-semibold text-muted text-uppercase mb-2">Access</p>
+      <button
+        type="submit"
+        disabled={pending}
+        className={`btn btn-sm ${disabling ? "btn-outline-danger" : "btn-outline-secondary"}`}
+      >
         {pending ? "Saving..." : disabling ? "Disable account" : "Enable account"}
       </button>
       <Outcome state={state} />
@@ -110,7 +114,6 @@ export function ResetMfaForm({ adminId }: { adminId: number }) {
   return (
     <form
       action={formAction}
-      className="inline"
       onSubmit={(event) => {
         if (
           !window.confirm(
@@ -121,7 +124,8 @@ export function ResetMfaForm({ adminId }: { adminId: number }) {
         }
       }}
     >
-      <button type="submit" disabled={pending} className={plainButton}>
+      <p className="font-size-13 fw-semibold text-muted text-uppercase mb-2">Authenticator</p>
+      <button type="submit" disabled={pending} className="btn btn-sm btn-outline-secondary">
         {pending ? "Clearing..." : "Reset authenticator"}
       </button>
       <Outcome state={state} />

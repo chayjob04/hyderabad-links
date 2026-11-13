@@ -1,0 +1,74 @@
+/*
+ * The only CSS written by hand for the Minia panels, and it exists for one reason.
+ *
+ * Tailwind's preflight is still loaded application-wide, because 34 staff pages have not been
+ * migrated yet and would lose their styling the day it is removed. Full isolation is therefore not
+ * reachable until the last page is migrated — those pages live *inside* these panels, so the two
+ * stylesheets have to share the route group until then.
+ *
+ * Bootstrap's reboot loads after preflight and wins every rule the two both set: body font,
+ * headings, links, `hr`, `small`, `b`/`strong`, tables, fieldsets, form controls, placeholders.
+ * What follows is the complete set of preflight rules that Bootstrap has **no** counterpart for,
+ * established by reading tailwindcss/preflight.css against the reboot in bootstrap.min.css rather
+ * than by guessing. Each is undone, scoped to the Minia wrapper so nothing outside it is affected.
+ *
+ * Delete this file when the last page is migrated and Tailwind leaves the panels for good.
+ * Nothing here is a design decision; every rule restores a browser default Bootstrap assumes.
+ */
+
+/*
+ * preflight: `img, svg, video, canvas, audio, iframe, embed, object { display: block }`
+ *
+ * Bootstrap sets `vertical-align: middle` on img and svg but never touches display, so every
+ * replaced element would break onto its own line — the topbar logo and the avatar are both inline
+ * images inside a link, and that is what showed it.
+ */
+#layout-wrapper img,
+#layout-wrapper svg,
+#layout-wrapper video,
+#layout-wrapper canvas,
+#layout-wrapper audio,
+#layout-wrapper iframe,
+#layout-wrapper embed,
+#layout-wrapper object {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/*
+ * preflight: `ol, ul, menu { list-style: none }`
+ *
+ * Bootstrap keeps the markers and relies on its own `.list-unstyled` to remove them, so a content
+ * list inside a card would silently lose its bullets. Only `list-style` is restored: Bootstrap's
+ * reboot already sets `ol, ul { padding-left: 2rem }` and `ol, ul, dl { margin-bottom: 1rem }`
+ * from element selectors, which beat preflight's `*` rule on their own. An earlier version of this
+ * file also reverted margin and padding, which would have replaced Bootstrap's 2rem indent with
+ * the user agent's 40px.
+ */
+#layout-wrapper ul:not(.list-unstyled):not(.metismenu):not(.sub-menu):not(.dropdown-menu):not(.pagination):not(.nav):not(.navbar-nav):not(.breadcrumb),
+#layout-wrapper ol:not(.list-unstyled):not(.breadcrumb):not(.pagination),
+#layout-wrapper menu {
+  list-style: revert;
+}
+
+/*
+ * preflight: `*, ::before, ::after { border: 0 solid }`
+ *
+ * Almost every Bootstrap component restates the whole `border` shorthand and is unaffected. The
+ * exception is the table, which sets only a width: `.table > :not(caption) > * > *` carries
+ * `border-bottom-width`, and `.table-bordered` carries `border-width`. Neither states a style.
+ *
+ * The horizontal rules inside a plain `.table` happen to survive: `.table` sets `border-color`,
+ * and preflight's `* { border: 0 solid }` is what supplies the `solid`. `.table-bordered` needs
+ * the widths restated, below, because its own shorthand was zeroed by that same rule.
+ *
+ * NOTE for whoever deletes this file. Removing Tailwind also removes the `solid` that the plain
+ * table's borders are currently leaning on, and a table cell's style defaults to `none`. Check the
+ * tables after that change: they may need a `border-style: solid` of their own.
+ */
+#layout-wrapper .table-bordered > :not(caption) > * {
+  border-width: 1px 0;
+}
+#layout-wrapper .table-bordered > :not(caption) > * > * {
+  border-width: 0 1px;
+}

@@ -12,19 +12,11 @@ export const dynamic = "force-dynamic";
 /**
  * Everything under /admin: the moderation surface.
  *
- * The band is here rather than in the root layout because the root is now shared with
- * /super-admin and with the sign-in page that leads to either. Naming the surface on every screen
- * is how someone with both roles knows which one they are acting as.
+ * The band that used to sit here — "ADMIN" and the environment — has moved into the topbar of the
+ * Minia shell (see components/minia/MiniaShell.tsx). It had to: the original theme's header is
+ * `position: fixed` at the top of the viewport, so a strip above it would have been covered by it.
+ * The information is unchanged, and still on every screen.
  */
 export default function AdminSurfaceLayout({ children }: { children: React.ReactNode }) {
-  const environment = process.env.APP_ENV ?? "LOCAL";
-  return (
-    <>
-      <div className="flex items-center justify-between bg-neutral-800 px-4 py-2 text-xs font-semibold tracking-wider text-white uppercase">
-        <span>ADMIN</span>
-        <span>{environment}</span>
-      </div>
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }

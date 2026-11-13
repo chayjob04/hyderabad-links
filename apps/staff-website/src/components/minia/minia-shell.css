@@ -1,0 +1,85 @@
+/*
+ * Rows in the sidebar that are not links.
+ *
+ * The theme styles sidebar rows with `#sidebar-menu ul li a { … }`. The original could use an
+ * anchor for everything because a group header was `<a href="javascript: void(0);">` and logout was
+ * a GET. Neither is available here: a group header is a button that toggles React state, and
+ * signing out posts a server action. Both must still look exactly like a row.
+ *
+ * The declarations below are restated verbatim from app.min.css (the `#sidebar-menu ul li a`
+ * block and its `i` and `:hover` companions) and applied to `.minia-nav-btn`. Nothing is invented
+ * — if the theme's values ever change, these are the lines to re-copy.
+ */
+
+#sidebar-menu ul li .minia-nav-btn {
+  display: block;
+  width: 100%;
+  padding: 0.62rem 1.5rem;
+  color: var(--bs-sidebar-menu-item-color);
+  position: relative;
+  font-size: 0.9rem;
+  transition: all 0.4s;
+  font-weight: 500;
+  /* a <button> brings its own chrome; an anchor has none */
+  background: none;
+  border: 0;
+  text-align: left;
+}
+
+#sidebar-menu ul li .minia-nav-btn i {
+  display: inline-block;
+  min-width: 1.75rem;
+  padding-bottom: 0.125em;
+  font-size: 1.25rem;
+  line-height: 1.40625rem;
+  vertical-align: middle;
+  color: var(--bs-sidebar-menu-item-icon-color);
+  transition: all 0.4s;
+}
+
+#sidebar-menu ul li button.minia-nav-btn:hover,
+#sidebar-menu ul li button.minia-nav-btn:hover i {
+  color: var(--bs-sidebar-menu-item-hover-color);
+}
+
+/*
+ * A row the original had and this backend cannot serve. It keeps its position, its indent and its
+ * label so the navigation hierarchy is the original's, but it does not react to the pointer and it
+ * is not focusable: there is nowhere for it to go.
+ */
+#sidebar-menu ul li .minia-coming-soon {
+  cursor: default;
+  opacity: 0.55;
+}
+
+#sidebar-menu ul li .minia-coming-soon .badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.2em 0.45em;
+  vertical-align: middle;
+}
+
+/* The sign-out form wraps a row and must not add a box of its own. */
+#sidebar-menu form.minia-signout-form {
+  margin: 0;
+}
+
+/*
+ * The topbar dropdown, opened by React rather than by Bootstrap's JS.
+ *
+ * Bootstrap shows a menu by adding `.show`; without its JavaScript nothing adds it, so the
+ * component sets the class itself. These two rules only position the menu the way Bootstrap's
+ * Popper would have — the panel's own appearance is entirely the theme's `.dropdown-menu`.
+ */
+.minia-dropdown {
+  position: relative;
+}
+
+.minia-dropdown .dropdown-menu.show {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: auto;
+  margin-top: 0.125rem;
+}

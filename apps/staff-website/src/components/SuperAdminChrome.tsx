@@ -1,54 +1,39 @@
 import { signOutAction } from "@/app/super-admin/actions";
-import { StaffSidebar, type NavItem } from "@/components/StaffSidebar";
+import { MiniaShell } from "@/components/minia/MiniaShell";
+import { MiniaStyles } from "@/components/minia/MiniaStyles";
+import { SUPER_ADMIN_NAV, visibleNav } from "@/components/minia/nav";
 import { getProfile } from "@/lib/super-admin-api";
 
 /**
- * The frame around every signed-in super-admin screen: the same sidebar as the admin site, in the
- * same place, so somebody who works in both does not have to relearn where things are.
+ * The frame around every signed-in super-admin screen.
  *
- * A session here already means the account holds `admins.manage`. The API checks the permission
- * again on every request regardless — hiding a link is never the control.
+ * It is the original application's Super Admin layout — Minia 2.4.0, the same markup and the same
+ * stylesheets — rebuilt as React. The menu it shows comes from `SUPER_ADMIN_NAV`, transcribed row
+ * for row from `Views/Super/Shared/_SuperLayout.cshtml`.
+ *
+ * A session here already means the account holds `admins.manage`. The permissions read below only
+ * decide which rows are worth showing; the API checks every one of them again on every request,
+ * because hiding a link is never the control.
  */
-const ITEMS: NavItem[] = [
-  { href: "/super-admin/overview", label: "Overview", mark: "▦" },
-  { href: "/super-admin/listings", label: "Listings", mark: "☰" },
-  { href: "/super-admin/listings/by-category", label: "By category", mark: "⊞" },
-  { href: "/super-admin/listings/by-subcategory", label: "By subcategory", mark: "⊟" },
-  { href: "/super-admin/accounts", label: "Business accounts", mark: "☻" },
-  { href: "/super-admin/featured", label: "Featured", mark: "★" },
-  { href: "/super-admin/admins", label: "Admin accounts", mark: "☺" },
-  { href: "/super-admin/audit", label: "Audit log", mark: "⌗" },
-  // Reachable even while a temporary password blocks everything else, which is the point of it.
-  { href: "/super-admin/password", label: "My password", mark: "⚿" },
-];
-
 export async function SuperAdminChrome({ children }: { children: React.ReactNode }) {
   const me = await getProfile();
+  const permissions = me.ok ? me.data.permissions : [];
 
   return (
-    <div className="lg:flex">
-      <StaffSidebar
-        title="HL SUPER ADMIN"
+    <>
+      <MiniaStyles />
+      <MiniaShell
         homeHref="/super-admin/overview"
-        items={ITEMS}
-        footer={
-          <>
-            <p className="font-bold text-white">{me.ok ? me.data.displayName : "Signed in"}</p>
-            {me.ok ? (
-              <p className="mt-0.5 text-xs">{me.data.roles.join(", ") || "no role"}</p>
-            ) : null}
-            <form action={signOutAction} className="mt-3">
-              <button
-                type="submit"
-                className="rounded-lg border border-white/25 px-3 py-1.5 text-sm font-bold text-white hover:bg-white/10"
-              >
-                Sign out
-              </button>
-            </form>
-          </>
-        }
-      />
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
+        nav={visibleNav(SUPER_ADMIN_NAV, permissions)}
+        displayName={me.ok ? me.data.displayName : "Signed in"}
+        subtitle={me.ok ? me.data.email : undefined}
+        profileHref="/super-admin/password"
+        signOut={signOutAction}
+        surfaceLabel="Super Admin"
+        environment={process.env.APP_ENV ?? "LOCAL"}
+      >
+        {children}
+      </MiniaShell>
+    </>
   );
 }
