@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { SuperAdminChrome } from "@/components/SuperAdminChrome";
+import { PageTitle } from "@/components/minia/PageTitle";
+import { StatCard } from "@/components/minia/StatCard";
 import { getOverview } from "@/lib/super-admin-api";
 
 export const metadata: Metadata = { title: "Overview" };
@@ -15,81 +16,85 @@ const STATUS_LABEL: Record<string, string> = {
   archived: "Archived",
 };
 
-function Tile({ label, value, href }: { label: string; value: number; href?: string }) {
-  const body = (
-    <>
-      <dt className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">{label}</dt>
-      <dd className="mt-1 text-3xl font-bold text-neutral-900">{value}</dd>
-    </>
-  );
-  return href ? (
-    <Link href={href} className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm hover:border-neutral-400">
-      {body}
-    </Link>
-  ) : (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">{body}</div>
-  );
-}
-
 /**
- * Platform figures.
+ * Platform figures, on the original's dashboard layout.
  *
  * Every number is a count of rows that exist. There is deliberately no "visits", "page views" or
  * "revenue" here: nothing in the database records any of them, and a tile that always reads zero
  * would be worse than no tile.
+ *
+ * The figures used to sit in oversized bordered boxes inside a `max-w-5xl` column, which left the
+ * page both too tall and too narrow against a 250px sidebar. They are `card-h-100` now, four to a
+ * row in `container-fluid`, which is the shape and the width the original uses.
  */
 export default async function OverviewPage() {
   const result = await getOverview();
 
   return (
     <SuperAdminChrome>
-      <main className="mx-auto max-w-5xl px-4 pt-8 pb-12">
-        <h1 className="text-2xl font-bold">Platform overview</h1>
-        <p className="mt-1 text-neutral-600">Every figure here is counted from the database as it is now.</p>
+      <PageTitle title="Dashboard" breadcrumb={[{ label: "Super Admin" }, { label: "Dashboard" }]} />
 
-        {!result.ok ? (
-          <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
-            {result.status === 403 ? "Your account cannot see platform analytics." : result.message}
-          </p>
-        ) : (
-          <>
-            <dl className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Tile label="Businesses" value={result.data.businesses} />
-              <Tile label="Owner accounts" value={result.data.owners} />
-              <Tile label="Admin accounts" value={result.data.adminAccounts} href="/super-admin/admins" />
-              <Tile label="New enquiries" value={result.data.newEnquiries} />
-            </dl>
+      {!result.ok ? (
+        <div className="alert alert-danger" role="alert">
+          {result.status === 403 ? "Your account cannot see platform analytics." : result.message}
+        </div>
+      ) : (
+        <>
+          <div className="row mb-3">
+            <StatCard label="Businesses" value={result.data.businesses} />
+            <StatCard label="Owner accounts" value={result.data.owners} />
+            <StatCard label="Admin accounts" value={result.data.adminAccounts} href="/super-admin/admins" />
+            <StatCard label="New enquiries" value={result.data.newEnquiries} />
+          </div>
 
-            <dl className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Tile label="Reviews waiting" value={result.data.pendingReviews} />
-              <Tile label="Reports open" value={result.data.openReports} />
-            </dl>
+          <div className="row mb-3">
+            <StatCard label="Reviews waiting" value={result.data.pendingReviews} href="/admin/reviews" />
+            <StatCard label="Reports open" value={result.data.openReports} href="/admin/reports" />
+          </div>
 
-            <section className="mt-10">
-              <h2 className="text-lg font-semibold">Listings by status</h2>
-              <dl className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                {result.data.listingsByStatus.map((row) => (
-                  <Tile key={row.key} label={STATUS_LABEL[row.key] ?? row.key} value={row.count} />
-                ))}
-              </dl>
-            </section>
+          <div className="row mb-3">
+            <div className="col-12">
+              <div className="card">
+                <div className="card-body">
+                  <h4 className="card-title mb-1">Listings by status</h4>
+                  <p className="card-title-desc mb-3">
+                    Every figure here is counted from the database as it is now.
+                  </p>
+                  <div className="row">
+                    {result.data.listingsByStatus.map((row) => (
+                      <StatCard
+                        key={row.key}
+                        label={STATUS_LABEL[row.key] ?? row.key}
+                        value={row.count}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-            <section className="mt-10">
-              <h2 className="text-lg font-semibold">Listings by plan</h2>
-              <p className="mt-1 text-sm text-neutral-600">
-                Free and Verified (&#8377;399 a year) are the only plans. A listing counts as
-                Verified for exactly as long as its paid period runs, so these figures follow
-                renewals and expiries on their own.
-              </p>
-              <dl className="mt-3 grid grid-cols-2 gap-4">
-                {result.data.listingsByPlan.map((row) => (
-                  <Tile key={row.key} label={row.key} value={row.count} />
-                ))}
-              </dl>
-            </section>
-          </>
-        )}
-      </main>
+          <div className="row mb-3">
+            <div className="col-12">
+              <div className="card">
+                <div className="card-body">
+                  <h4 className="card-title mb-1">Listings by plan</h4>
+                  <p className="card-title-desc mb-3">
+                    Free and Verified (&#8377;399 a year) are the only plans. A listing counts as
+                    Verified for exactly as long as its paid period runs, so these figures follow
+                    renewals and expiries on their own.
+                  </p>
+                  <div className="row">
+                    {result.data.listingsByPlan.map((row) => (
+                      <StatCard key={row.key} label={row.key} value={row.count} width="col-xl-3 col-md-6" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </SuperAdminChrome>
   );
 }

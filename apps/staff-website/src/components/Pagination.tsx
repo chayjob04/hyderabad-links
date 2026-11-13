@@ -20,39 +20,49 @@ function hrefFor(basePath: string, params: Props["params"], page: number): strin
   return `${basePath}?${query.toString()}`;
 }
 
-/** Previous/next paging. Renders nothing when everything fits on one page. */
+/**
+ * Previous/next paging, on the theme's `.pagination`. Renders nothing when everything fits on one
+ * page.
+ *
+ * Shared by every paged staff screen, which is why it was worth converting early: one change here
+ * puts Minia's paging on the listings queue, the review queue, the report queue and the rest at
+ * once.
+ */
 export function Pagination({ page, totalPages, params, basePath }: Props) {
   if (totalPages <= 1) return null;
 
   const current = Math.min(Math.max(page, 1), totalPages);
-  const linkClass = "rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50";
-  const disabledClass = "rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-400";
 
   return (
-    <nav aria-label="Pagination" className="mt-6 flex items-center justify-between gap-3">
-      {current > 1 ? (
-        <Link href={hrefFor(basePath, params, current - 1)} rel="prev" className={linkClass}>
-          Previous
-        </Link>
-      ) : (
-        <span className={disabledClass} aria-disabled="true">
-          Previous
-        </span>
-      )}
-
-      <p className="text-sm text-neutral-600" aria-live="polite">
+    <nav aria-label="Pagination" className="d-flex align-items-center justify-content-between mt-3">
+      <p className="text-muted mb-0 font-size-13" aria-live="polite">
         Page {current} of {totalPages}
       </p>
 
-      {current < totalPages ? (
-        <Link href={hrefFor(basePath, params, current + 1)} rel="next" className={linkClass}>
-          Next
-        </Link>
-      ) : (
-        <span className={disabledClass} aria-disabled="true">
-          Next
-        </span>
-      )}
+      <ul className="pagination pagination-rounded mb-0">
+        <li className={`page-item${current > 1 ? "" : " disabled"}`}>
+          {current > 1 ? (
+            <Link href={hrefFor(basePath, params, current - 1)} rel="prev" className="page-link">
+              <i className="mdi mdi-chevron-left" />
+            </Link>
+          ) : (
+            <span className="page-link" aria-disabled="true">
+              <i className="mdi mdi-chevron-left" />
+            </span>
+          )}
+        </li>
+        <li className={`page-item${current < totalPages ? "" : " disabled"}`}>
+          {current < totalPages ? (
+            <Link href={hrefFor(basePath, params, current + 1)} rel="next" className="page-link">
+              <i className="mdi mdi-chevron-right" />
+            </Link>
+          ) : (
+            <span className="page-link" aria-disabled="true">
+              <i className="mdi mdi-chevron-right" />
+            </span>
+          )}
+        </li>
+      </ul>
     </nav>
   );
 }

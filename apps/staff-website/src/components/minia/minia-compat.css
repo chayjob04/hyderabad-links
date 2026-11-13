@@ -43,33 +43,47 @@
  * the original puts on the brand image. logo.png is 520x621, the brand box is 250x70, and the
  * result is an enormous portrait logo cropped by its own container.
  *
- * The original renders it at 24px tall, so that is stated here in CSS where preflight cannot reach
- * it. `width: auto` keeps the aspect ratio: 520x621 at 24px high is 20px wide.
+ * The height is stated here in CSS, where preflight cannot reach it, and `width: auto` keeps the
+ * aspect ratio. 30px rather than the original's 24: logo.png is a tall portrait mark (520x621), so
+ * at 24px it is only 20px wide and reads as an afterthought beside 18px brand text. 30px gives it
+ * 25px of width and squares it up against the type without crowding the 70px topbar.
  *
  * The avatar needs nothing — `.header-profile-user` is a class, and a class already outranks
  * preflight's element selector.
  */
 #layout-wrapper .navbar-brand-box img {
-  height: 24px;
+  height: 30px;
   width: auto;
   max-width: 100%;
 }
 
 /*
- * preflight: `ol, ul, menu { list-style: none }`
- *
- * Bootstrap keeps the markers and relies on its own `.list-unstyled` to remove them, so a content
- * list inside a card would silently lose its bullets. Only `list-style` is restored: Bootstrap's
- * reboot already sets `ol, ul { padding-left: 2rem }` and `ol, ul, dl { margin-bottom: 1rem }`
- * from element selectors, which beat preflight's `*` rule on their own. An earlier version of this
- * file also reverted margin and padding, which would have replaced Bootstrap's 2rem indent with
- * the user agent's 40px.
+ * The brand row itself. `.logo` is given `line-height: 69px` by the theme to centre a single line
+ * of text in the 70px topbar; an image and a label of different heights sitting on that line box
+ * drift apart. Laying the row out as a flex line centres both against each other instead.
  */
-#layout-wrapper ul:not(.list-unstyled):not(.metismenu):not(.sub-menu):not(.dropdown-menu):not(.pagination):not(.nav):not(.navbar-nav):not(.breadcrumb),
-#layout-wrapper ol:not(.list-unstyled):not(.breadcrumb):not(.pagination),
-#layout-wrapper menu {
-  list-style: revert;
+#layout-wrapper .navbar-brand-box .logo-lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
+
+#layout-wrapper .navbar-brand-box .logo-txt {
+  margin-left: 0;
+  line-height: 1;
+}
+
+/*
+ * preflight: `ol, ul, menu { list-style: none }` — DELIBERATELY NOT UNDONE.
+ *
+ * Bootstrap never sets `list-style`, so restoring the markers here looked like the right call. It
+ * was not. Every unmigrated page in these panels uses a bare `<ul>` as a layout list — the admin
+ * listings queue is one — and was written against preflight, which had removed the markers. Giving
+ * them back put a bullet beside each card, which is what shipped and what had to be reported.
+ *
+ * Nothing migrated to Minia so far wants a marker, and a page that does can ask for one. A rule
+ * that repaints 34 pages to protect a case that does not exist is a bad trade.
+ */
 
 /*
  * preflight: `*, ::before, ::after { border: 0 solid }`
