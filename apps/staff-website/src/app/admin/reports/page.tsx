@@ -93,10 +93,10 @@ export default async function ReportsPage({ searchParams }: Props) {
                   </p>
 
                   {result.data.items.map((report) => (
-                    <div key={report.id} className="border rounded p-3 mb-3">
+                    <div key={report.id} className="border rounded p-4 mb-3">
                       <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
                         <div className="min-w-0">
-                          <h5 className="font-size-15 mb-1">{report.subjectName}</h5>
+                          <h5 className="font-size-16 mb-1">{report.subjectName}</h5>
                           <p className="text-muted font-size-13 mb-0">
                             {report.subjectType === "listing" ? "A listing" : "A review"} &middot;{" "}
                             {formatWhen(report.createdAt)}

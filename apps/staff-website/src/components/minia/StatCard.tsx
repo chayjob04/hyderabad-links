@@ -5,9 +5,10 @@ import Link from "next/link";
  * `Views/Dashboard/Index.cshtml`: a `card card-h-100`, a `row align-items-center`, and a muted
  * truncating label above an `h4`.
  *
- * Minia's demo markup puts a tinted icon tile in the second column. The original leaves it empty,
- * so this does too — the point is to match the application being migrated, not the theme's
- * showcase.
+ * Minia's demo markup puts a tinted icon tile in the second column and the original leaves that
+ * column empty. Reproducing the empty column faithfully only halved the usable width and made the
+ * label truncate sooner, so the column is gone and the label has the card to itself. Nothing was
+ * in it to lose.
  *
  * `href` makes the whole card a link, which the original has no equivalent for; it is kept because
  * removing it would take away a shortcut the panels already had. It changes nothing visually
@@ -25,16 +26,18 @@ export function StatCard({
   /** Grid columns, so a row of two reads as wide as a row of four. */
   width?: string;
 }) {
+  /*
+   * The label and figure carried `mb-3` each, straight from the original, which on a card with no
+   * chart or icon beside them left about 2rem of empty space below the number and cards far taller
+   * than their content. Tightened to `mb-2` and `mb-0`: the same type, the same two lines, roughly
+   * 30px less height, and every card the same height as its neighbours because they all hold
+   * exactly these two lines.
+   */
   const body = (
-    <div className="card card-h-100">
-      <div className="card-body">
-        <div className="row align-items-center">
-          <div className="col-6">
-            <span className="text-muted mb-3 lh-1 d-block text-truncate">{label}</span>
-            <h4 className="mb-3">{value}</h4>
-          </div>
-          <div className="col-6" />
-        </div>
+    <div className="card card-h-100 mb-0">
+      <div className="card-body py-3">
+        <span className="text-muted mb-2 lh-1 d-block text-truncate">{label}</span>
+        <h4 className="mb-0">{value}</h4>
       </div>
     </div>
   );

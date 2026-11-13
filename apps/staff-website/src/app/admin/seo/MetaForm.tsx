@@ -32,69 +32,74 @@ export function MetaForm({ entityType, entityKey, label, existing }: Props) {
   );
 
   return (
-    <form action={formAction} className="border rounded p-3 mb-3">
-      <h5 className="font-size-15 mb-1">{label}</h5>
-      <p className="text-muted font-size-12 mb-3">
+    <form action={formAction} className="border rounded p-4 mb-4">
+      <h5 className="font-size-16 mb-1">{label}</h5>
+      <p className="text-muted font-size-12 mb-4">
         Leave a field empty to keep what the page works out for itself.
       </p>
 
-      <div className="mb-3">
-        <label htmlFor={`title-${entityKey}`} className="form-label">
-          Page title <span className="text-muted fw-normal">(about 60 characters)</span>
-        </label>
-        <input
-          id={`title-${entityKey}`}
-          name="metaTitle"
-          defaultValue={existing?.metaTitle ?? ""}
-          maxLength={200}
-          className="form-control"
-        />
-      </div>
+      {/*
+        A grid rather than a stack. Title and description are the two fields that matter and keep
+        the full width; the image URL and the keywords pair off below them. A page title is about
+        60 characters, so an input that runs the whole width of a wide screen is mostly empty
+        space pretending to be a field.
+      */}
+      <div className="row g-3">
+        <div className="col-12 col-xxl-9">
+          <label htmlFor={`title-${entityKey}`} className="form-label">
+            Page title <span className="text-muted fw-normal">(about 60 characters)</span>
+          </label>
+          <input
+            id={`title-${entityKey}`}
+            name="metaTitle"
+            defaultValue={existing?.metaTitle ?? ""}
+            maxLength={200}
+            className="form-control"
+          />
+        </div>
 
-      <div className="mb-3">
-        <label htmlFor={`desc-${entityKey}`} className="form-label">
-          Description <span className="text-muted fw-normal">(about 160 characters)</span>
-        </label>
-        <textarea
-          id={`desc-${entityKey}`}
-          name="metaDescription"
-          rows={3}
-          defaultValue={existing?.metaDescription ?? ""}
-          maxLength={400}
-          className="form-control"
-        />
-      </div>
+        <div className="col-12 col-xxl-9">
+          <label htmlFor={`desc-${entityKey}`} className="form-label">
+            Description <span className="text-muted fw-normal">(about 160 characters)</span>
+          </label>
+          <textarea
+            id={`desc-${entityKey}`}
+            name="metaDescription"
+            rows={3}
+            defaultValue={existing?.metaDescription ?? ""}
+            maxLength={400}
+            className="form-control"
+          />
+        </div>
 
-      <div className="mb-3">
-        <label htmlFor={`og-${entityKey}`} className="form-label">
-          Link preview image URL
-        </label>
-        <input
-          id={`og-${entityKey}`}
-          name="ogImageUrl"
-          defaultValue={existing?.ogImageUrl ?? ""}
-          placeholder="https://…"
-          className="form-control"
-        />
-      </div>
+        <div className="col-md-7">
+          <label htmlFor={`og-${entityKey}`} className="form-label">
+            Link preview image URL
+          </label>
+          <input
+            id={`og-${entityKey}`}
+            name="ogImageUrl"
+            defaultValue={existing?.ogImageUrl ?? ""}
+            placeholder="https://…"
+            className="form-control"
+          />
+        </div>
 
-      <div className="mb-3">
-        <label htmlFor={`kw-${entityKey}`} className="form-label">
-          Keywords
-        </label>
-        <input
-          id={`kw-${entityKey}`}
-          name="metaKeywords"
-          defaultValue={existing?.metaKeywords ?? ""}
-          className="form-control"
-        />
-        <div className="form-text">
-          Google ignores these. Kept because the old site had them and some people still want them
-          filled in.
+        <div className="col-md-5">
+          <label htmlFor={`kw-${entityKey}`} className="form-label">
+            Keywords
+          </label>
+          <input
+            id={`kw-${entityKey}`}
+            name="metaKeywords"
+            defaultValue={existing?.metaKeywords ?? ""}
+            className="form-control"
+          />
+          <div className="form-text">Google ignores these; the old site had them.</div>
         </div>
       </div>
 
-      <div className="form-check mb-3">
+      <div className="form-check mt-4 mb-3">
         <input
           className="form-check-input"
           type="checkbox"

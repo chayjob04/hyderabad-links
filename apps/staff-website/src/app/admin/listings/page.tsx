@@ -89,7 +89,11 @@ export default async function ModerationQueuePage({ searchParams }: Props) {
                           <th scope="col">Listing</th>
                           <th scope="col">Category</th>
                           <th scope="col">Contact</th>
-                          <th scope="col">Status</th>
+                          {/* Fixed width so the badge column does not shuffle as statuses change
+                              length between "Live" and "Waiting for review". */}
+                          <th scope="col" className="text-center" style={{ width: "10rem" }}>
+                            Status
+                          </th>
                           <th scope="col">Submitted</th>
                           <th scope="col">Last change</th>
                           <th scope="col" className="text-end">
@@ -100,35 +104,44 @@ export default async function ModerationQueuePage({ searchParams }: Props) {
                       <tbody>
                         {result.data.items.map((listing) => (
                           <tr key={listing.id}>
-                            <td>
-                              <Link
-                                href={`/admin/listings/${listing.id}`}
-                                className="fw-semibold text-body"
-                              >
-                                {listing.name}
-                              </Link>
-                              {/* Whether this business is paying, which a reviewer could not see
-                                  before. It comes from the entitlement view, so it disappears the
-                                  day a plan lapses rather than showing what was once bought. */}
-                              {listing.isVerified ? (
-                                <span className="badge bg-primary-subtle text-primary ms-2">Verified</span>
-                              ) : null}
+                            <td className="py-3">
+                              <div className="d-flex align-items-center gap-2">
+                                <Link
+                                  href={`/admin/listings/${listing.id}`}
+                                  className="fw-semibold text-body"
+                                >
+                                  {listing.name}
+                                </Link>
+                                {/* Whether this business is paying, which a reviewer could not see
+                                    before. It comes from the entitlement view, so it disappears the
+                                    day a plan lapses rather than showing what was once bought. */}
+                                {listing.isVerified ? (
+                                  <span className="badge bg-primary-subtle text-primary">Verified</span>
+                                ) : null}
+                              </div>
                             </td>
-                            <td className="text-muted">
-                              {listing.categoryName ?? "No category"} &middot; {listing.localityName}
+                            <td className="py-3 text-muted">
+                              {listing.categoryName ?? "No category"}
+                              <span className="d-block font-size-12">{listing.localityName}</span>
                             </td>
-                            <td className="text-muted">
-                              {listing.phonePrimary}
+                            {/* Phone and address on their own lines: run together they read as one
+                                string, and the address is the longer of the two. */}
+                            <td className="py-3 text-muted">
+                              <span className="d-block text-nowrap">{listing.phonePrimary}</span>
                               {listing.addressLine ? (
                                 <span className="d-block font-size-12">{listing.addressLine}</span>
                               ) : null}
                             </td>
-                            <td>
+                            <td className="py-3 text-center">
                               <StatusBadge status={listing.status} />
                             </td>
-                            <td className="text-muted font-size-13">{formatWhen(listing.createdAt)}</td>
-                            <td className="text-muted font-size-13">{formatWhen(listing.updatedAt)}</td>
-                            <td className="text-end">
+                            <td className="py-3 text-muted font-size-13 text-nowrap">
+                              {formatWhen(listing.createdAt)}
+                            </td>
+                            <td className="py-3 text-muted font-size-13 text-nowrap">
+                              {formatWhen(listing.updatedAt)}
+                            </td>
+                            <td className="py-3 text-end">
                               <Link
                                 href={`/admin/listings/${listing.id}`}
                                 className="btn btn-sm btn-primary"

@@ -100,30 +100,36 @@ export default async function ReviewModerationPage({ searchParams }: Props) {
                     {result.data.total} {result.data.total === 1 ? "review" : "reviews"}
                   </p>
 
+                  {/*
+                    Three levels, in the order a moderator reads them: which listing this is about,
+                    who wrote it and when, then the review itself. The listing name carries the
+                    weight; the byline is muted and small; the body sits at normal size with room
+                    to breathe, because it is the thing being judged.
+                  */}
                   {result.data.items.map((review) => (
-                    <div key={review.id} className="border rounded p-3 mb-3">
-                      <div className="d-flex flex-wrap align-items-start justify-content-between gap-2">
+                    <div key={review.id} className="border rounded p-4 mb-3">
+                      <div className="d-flex flex-wrap align-items-start justify-content-between gap-3">
                         <div className="min-w-0">
-                          <h5 className="font-size-15 mb-1">{review.listingName}</h5>
-                          <p className="text-muted font-size-13 mb-0">
+                          <h5 className="font-size-16 mb-1">{review.listingName}</h5>
+                          <p className="text-muted font-size-12 mb-0">
                             {maskPhone(review.reviewerPhone)} &middot; {formatWhen(review.createdAt)}
                           </p>
                         </div>
                         <span
                           aria-label={`${review.rating} out of 5`}
-                          className="badge bg-primary-subtle text-primary font-size-13"
+                          className="badge bg-primary-subtle text-primary font-size-13 flex-shrink-0"
                         >
                           {review.rating} / 5
                         </span>
                       </div>
 
-                      <p className="mt-3 mb-0" style={{ whiteSpace: "pre-line" }}>
+                      <p className="mt-3 mb-0 lh-base" style={{ whiteSpace: "pre-line" }}>
                         {review.body}
                       </p>
 
                       {status === "pending" && mayModerate ? <ReviewDecision reviewId={review.id} /> : null}
                       {status === "pending" && !mayModerate ? (
-                        <p className="text-muted font-size-13 border-top mt-3 pt-3 mb-0">
+                        <p className="text-muted font-size-13 border-top mt-4 pt-3 mb-0">
                           Your account can see this queue but not decide on it.
                         </p>
                       ) : null}

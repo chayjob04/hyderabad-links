@@ -40,19 +40,19 @@ export default async function OverviewPage() {
         </div>
       ) : (
         <>
-          <div className="row mb-3">
+          <div className="row g-3 mb-4">
             <StatCard label="Businesses" value={result.data.businesses} />
             <StatCard label="Owner accounts" value={result.data.owners} />
             <StatCard label="Admin accounts" value={result.data.adminAccounts} href="/super-admin/admins" />
             <StatCard label="New enquiries" value={result.data.newEnquiries} />
           </div>
 
-          <div className="row mb-3">
+          <div className="row g-3 mb-4">
             <StatCard label="Reviews waiting" value={result.data.pendingReviews} href="/admin/reviews" />
             <StatCard label="Reports open" value={result.data.openReports} href="/admin/reports" />
           </div>
 
-          <div className="row mb-3">
+          <div className="row g-3 mb-4">
             <div className="col-12">
               <div className="card">
                 <div className="card-body">
@@ -60,7 +60,7 @@ export default async function OverviewPage() {
                   <p className="card-title-desc mb-3">
                     Every figure here is counted from the database as it is now.
                   </p>
-                  <div className="row">
+                  <div className="row g-3">
                     {result.data.listingsByStatus.map((row) => (
                       <StatCard
                         key={row.key}
@@ -74,7 +74,7 @@ export default async function OverviewPage() {
             </div>
           </div>
 
-          <div className="row mb-3">
+          <div className="row g-3 mb-4">
             <div className="col-12">
               <div className="card">
                 <div className="card-body">
@@ -84,7 +84,7 @@ export default async function OverviewPage() {
                     Verified for exactly as long as its paid period runs, so these figures follow
                     renewals and expiries on their own.
                   </p>
-                  <div className="row">
+                  <div className="row g-3">
                     {result.data.listingsByPlan.map((row) => (
                       <StatCard key={row.key} label={row.key} value={row.count} width="col-xl-3 col-md-6" />
                     ))}

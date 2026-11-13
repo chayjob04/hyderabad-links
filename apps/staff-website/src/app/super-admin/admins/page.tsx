@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SuperAdminChrome } from "@/components/SuperAdminChrome";
 import { PageTitle } from "@/components/minia/PageTitle";
+import { StatCard } from "@/components/minia/StatCard";
 import {
   formatWhen,
   getAdminSummary,
@@ -68,11 +69,11 @@ export default async function AdminAccountsPage({ searchParams }: Props) {
       {/* Summary cards. Counted across every account, never across the filtered page: a card that
           changed when you typed in the search box would be answering a different question. */}
       {summary.ok ? (
-        <div className="row mb-3">
-          <SummaryCard label="Total Admins" value={summary.data.total} />
-          <SummaryCard label="Active" value={summary.data.active} />
-          <SummaryCard label="Super Admins" value={summary.data.superAdmins} />
-          <SummaryCard label="Disabled" value={summary.data.disabled} />
+        <div className="row g-3 mb-4">
+          <StatCard label="Total Admins" value={summary.data.total} />
+          <StatCard label="Active" value={summary.data.active} />
+          <StatCard label="Super Admins" value={summary.data.superAdmins} />
+          <StatCard label="Disabled" value={summary.data.disabled} />
         </div>
       ) : null}
 
@@ -240,29 +241,6 @@ export default async function AdminAccountsPage({ searchParams }: Props) {
   );
 }
 
-/**
- * A figure card, in the shape the original application uses on its own dashboard: `card-h-100`, a
- * `row align-items-center`, and a muted truncating label above an `h4`. Taken from
- * `Views/Dashboard/Index.cshtml` rather than from Minia's demo markup, which fills the second
- * column with a tinted icon tile — the original leaves it empty, so this does too.
- */
-function SummaryCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="col-xl-3 col-md-6">
-      <div className="card card-h-100">
-        <div className="card-body">
-          <div className="row align-items-center">
-            <div className="col-6">
-              <span className="text-muted mb-3 lh-1 d-block text-truncate">{label}</span>
-              <h4 className="mb-3">{value}</h4>
-            </div>
-            <div className="col-6" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function Select({ name, label, value, options }: { name: string; label: string; value: string; options: [string, string][] }) {
   return (

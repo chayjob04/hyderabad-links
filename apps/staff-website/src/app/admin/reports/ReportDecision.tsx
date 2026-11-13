@@ -17,25 +17,27 @@ export function ReportDecision({ reportId }: { reportId: number }) {
   );
 
   return (
-    <form action={formAction} className="border-top mt-3 pt-3">
+    <form action={formAction} className="border-top mt-4 pt-3">
       <label htmlFor={`report-note-${reportId}`} className="form-label">
         Note for the team (optional)
       </label>
       <textarea
         id={`report-note-${reportId}`}
         name="note"
-        rows={2}
+        rows={3}
         defaultValue={state.note}
         placeholder="What did you find, and what did you do about it?"
         className="form-control"
       />
 
-      <div className="d-flex flex-wrap gap-2 mt-3">
-        <button type="submit" name="intent" value="action" disabled={pending} className="btn btn-primary">
-          {pending ? "Saving..." : "I dealt with it"}
-        </button>
+      {/* Trailing edge, and the dismissive option first, so the primary button is the one nearest
+          the thumb — the same order as the review queue's. */}
+      <div className="d-flex flex-wrap justify-content-end gap-2 mt-3">
         <button type="submit" name="intent" value="dismiss" disabled={pending} className="btn btn-outline-secondary">
           Nothing wrong
+        </button>
+        <button type="submit" name="intent" value="action" disabled={pending} className="btn btn-primary">
+          {pending ? "Saving..." : "I dealt with it"}
         </button>
       </div>
 
