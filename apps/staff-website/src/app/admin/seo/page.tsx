@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageTitle } from "@/components/minia/PageTitle";
 import { PERMISSION_SEO, formatWhen, getAdminProfile, getPageMetaList } from "@/lib/admin-api";
 import { MetaForm } from "./MetaForm";
 import { clearMetaAction } from "./actions";
@@ -20,7 +21,7 @@ const PAGE_LABELS: Record<string, string> = {
 };
 
 /**
- * Page titles and descriptions.
+ * Page titles and descriptions, on the original's Minia layout.
  *
  * Static pages get a form each, because there are six of them and they are the ones worth writing
  * by hand. Listings, categories and localities are edited from their own screens — there are
@@ -39,83 +40,107 @@ export default async function SeoPage({ searchParams }: Props) {
   const overrides = result.ok ? result.data.items.filter((m) => m.entityType !== "static") : [];
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-8 pb-12">
-      <h1 className="text-2xl font-bold">Page titles and descriptions</h1>
-      <p className="mt-2 text-sm text-neutral-600">
-        What search engines show, and what appears when a page is shared. Anything left empty keeps
-        the text the page works out for itself.
-      </p>
+    <>
+      <PageTitle title="SEO Home" breadcrumb={[{ label: "SEO" }, { label: "Titles and descriptions" }]} />
 
       {done ? (
-        <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">
+        <div role="status" className="alert alert-success">
           {done}
-        </p>
+        </div>
       ) : null}
       {error ? (
-        <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+        <div role="alert" className="alert alert-danger">
           {error}
-        </p>
+        </div>
       ) : null}
 
-      {!result.ok ? (
-        <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
-          {result.message}
-        </p>
-      ) : !mayEdit ? (
-        <p className="mt-6 rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-          Your account can see this page but not change it. It needs the &quot;Edit page titles,
-          descriptions and indexing&quot; permission.
-        </p>
-      ) : (
-        <>
-          <div className="mt-6 grid gap-5">
-            {result.data.staticPages.map((key) => (
-              <MetaForm
-                key={key}
-                entityType="static"
-                entityKey={key}
-                label={PAGE_LABELS[key] ?? key}
-                existing={existingFor("static", key)}
-              />
-            ))}
-          </div>
-
-          {overrides.length > 0 ? (
-            <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-              <h2 className="text-base font-semibold">Overrides on listings, categories and areas</h2>
-              <p className="mt-1 text-xs text-neutral-500">
-                Set from each item&apos;s own screen. Removing one here restores the default.
+      <div className="row mb-3">
+        <div className="col-xl-9">
+          <div className="card">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Page titles and descriptions</h4>
+              <p className="card-title-desc mb-3">
+                What search engines show, and what appears when a page is shared. Anything left
+                empty keeps the text the page works out for itself.
               </p>
-              <ul className="mt-3 grid gap-2">
-                {overrides.map((meta) => (
-                  <li
-                    key={meta.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 p-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-neutral-900">
-                        {meta.metaTitle ?? "(no title set)"}
-                      </p>
-                      <p className="mt-0.5 text-xs text-neutral-500">
-                        {meta.entityType} #{meta.entityId}
-                        {meta.noindex ? " · hidden from search" : ""} · {formatWhen(meta.updatedAt)}
-                      </p>
-                    </div>
-                    <form action={clearMetaAction.bind(null, meta.entityType, String(meta.entityId))}>
-                      <button
-                        type="submit"
-                        className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
-                      >
-                        Use the default
-                      </button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </>
-      )}
-    </main>
+
+              {!result.ok ? (
+                <div role="alert" className="alert alert-danger mb-0">
+                  {result.message}
+                </div>
+              ) : !mayEdit ? (
+                <div className="alert alert-light border mb-0 font-size-13">
+                  Your account can see this page but not change it. It needs the &quot;Edit page
+                  titles, descriptions and indexing&quot; permission.
+                </div>
+              ) : (
+                result.data.staticPages.map((key) => (
+                  <MetaForm
+                    key={key}
+                    entityType="static"
+                    entityKey={key}
+                    label={PAGE_LABELS[key] ?? key}
+                    existing={existingFor("static", key)}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {result.ok && mayEdit && overrides.length > 0 ? (
+        <div className="row mb-3">
+          <div className="col-xl-9">
+            <div className="card">
+              <div className="card-body">
+                <h4 className="card-title mb-1">Overrides on listings, categories and areas</h4>
+                <p className="card-title-desc mb-3">
+                  Set from each item&apos;s own screen. Removing one here restores the default.
+                </p>
+
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th scope="col">Title</th>
+                        <th scope="col">Applies to</th>
+                        <th scope="col">Updated</th>
+                        <th scope="col" className="text-end">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overrides.map((meta) => (
+                        <tr key={meta.id}>
+                          <td className="fw-semibold">{meta.metaTitle ?? "(no title set)"}</td>
+                          <td className="text-muted">
+                            {meta.entityType} #{meta.entityId}
+                            {meta.noindex ? (
+                              <span className="badge bg-secondary-subtle text-secondary ms-2">
+                                hidden from search
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="text-muted font-size-13">{formatWhen(meta.updatedAt)}</td>
+                          <td className="text-end">
+                            <form action={clearMetaAction.bind(null, meta.entityType, String(meta.entityId))}>
+                              <button type="submit" className="btn btn-sm btn-outline-secondary">
+                                Use the default
+                              </button>
+                            </form>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

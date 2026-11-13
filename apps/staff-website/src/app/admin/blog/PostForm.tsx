@@ -3,9 +3,6 @@
 import { useActionState } from "react";
 import { savePostAction, type PostState } from "./actions";
 
-const INPUT =
-  "mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-base outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100";
-
 type Props = {
   /** Null when writing a new post. */
   postId: number | null;
@@ -24,6 +21,9 @@ type Props = {
  *
  * The slug is not editable. It is set from the title when the post is created and then fixed: a
  * published post whose URL moves is a broken link everywhere it was shared.
+ *
+ * On the theme's form classes. The body keeps a monospace face, because Markdown is easier to
+ * line up in one.
  */
 export function PostForm({ postId, initial, isPublished = false }: Props) {
   const [state, formAction, pending] = useActionState<PostState, FormData>(
@@ -34,77 +34,96 @@ export function PostForm({ postId, initial, isPublished = false }: Props) {
   const values = state.values ?? initial;
 
   return (
-    <form action={formAction} className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <label htmlFor="title" className="block text-sm font-medium">
-        Title
-      </label>
-      <input id="title" name="title" defaultValue={values?.title ?? ""} className={INPUT} />
+    <div className="card">
+      <div className="card-body">
+        <form action={formAction}>
+          <div className="mb-3">
+            <label htmlFor="title" className="form-label">
+              Title
+            </label>
+            <input id="title" name="title" defaultValue={values?.title ?? ""} className="form-control" />
+          </div>
 
-      <label htmlFor="excerpt" className="mt-4 block text-sm font-medium">
-        Summary
-      </label>
-      <p className="text-xs text-neutral-500">
-        One sentence. It is the card on the blog page and the description search engines show.
-      </p>
-      <textarea id="excerpt" name="excerpt" rows={2} defaultValue={values?.excerpt ?? ""} className={INPUT} />
+          <div className="mb-3">
+            <label htmlFor="excerpt" className="form-label">
+              Summary
+            </label>
+            <textarea
+              id="excerpt"
+              name="excerpt"
+              rows={2}
+              defaultValue={values?.excerpt ?? ""}
+              className="form-control"
+            />
+            <div className="form-text">
+              One sentence. It is the card on the blog page and the description search engines show.
+            </div>
+          </div>
 
-      <label htmlFor="coverImageUrl" className="mt-4 block text-sm font-medium">
-        Cover image URL
-      </label>
-      <input
-        id="coverImageUrl"
-        name="coverImageUrl"
-        defaultValue={values?.coverImageUrl ?? ""}
-        placeholder="https://…"
-        className={INPUT}
-      />
+          <div className="mb-3">
+            <label htmlFor="coverImageUrl" className="form-label">
+              Cover image URL
+            </label>
+            <input
+              id="coverImageUrl"
+              name="coverImageUrl"
+              defaultValue={values?.coverImageUrl ?? ""}
+              placeholder="https://…"
+              className="form-control"
+            />
+          </div>
 
-      <label htmlFor="bodyMarkdown" className="mt-4 block text-sm font-medium">
-        Post
-      </label>
-      <p className="text-xs text-neutral-500">
-        Markdown: <code>## Heading</code>, <code>**bold**</code>, <code>*italic*</code>,{" "}
-        <code>- bullet</code>, <code>1. numbered</code>, <code>&gt; quote</code>,{" "}
-        <code>[text](https://…)</code>. HTML is shown as text, not rendered.
-      </p>
-      <textarea
-        id="bodyMarkdown"
-        name="bodyMarkdown"
-        rows={20}
-        defaultValue={values?.bodyMarkdown ?? ""}
-        className={`${INPUT} font-mono text-sm`}
-      />
+          <div className="mb-3">
+            <label htmlFor="bodyMarkdown" className="form-label">
+              Post
+            </label>
+            <textarea
+              id="bodyMarkdown"
+              name="bodyMarkdown"
+              rows={20}
+              defaultValue={values?.bodyMarkdown ?? ""}
+              className="form-control font-size-13"
+              style={{ fontFamily: "var(--bs-font-monospace)" }}
+            />
+            <div className="form-text">
+              Markdown: <code>## Heading</code>, <code>**bold**</code>, <code>*italic*</code>,{" "}
+              <code>- bullet</code>, <code>1. numbered</code>, <code>&gt; quote</code>,{" "}
+              <code>[text](https://…)</code>. HTML is shown as text, not rendered.
+            </div>
+          </div>
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        <button
-          type="submit"
-          name="intent"
-          value="draft"
-          disabled={pending}
-          formNoValidate
-          className="rounded-lg border border-neutral-300 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-50 disabled:opacity-60"
-        >
-          {pending ? "Saving…" : isPublished || postId !== null ? "Save" : "Save as draft"}
-        </button>
-        {postId === null ? (
-          <button
-            type="submit"
-            name="intent"
-            value="publish"
-            disabled={pending}
-            formNoValidate
-            className="rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-60"
-          >
-            Save and publish
-          </button>
-        ) : null}
+          <div className="d-flex flex-wrap gap-2">
+            <button
+              type="submit"
+              name="intent"
+              value="draft"
+              disabled={pending}
+              formNoValidate
+              className="btn btn-outline-secondary"
+            >
+              {pending ? "Saving…" : isPublished || postId !== null ? "Save" : "Save as draft"}
+            </button>
+            {postId === null ? (
+              <button
+                type="submit"
+                name="intent"
+                value="publish"
+                disabled={pending}
+                formNoValidate
+                className="btn btn-primary"
+              >
+                Save and publish
+              </button>
+            ) : null}
+          </div>
+
+          {state.error ? (
+            <div role="alert" className="alert alert-danger py-2 px-3 mt-3 mb-0 font-size-13">
+              {state.error}
+            </div>
+          ) : null}
+        </form>
       </div>
-
-      {state.error ? (
-        <p role="alert" className="mt-3 text-sm text-red-700">
-          {state.error}
-        </p>
-      ) : null}
-    </form>
+    </div>
   );
 }

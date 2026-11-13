@@ -4,9 +4,6 @@ import { useActionState } from "react";
 import type { PageMeta } from "@/lib/admin-api";
 import { saveMetaAction, type MetaState } from "./actions";
 
-const INPUT =
-  "mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-base outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100";
-
 type Props = {
   entityType: string;
   entityKey: string;
@@ -22,8 +19,11 @@ type Props = {
  * like it already existed, and saving the form would then freeze a title that was supposed to
  * follow the page's own content.
  *
- * The character counters are the point of the lengths shown. Google truncates titles around 60
- * characters and descriptions around 160, so writing past those is writing something nobody reads.
+ * The lengths named in the labels are the point. Google truncates titles around 60 characters and
+ * descriptions around 160, so writing past those is writing something nobody reads.
+ *
+ * On the theme's form classes, as a bordered block rather than its own card — there are six of
+ * these on the page and six stacked cards would read as six unrelated screens.
  */
 export function MetaForm({ entityType, entityKey, label, existing }: Props) {
   const [state, formAction, pending] = useActionState<MetaState, FormData>(
@@ -32,85 +32,100 @@ export function MetaForm({ entityType, entityKey, label, existing }: Props) {
   );
 
   return (
-    <form action={formAction} className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <h2 className="text-base font-semibold">{label}</h2>
-      <p className="mt-1 text-xs text-neutral-500">
+    <form action={formAction} className="border rounded p-3 mb-3">
+      <h5 className="font-size-15 mb-1">{label}</h5>
+      <p className="text-muted font-size-12 mb-3">
         Leave a field empty to keep what the page works out for itself.
       </p>
 
-      <label htmlFor={`title-${entityKey}`} className="mt-4 block text-sm font-medium">
-        Page title <span className="font-normal text-neutral-500">(about 60 characters)</span>
-      </label>
-      <input
-        id={`title-${entityKey}`}
-        name="metaTitle"
-        defaultValue={existing?.metaTitle ?? ""}
-        maxLength={200}
-        className={INPUT}
-      />
+      <div className="mb-3">
+        <label htmlFor={`title-${entityKey}`} className="form-label">
+          Page title <span className="text-muted fw-normal">(about 60 characters)</span>
+        </label>
+        <input
+          id={`title-${entityKey}`}
+          name="metaTitle"
+          defaultValue={existing?.metaTitle ?? ""}
+          maxLength={200}
+          className="form-control"
+        />
+      </div>
 
-      <label htmlFor={`desc-${entityKey}`} className="mt-4 block text-sm font-medium">
-        Description <span className="font-normal text-neutral-500">(about 160 characters)</span>
-      </label>
-      <textarea
-        id={`desc-${entityKey}`}
-        name="metaDescription"
-        rows={3}
-        defaultValue={existing?.metaDescription ?? ""}
-        maxLength={400}
-        className={INPUT}
-      />
+      <div className="mb-3">
+        <label htmlFor={`desc-${entityKey}`} className="form-label">
+          Description <span className="text-muted fw-normal">(about 160 characters)</span>
+        </label>
+        <textarea
+          id={`desc-${entityKey}`}
+          name="metaDescription"
+          rows={3}
+          defaultValue={existing?.metaDescription ?? ""}
+          maxLength={400}
+          className="form-control"
+        />
+      </div>
 
-      <label htmlFor={`og-${entityKey}`} className="mt-4 block text-sm font-medium">
-        Link preview image URL
-      </label>
-      <input
-        id={`og-${entityKey}`}
-        name="ogImageUrl"
-        defaultValue={existing?.ogImageUrl ?? ""}
-        placeholder="https://…"
-        className={INPUT}
-      />
+      <div className="mb-3">
+        <label htmlFor={`og-${entityKey}`} className="form-label">
+          Link preview image URL
+        </label>
+        <input
+          id={`og-${entityKey}`}
+          name="ogImageUrl"
+          defaultValue={existing?.ogImageUrl ?? ""}
+          placeholder="https://…"
+          className="form-control"
+        />
+      </div>
 
-      <label htmlFor={`kw-${entityKey}`} className="mt-4 block text-sm font-medium">
-        Keywords
-      </label>
-      <p className="text-xs text-neutral-500">
-        Google ignores these. Kept because the old site had them and some people still want them
-        filled in.
-      </p>
-      <input id={`kw-${entityKey}`} name="metaKeywords" defaultValue={existing?.metaKeywords ?? ""} className={INPUT} />
+      <div className="mb-3">
+        <label htmlFor={`kw-${entityKey}`} className="form-label">
+          Keywords
+        </label>
+        <input
+          id={`kw-${entityKey}`}
+          name="metaKeywords"
+          defaultValue={existing?.metaKeywords ?? ""}
+          className="form-control"
+        />
+        <div className="form-text">
+          Google ignores these. Kept because the old site had them and some people still want them
+          filled in.
+        </div>
+      </div>
 
-      <label className="mt-4 flex items-start gap-2 text-sm">
-        <input type="checkbox" name="noindex" defaultChecked={existing?.noindex ?? false} className="mt-1" />
-        <span>
-          <span className="font-medium">Keep this page out of search engines</span>
-          <span className="block text-xs text-neutral-500">
+      <div className="form-check mb-3">
+        <input
+          className="form-check-input"
+          type="checkbox"
+          name="noindex"
+          id={`noindex-${entityKey}`}
+          defaultChecked={existing?.noindex ?? false}
+        />
+        <label className="form-check-label" htmlFor={`noindex-${entityKey}`}>
+          Keep this page out of search engines
+          <span className="d-block text-muted font-size-12">
             Also removes it from the sitemap, so the two cannot disagree. Use it for a thin page you
             do not want indexed yet, rather than deleting it.
           </span>
-        </span>
-      </label>
+        </label>
+      </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-4">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-900 disabled:opacity-60"
-        >
+      <div className="d-flex align-items-center gap-3">
+        <button type="submit" disabled={pending} className="btn btn-primary">
           {pending ? "Saving…" : "Save"}
         </button>
         {state.saved ? (
-          <p role="status" className="text-sm font-medium text-green-700">
+          <span role="status" className="text-success fw-semibold font-size-13">
             Saved.
-          </p>
+          </span>
         ) : null}
       </div>
 
       {state.error ? (
-        <p role="alert" className="mt-3 text-sm text-red-700">
+        <div role="alert" className="alert alert-danger py-2 px-3 mt-3 mb-0 font-size-13">
           {state.error}
-        </p>
+        </div>
       ) : null}
     </form>
   );

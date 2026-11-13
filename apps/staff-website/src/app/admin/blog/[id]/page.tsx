@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PageTitle } from "@/components/minia/PageTitle";
 import { getBlogPost } from "@/lib/admin-api";
 import { PostForm } from "../PostForm";
 
@@ -22,44 +22,56 @@ export default async function EditPostPage({ params, searchParams }: Props) {
   if (!result.ok) {
     if (result.status === 404) notFound();
     return (
-      <main className="mx-auto max-w-3xl px-4 pt-8">
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-red-800">
+      <>
+        <PageTitle title="Edit post" breadcrumb={[{ label: "Blog", href: "/admin/blog" }]} />
+        <div role="alert" className="alert alert-danger">
           {result.message}
-        </p>
-      </main>
+        </div>
+      </>
     );
   }
 
   const post = result.data;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-8 pb-12">
-      <Link href="/admin/blog" className="text-sm font-medium text-brand-700 underline-offset-2 hover:underline">
-        &larr; Blog
-      </Link>
-      <h1 className="mt-2 text-2xl font-bold">{post.title}</h1>
-      <p className="mt-1 text-sm text-neutral-600">
-        /{post.slug} &middot; {post.status === "published" ? "Published" : "Draft"}
-      </p>
+    <>
+      <PageTitle
+        title={post.title}
+        breadcrumb={[{ label: "Blog", href: "/admin/blog" }, { label: `/${post.slug}` }]}
+      />
 
       {done ? (
-        <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">
+        <div role="status" className="alert alert-success">
           {done}
-        </p>
+        </div>
       ) : null}
 
-      <div className="mt-6">
-        <PostForm
-          postId={post.id}
-          isPublished={post.status === "published"}
-          initial={{
-            title: post.title,
-            excerpt: post.excerpt ?? "",
-            bodyMarkdown: post.bodyMarkdown,
-            coverImageUrl: post.coverImageUrl ?? "",
-          }}
-        />
+      <div className="row mb-3">
+        <div className="col-xl-9">
+          <p className="text-muted">
+            /{post.slug} &middot;{" "}
+            <span
+              className={`badge ${
+                post.status === "published"
+                  ? "bg-success-subtle text-success"
+                  : "bg-secondary-subtle text-secondary"
+              }`}
+            >
+              {post.status === "published" ? "Published" : "Draft"}
+            </span>
+          </p>
+          <PostForm
+            postId={post.id}
+            isPublished={post.status === "published"}
+            initial={{
+              title: post.title,
+              excerpt: post.excerpt ?? "",
+              bodyMarkdown: post.bodyMarkdown,
+              coverImageUrl: post.coverImageUrl ?? "",
+            }}
+          />
+        </div>
       </div>
-    </main>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { PageTitle } from "@/components/minia/PageTitle";
 import { PostForm } from "../PostForm";
 
 export const metadata: Metadata = { title: "Write a post", robots: { index: false, follow: false } };
@@ -7,17 +7,20 @@ export const dynamic = "force-dynamic";
 
 export default function NewPostPage() {
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-8 pb-12">
-      <Link href="/admin/blog" className="text-sm font-medium text-brand-700 underline-offset-2 hover:underline">
-        &larr; Blog
-      </Link>
-      <h1 className="mt-2 text-2xl font-bold">Write a post</h1>
-      <p className="mt-1 text-sm text-neutral-600">
-        The web address is made from the title and then fixed, so a published post never moves.
-      </p>
-      <div className="mt-6">
-        <PostForm postId={null} />
+    <>
+      <PageTitle
+        title="Write a post"
+        breadcrumb={[{ label: "Blog", href: "/admin/blog" }, { label: "New" }]}
+      />
+
+      <div className="row mb-3">
+        <div className="col-xl-9">
+          <p className="text-muted">
+            The web address is made from the title and then fixed, so a published post never moves.
+          </p>
+          <PostForm postId={null} />
+        </div>
       </div>
-    </main>
+    </>
   );
 }
