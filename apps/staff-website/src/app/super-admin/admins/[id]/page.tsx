@@ -55,7 +55,7 @@ export default async function AdminAccountPage({ params }: { params: Promise<{ i
       />
 
       {/* Who this is, and the four facts worth seeing before anything else. */}
-      <div className="card">
+      <div className="card mb-3">
         <div className="card-body">
           <div className="d-flex align-items-center mb-4">
             <div className="avatar-md me-3">
@@ -100,7 +100,7 @@ export default async function AdminAccountPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      <div className="row">
+      <div className="row mb-3">
         <div className="col-xl-6">
           <Panel title="Account details" description="The name and address this person signs in with.">
             <EditAdminForm account={account} />
@@ -227,7 +227,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="card h-100">
+    <div className="card h-100 mb-3">
       <div className="card-body">
         <h4 className="card-title mb-1">{title}</h4>
         <p className="card-title-desc mb-3">{description}</p>

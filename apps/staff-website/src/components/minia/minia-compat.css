@@ -36,6 +36,26 @@
 }
 
 /*
+ * preflight: `img, video { max-width: 100%; height: auto }`
+ *
+ * This one is not cosmetic, and an earlier version of this file dismissed it as harmless. A CSS
+ * `height` beats the HTML `height` attribute, so `height: auto` silently cancels the `height="24"`
+ * the original puts on the brand image. logo.png is 520x621, the brand box is 250x70, and the
+ * result is an enormous portrait logo cropped by its own container.
+ *
+ * The original renders it at 24px tall, so that is stated here in CSS where preflight cannot reach
+ * it. `width: auto` keeps the aspect ratio: 520x621 at 24px high is 20px wide.
+ *
+ * The avatar needs nothing — `.header-profile-user` is a class, and a class already outranks
+ * preflight's element selector.
+ */
+#layout-wrapper .navbar-brand-box img {
+  height: 24px;
+  width: auto;
+  max-width: 100%;
+}
+
+/*
  * preflight: `ol, ul, menu { list-style: none }`
  *
  * Bootstrap keeps the markers and relies on its own `.list-unstyled` to remove them, so a content

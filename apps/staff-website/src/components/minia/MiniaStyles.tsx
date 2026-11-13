@@ -1,4 +1,5 @@
 import "./minia-compat.css";
+import "./minia-fonts.css";
 
 /**
  * The original theme's stylesheets, loaded in the order the Razor layouts loaded them.
@@ -14,8 +15,12 @@ import "./minia-compat.css";
  * theme, then the preloader — exactly as _AdminLayout.cshtml had them.
  *
  * app.min.css carries its own `@import` of IBM Plex Sans from Google Fonts. That import is the
- * original's, left untouched: removing it would change the typeface and so change the thing being
- * reproduced. It is the one external request these panels make.
+ * original's and is left untouched, but it does not succeed: this site's Content-Security-Policy
+ * allows styles and fonts from its own origin only, so the request is refused and one CSP warning
+ * is logged per page load. The typeface comes from minia-fonts.css instead, which serves the same
+ * family from /assets/admin/fonts. Deleting the one `@import` line would silence the warning at
+ * the cost of app.min.css no longer being the original file; that is a trade worth making
+ * deliberately rather than quietly.
  */
 const SHEETS = [
   "/assets/admin/css/bootstrap.min.css",

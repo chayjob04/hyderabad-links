@@ -68,17 +68,17 @@ export default async function AdminAccountsPage({ searchParams }: Props) {
       {/* Summary cards. Counted across every account, never across the filtered page: a card that
           changed when you typed in the search box would be answering a different question. */}
       {summary.ok ? (
-        <div className="row">
-          <SummaryCard label="Total Admins" value={summary.data.total} icon="bx bx-group" tone="primary" />
-          <SummaryCard label="Active" value={summary.data.active} icon="bx bx-check-shield" tone="success" />
-          <SummaryCard label="Super Admins" value={summary.data.superAdmins} icon="bx bx-crown" tone="info" />
-          <SummaryCard label="Disabled" value={summary.data.disabled} icon="bx bx-block" tone="secondary" />
+        <div className="row mb-3">
+          <SummaryCard label="Total Admins" value={summary.data.total} />
+          <SummaryCard label="Active" value={summary.data.active} />
+          <SummaryCard label="Super Admins" value={summary.data.superAdmins} />
+          <SummaryCard label="Disabled" value={summary.data.disabled} />
         </div>
       ) : null}
 
       {/* Filters. A plain GET form, so the URL is the state: a filtered view can be linked, and
           the back button does what it should. */}
-      <div className="card">
+      <div className="card mb-3">
         <div className="card-body">
           <form method="GET" className="row g-3 align-items-end">
             <div className="col-md-6 col-lg-4">
@@ -116,7 +116,7 @@ export default async function AdminAccountsPage({ searchParams }: Props) {
       </div>
 
       {page.ok && page.data.items.length === 0 ? (
-        <div className="card">
+        <div className="card mb-3">
           <div className="card-body text-center py-5">
             <div className="avatar-md mx-auto mb-4">
               <span className="avatar-title bg-light text-secondary rounded-circle font-size-24">
@@ -134,7 +134,7 @@ export default async function AdminAccountsPage({ searchParams }: Props) {
       ) : null}
 
       {page.ok && page.data.items.length > 0 ? (
-        <div className="card">
+        <div className="card mb-3">
           <div className="card-body">
             <h4 className="card-title mb-1">Administrators</h4>
             <p className="card-title-desc mb-3">
@@ -209,7 +209,7 @@ export default async function AdminAccountsPage({ searchParams }: Props) {
           clearing an authenticator are one click each, and sending somebody to a detail page to
           toggle a status would be worse. Everything heavier is behind Manage. */}
       {page.ok && roles.ok && page.data.items.length > 0 ? (
-        <div className="card">
+        <div className="card mb-3">
           <div className="card-body">
             <h4 className="card-title mb-1">Quick changes</h4>
             <p className="card-title-desc mb-3">
@@ -240,32 +240,23 @@ export default async function AdminAccountsPage({ searchParams }: Props) {
   );
 }
 
-/** The theme's dashboard card: a label, a figure, and a tinted icon tile on the right. */
-function SummaryCard({
-  label,
-  value,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: number;
-  icon: string;
-  tone: "primary" | "success" | "info" | "secondary";
-}) {
+/**
+ * A figure card, in the shape the original application uses on its own dashboard: `card-h-100`, a
+ * `row align-items-center`, and a muted truncating label above an `h4`. Taken from
+ * `Views/Dashboard/Index.cshtml` rather than from Minia's demo markup, which fills the second
+ * column with a tinted icon tile — the original leaves it empty, so this does too.
+ */
+function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="col-md-6 col-xl-3">
-      <div className="card">
+    <div className="col-xl-3 col-md-6">
+      <div className="card card-h-100">
         <div className="card-body">
-          <div className="d-flex">
-            <div className="flex-grow-1">
-              <p className="text-truncate font-size-14 mb-2">{label}</p>
-              <h4 className="mb-0">{value}</h4>
+          <div className="row align-items-center">
+            <div className="col-6">
+              <span className="text-muted mb-3 lh-1 d-block text-truncate">{label}</span>
+              <h4 className="mb-3">{value}</h4>
             </div>
-            <div className="avatar-sm">
-              <span className={`avatar-title bg-${tone}-subtle text-${tone} rounded-3`}>
-                <i className={`${icon} font-size-24`} />
-              </span>
-            </div>
+            <div className="col-6" />
           </div>
         </div>
       </div>

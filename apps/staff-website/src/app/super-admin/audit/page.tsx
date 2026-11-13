@@ -42,7 +42,7 @@ export default async function AuditPage({ searchParams }: Props) {
     <SuperAdminChrome>
       <PageTitle title="Audit log" breadcrumb={[{ label: "Mixed" }, { label: "Audit Dashboard" }]} />
 
-      <div className="card">
+      <div className="card mb-3">
         <div className="card-body">
           <h4 className="card-title mb-1">Every decision staff have taken</h4>
           <p className="card-title-desc mb-3">
