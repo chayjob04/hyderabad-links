@@ -14,21 +14,26 @@ type Props = {
   submitLabel: string;
 };
 
-const inputClass =
-  "mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-base outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100 aria-[invalid=true]:border-red-600";
-
+/**
+ * One field: label, control, and either a hint or the error that replaced it.
+ *
+ * On the theme's form classes. The error uses Bootstrap's `invalid-feedback` with `d-block`,
+ * because the control is marked invalid through `aria-invalid` rather than `.is-invalid` — the
+ * accessible attribute is the one that matters, and Bootstrap's sibling selector would not fire
+ * from it on its own.
+ */
 function Field(props: { id: string; label: string; hint?: string; error?: string; children: React.ReactNode }) {
   return (
-    <div>
-      <label htmlFor={props.id} className="block text-sm font-medium">
+    <div className="mb-3">
+      <label htmlFor={props.id} className="form-label">
         {props.label}
       </label>
       {props.children}
-      {props.hint && !props.error ? <p className="mt-1 text-sm text-neutral-500">{props.hint}</p> : null}
+      {props.hint && !props.error ? <div className="form-text">{props.hint}</div> : null}
       {props.error ? (
-        <p id={`${props.id}-error`} className="mt-1 text-sm text-red-700">
+        <div id={`${props.id}-error`} className="invalid-feedback d-block">
           {props.error}
-        </p>
+        </div>
       ) : null}
     </div>
   );
@@ -43,24 +48,26 @@ export function ListingForm({ action, categories, localities, lockedLocalityName
     "aria-invalid": e[field] ? true : undefined,
     "aria-describedby": e[field] ? `${field}-error` : undefined,
   });
+  const control = (field: string) => `form-control${e[field] ? " is-invalid" : ""}`;
+  const select = (field: string) => `form-select${e[field] ? " is-invalid" : ""}`;
 
   return (
-    <form key={state.rev} action={formAction} className="grid gap-5">
+    <form key={state.rev} action={formAction}>
       {state.message ? (
-        <p
+        <div
           role={state.success ? "status" : "alert"}
-          className={`rounded-lg px-4 py-3 text-sm ${state.success ? "bg-green-50 text-green-900" : "bg-red-50 text-red-800"}`}
+          className={`alert ${state.success ? "alert-success" : "alert-danger"}`}
         >
           {state.message}
-        </p>
+        </div>
       ) : null}
 
       <Field id="name" label="Business name" error={e.name}>
-        <input id="name" name="name" defaultValue={v.name} required maxLength={120} className={inputClass} {...aria("name")} />
+        <input id="name" name="name" defaultValue={v.name} required maxLength={120} className={control("name")} {...aria("name")} />
       </Field>
 
       <Field id="categorySlug" label="Category" error={e.categorySlug}>
-        <select id="categorySlug" name="categorySlug" defaultValue={v.categorySlug ?? ""} required className={inputClass} {...aria("categorySlug")}>
+        <select id="categorySlug" name="categorySlug" defaultValue={v.categorySlug ?? ""} required className={select("categorySlug")} {...aria("categorySlug")}>
           <option value="">Choose a category</option>
           {categories.map((parent) => (
             <optgroup key={parent.slug} label={parent.name}>
@@ -76,7 +83,7 @@ export function ListingForm({ action, categories, localities, lockedLocalityName
 
       {localities ? (
         <Field id="localitySlug" label="Area" hint="This sets the page address and cannot be changed later." error={e.localitySlug}>
-          <select id="localitySlug" name="localitySlug" defaultValue={v.localitySlug ?? ""} required className={inputClass} {...aria("localitySlug")}>
+          <select id="localitySlug" name="localitySlug" defaultValue={v.localitySlug ?? ""} required className={select("localitySlug")} {...aria("localitySlug")}>
             <option value="">Choose the area</option>
             {localities.map((l) => (
               <option key={l.slug} value={l.slug}>
@@ -86,43 +93,51 @@ export function ListingForm({ action, categories, localities, lockedLocalityName
           </select>
         </Field>
       ) : (
-        <div>
-          <p className="text-sm font-medium">Area</p>
-          <p className="mt-1 text-base">{lockedLocalityName}</p>
-          <p className="mt-1 text-sm text-neutral-500">The area is part of the public address, so it cannot be changed.</p>
+        <div className="mb-3">
+          <p className="form-label mb-1">Area</p>
+          <p className="mb-1">{lockedLocalityName}</p>
+          <div className="form-text">
+            The area is part of the public address, so it cannot be changed.
+          </div>
         </div>
       )}
 
       <Field id="addressLine" label="Address" error={e.addressLine}>
-        <input id="addressLine" name="addressLine" defaultValue={v.addressLine} maxLength={300} className={inputClass} {...aria("addressLine")} />
+        <input id="addressLine" name="addressLine" defaultValue={v.addressLine} maxLength={300} className={control("addressLine")} {...aria("addressLine")} />
       </Field>
 
-      <Field id="pincode" label="Pincode" error={e.pincode}>
-        <input id="pincode" name="pincode" defaultValue={v.pincode} inputMode="numeric" maxLength={6} className={`${inputClass} sm:max-w-40`} {...aria("pincode")} />
-      </Field>
+      <div className="row">
+        <div className="col-sm-4">
+          <Field id="pincode" label="Pincode" error={e.pincode}>
+            <input id="pincode" name="pincode" defaultValue={v.pincode} inputMode="numeric" maxLength={6} className={control("pincode")} {...aria("pincode")} />
+          </Field>
+        </div>
+      </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field id="phonePrimary" label="Phone number customers can call" error={e.phonePrimary}>
-          <input id="phonePrimary" name="phonePrimary" type="tel" defaultValue={v.phonePrimary} inputMode="numeric" required className={inputClass} {...aria("phonePrimary")} />
-        </Field>
-        <Field id="phoneWhatsapp" label="WhatsApp number (optional)" error={e.phoneWhatsapp}>
-          <input id="phoneWhatsapp" name="phoneWhatsapp" type="tel" defaultValue={v.phoneWhatsapp} inputMode="numeric" className={inputClass} {...aria("phoneWhatsapp")} />
-        </Field>
+      <div className="row">
+        <div className="col-sm-6">
+          <Field id="phonePrimary" label="Phone number customers can call" error={e.phonePrimary}>
+            <input id="phonePrimary" name="phonePrimary" type="tel" defaultValue={v.phonePrimary} inputMode="numeric" required className={control("phonePrimary")} {...aria("phonePrimary")} />
+          </Field>
+        </div>
+        <div className="col-sm-6">
+          <Field id="phoneWhatsapp" label="WhatsApp number (optional)" error={e.phoneWhatsapp}>
+            <input id="phoneWhatsapp" name="phoneWhatsapp" type="tel" defaultValue={v.phoneWhatsapp} inputMode="numeric" className={control("phoneWhatsapp")} {...aria("phoneWhatsapp")} />
+          </Field>
+        </div>
       </div>
 
       <Field id="websiteUrl" label="Website (optional)" error={e.websiteUrl}>
-        <input id="websiteUrl" name="websiteUrl" defaultValue={v.websiteUrl} inputMode="url" placeholder="example.com" className={inputClass} {...aria("websiteUrl")} />
+        <input id="websiteUrl" name="websiteUrl" defaultValue={v.websiteUrl} inputMode="url" placeholder="example.com" className={control("websiteUrl")} {...aria("websiteUrl")} />
       </Field>
 
       <Field id="description" label="About the business" hint="What they do, in a sentence or two." error={e.description}>
-        <textarea id="description" name="description" defaultValue={v.description} rows={5} maxLength={2000} className={inputClass} {...aria("description")} />
+        <textarea id="description" name="description" defaultValue={v.description} rows={5} maxLength={2000} className={control("description")} {...aria("description")} />
       </Field>
 
-      <div>
-        <button type="submit" disabled={pending} className="rounded-lg bg-brand-700 px-6 py-2.5 text-base font-semibold text-white hover:bg-brand-900 disabled:opacity-60">
-          {pending ? "Saving..." : submitLabel}
-        </button>
-      </div>
+      <button type="submit" disabled={pending} className="btn btn-primary">
+        {pending ? "Saving..." : submitLabel}
+      </button>
     </form>
   );
 }

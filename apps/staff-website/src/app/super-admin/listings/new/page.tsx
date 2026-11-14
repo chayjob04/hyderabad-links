@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ListingForm } from "@/components/ListingForm";
+import { PageTitle } from "@/components/minia/PageTitle";
 import {
   PERMISSION_LISTINGS_CREATE,
   getCategories,
@@ -15,42 +15,53 @@ export const dynamic = "force-dynamic";
 export default async function AddListingPage() {
   const [me, categories, localities] = await Promise.all([getProfile(), getCategories(), getLocalities()]);
 
+  const title = (
+    <PageTitle
+      title="Add a listing"
+      breadcrumb={[{ label: "Listings", href: "/super-admin/listings" }, { label: "Add" }]}
+    />
+  );
+
   // The API refuses this anyway; the page only avoids showing a form that would be rejected.
   if (me.ok && !me.data.permissions.includes(PERMISSION_LISTINGS_CREATE)) {
     return (
-      <main className="mx-auto max-w-2xl px-4 pt-8">
-        <h1 className="text-2xl font-bold">Add a listing</h1>
-        <p className="mt-4 rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-          Your account cannot add listings. It needs the &quot;Add listings manually&quot; permission.
-        </p>
-      </main>
+      <>
+        {title}
+        <div className="alert alert-light border">
+          Your account cannot add listings. It needs the &quot;Add listings manually&quot;
+          permission.
+        </div>
+      </>
     );
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 pt-8 pb-12">
-      <Link href="/super-admin/listings" className="text-sm font-medium text-neutral-700 underline-offset-2 hover:underline">
-        &larr; Back to listings
-      </Link>
-      <h1 className="mt-3 text-2xl font-bold">Add a listing</h1>
-      <p className="mt-1 text-neutral-600">
-        For a business that phoned in or walked in. It goes live as soon as you save it: a super
-        admin who may add a listing may also publish one, so there is nothing to wait for.
-      </p>
-      <p className="mt-2 text-sm text-neutral-600">
-        A business is listed under a <strong>subcategory</strong>. If the one you need is missing,
-        add it on the admin site first.
-      </p>
+    <>
+      {title}
 
-      <div className="mt-6">
-        <ListingForm
-          action={saveListingAction.bind(null, null)}
-          categories={categories}
-          localities={localities}
-          initialValues={{}}
-          submitLabel="Add and publish"
-        />
+      <div className="row g-3">
+        <div className="col-xl-8">
+          <div className="card mb-0">
+            <div className="card-body">
+              <h4 className="card-title mb-1">For a business that phoned in or walked in</h4>
+              <p className="card-title-desc mb-3">
+                It goes live as soon as you save it: a super admin who may add a listing may also
+                publish one, so there is nothing to wait for. A business is listed under a{" "}
+                <strong>subcategory</strong> — if the one you need is missing, add it on the admin
+                site first.
+              </p>
+
+              <ListingForm
+                action={saveListingAction.bind(null, null)}
+                categories={categories}
+                localities={localities}
+                initialValues={{}}
+                submitLabel="Add and publish"
+              />
+            </div>
+          </div>
+        </div>
       </div>
-    </main>
+    </>
   );
 }
