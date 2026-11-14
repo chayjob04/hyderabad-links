@@ -21,7 +21,7 @@ export function DecisionForm({ listingId }: { listingId: number }) {
       <textarea
         id="reason"
         name="reason"
-        rows={4}
+        rows={6}
         defaultValue={state.reason}
         placeholder="What should the owner fix? They will see this message."
         className="form-control"

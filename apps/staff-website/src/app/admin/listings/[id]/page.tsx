@@ -27,15 +27,41 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ added?: 
  * height it needed. Label left, value right, one line each: the same information, scannable in a
  * column rather than a scroll.
  */
-function Field({ label, value }: { label: string; value: string | null }) {
+function Field({
+  label,
+  value,
+  block = false,
+}: {
+  label: string;
+  value: string | null;
+  /*
+   * A value too long to sit opposite its label. A description is a paragraph, and forcing one into
+   * a right-aligned 60% cell gives four ragged lines running away from the eye. `block` puts the
+   * label on its own line and lets the text start at the left margin, where prose is read.
+   */
+  block?: boolean;
+}) {
+  const shown = value && value.trim() !== "" ? value : <span className="text-muted">—</span>;
+
+  if (block) {
+    return (
+      <tr>
+        <td colSpan={2} className="px-0 py-3">
+          <span className="d-block text-muted mb-1">{label}</span>
+          <span className="d-block lh-base" style={{ whiteSpace: "pre-line" }}>
+            {shown}
+          </span>
+        </td>
+      </tr>
+    );
+  }
+
   return (
     <tr>
       <th scope="row" className="fw-normal text-muted ps-0" style={{ width: "40%" }}>
         {label}
       </th>
-      <td className="text-end pe-0 text-break">
-        {value && value.trim() !== "" ? value : <span className="text-muted">—</span>}
-      </td>
+      <td className="text-end pe-0 text-break">{shown}</td>
     </tr>
   );
 }
@@ -118,7 +144,7 @@ export default async function ReviewListingPage({ params, searchParams }: Props)
 
               <table className="table table-sm mb-0">
                 <tbody>
-                  <Field label="Description" value={listing.description} />
+                  <Field label="Description" value={listing.description} block />
                   <Field label="Address" value={listing.addressLine} />
                   <Field label="Pincode" value={listing.pincode} />
                   <Field label="Phone" value={listing.phonePrimary} />
@@ -215,9 +241,9 @@ export default async function ReviewListingPage({ params, searchParams }: Props)
           above, because it applies whatever the listing's status is: a live listing with a wrong
           phone number is the commonest case, and the point of this feature is that it no longer has
           to be suspended to get the number fixed. */}
-      <div className="row g-3">
+      <div className="row g-3 align-items-start">
         <div className="col-xl-5">
-          <div className="card h-100">
+          <div className="card">
             <div className="card-body">
               <h4 className="card-title mb-3">Ask the owner for a correction</h4>
               {mayAlert && alerts.ok ? (
@@ -234,7 +260,7 @@ export default async function ReviewListingPage({ params, searchParams }: Props)
         </div>
 
         <div className="col-xl-7">
-          <div className="card h-100">
+          <div className="card">
             <div className="card-body">
               <h4 className="card-title mb-3">What has been asked already</h4>
               {!alerts.ok ? (

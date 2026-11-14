@@ -95,13 +95,13 @@ export default async function AccountPage({ params, searchParams }: Props) {
         </div>
       ) : null}
 
-      <div className="row g-3">
+      <div className="row g-3 align-items-start">
         <div className="col-xl-4">
-          <div className="card h-100">
+          <div className="card">
             <div className="card-body">
-              <div className="d-flex align-items-center mb-3">
-                <div className="avatar-sm me-3">
-                  <span className="avatar-title bg-primary-subtle text-primary rounded-circle font-size-20">
+              <div className="d-flex align-items-center pb-3 mb-3 border-bottom">
+                <div className="avatar-md me-3">
+                  <span className="avatar-title bg-primary-subtle text-primary rounded-circle font-size-24">
                     <i className="bx bx-user" />
                   </span>
                 </div>
@@ -159,7 +159,7 @@ export default async function AccountPage({ params, searchParams }: Props) {
               </p>
 
               {maySuspend ? (
-                <div className="border-top mt-3 pt-3">
+                <div className="border-top mt-4 pt-3">
                   <h5 className="font-size-14 mb-1">
                     {suspended ? "Reinstate" : "Suspend"} this account
                   </h5>
@@ -183,7 +183,7 @@ export default async function AccountPage({ params, searchParams }: Props) {
         </div>
 
         <div className="col-xl-8">
-          <div className="card h-100">
+          <div className="card">
             <div className="card-body">
               <h4 className="card-title mb-1">Their listings</h4>
               <p className="card-title-desc mb-3">
