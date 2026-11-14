@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AccessDenied } from "@/components/AccessDenied";
 import { ListingStaffNav } from "@/components/ListingStaffNav";
+import { PageTitle } from "@/components/minia/PageTitle";
 import {
   LINK_TYPES,
   PERMISSION_LISTINGS_EDIT,
@@ -16,14 +17,6 @@ export const metadata: Metadata = { title: "Links" };
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ done?: string; error?: string }> };
-
-const INPUT =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-base outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100";
-
-const BUTTON =
-  "rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-50";
-
-const ADD = "rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700";
 
 /**
  * Staff adding a listing's website and social links — the original's `Super/EditSocialLinks`.
@@ -53,141 +46,177 @@ export default async function StaffLinksPage({ params, searchParams }: Props) {
   if (!listing.ok && listing.status === 404) notFound();
 
   const full = links.ok && links.data.used >= links.data.limit;
+  const name = listing.ok ? listing.data.name : `Listing ${id}`;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-8 pb-12">
-      <Link href="/super-admin/listings" className="text-sm font-semibold text-brand-700 hover:underline">
-        <span aria-hidden="true">&larr;</span> Listings
-      </Link>
-      <h1 className="mt-3 text-2xl font-bold">{listing.ok ? listing.data.name : `Listing ${id}`}</h1>
+    <>
+      <PageTitle
+        title={name}
+        breadcrumb={[{ label: "Listings", href: "/super-admin/listings" }, { label: "Links" }]}
+        action={
+          <Link href={`/super-admin/listings/${id}`} className="btn btn-outline-secondary">
+            <i className="mdi mdi-arrow-left me-1" /> Listing
+          </Link>
+        }
+      />
+
       <ListingStaffNav listingId={id} current="links" />
 
       {done ? (
-        <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">
+        <div role="status" className="alert alert-success">
           {done}
-        </p>
+        </div>
       ) : null}
       {error ? (
-        <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+        <div role="alert" className="alert alert-danger">
           {error}
-        </p>
+        </div>
       ) : null}
 
       {!links.ok ? (
-        <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+        <div role="alert" className="alert alert-danger">
           {links.message}
-        </p>
+        </div>
       ) : (
-        <>
-          <p className="mt-5 text-sm text-neutral-600">
-            {links.data.used} of {links.data.limit} used on the {links.data.planName} plan.
-            {links.data.limit === 0
-              ? " This plan does not include links — the Verified plan does."
-              : ""}
-          </p>
+        <div className="row g-3">
+          <div className="col-xl-5">
+            <div className="card h-100">
+              <div className="card-body">
+                <h4 className="card-title mb-1">Add a link</h4>
+                <p className="card-title-desc mb-3">
+                  {links.data.used} of {links.data.limit} used on the {links.data.planName} plan.
+                  {links.data.limit === 0
+                    ? " This plan does not include links — the Verified plan does."
+                    : ""}
+                </p>
 
-          {mayEdit && !full && links.data.limit > 0 ? (
-            <section className="mt-6 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-              <h2 className="text-base font-semibold">Add a link</h2>
-              <form action={addLinkAction.bind(null, id)} className="mt-4 grid gap-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="text-sm font-semibold text-neutral-700" htmlFor="linkType">
-                      Kind
-                    </label>
-                    <select id="linkType" name="linkType" className={`mt-1 ${INPUT}`} defaultValue="website">
-                      {LINK_TYPES.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-neutral-700" htmlFor="label">
-                      Label
-                    </label>
-                    <input
-                      id="label"
-                      name="label"
-                      maxLength={80}
-                      required
-                      placeholder="Our website"
-                      className={`mt-1 ${INPUT}`}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-neutral-700" htmlFor="url">
-                    Web address
-                  </label>
-                  <input
-                    id="url"
-                    name="url"
-                    type="url"
-                    maxLength={1000}
-                    required
-                    placeholder="https://example.com"
-                    className={`mt-1 ${INPUT}`}
-                  />
-                  <p className="mt-1 text-xs text-neutral-500">
-                    A full address starting with http:// or https://. Anything else is refused.
-                  </p>
-                </div>
-                <div>
-                  <button type="submit" className={ADD}>
-                    Add
-                  </button>
-                </div>
-              </form>
-            </section>
-          ) : full ? (
-            <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-amber-900">
-              This listing has all {links.data.limit} links its plan allows. Remove one to add
-              another.
-            </p>
-          ) : null}
-
-          <section className="mt-6">
-            <h2 className="text-base font-semibold">Links</h2>
-            {links.data.items.length === 0 ? (
-              <p className="mt-2 text-sm text-neutral-600">None added yet.</p>
-            ) : (
-              <ul className="mt-3 divide-y divide-neutral-200 rounded-xl border border-neutral-200 bg-white shadow-sm">
-                {links.data.items.map((link) => (
-                  <li key={link.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">
-                        {link.label}
-                        <span className="ml-2 rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] font-bold text-neutral-600 uppercase">
-                          {link.linkType}
-                        </span>
-                      </p>
-                      {/* noreferrer as well as noopener: staff should not be leaking this panel's
-                          URL to whatever a business put in the field. */}
-                      <a
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm break-all text-brand-700 hover:underline"
-                      >
-                        {link.url}
-                      </a>
+                {mayEdit && !full && links.data.limit > 0 ? (
+                  <form action={addLinkAction.bind(null, id)}>
+                    <div className="row g-2 mb-3">
+                      <div className="col-sm-5">
+                        <label className="form-label" htmlFor="linkType">
+                          Kind
+                        </label>
+                        <select id="linkType" name="linkType" className="form-select" defaultValue="website">
+                          {LINK_TYPES.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-sm-7">
+                        <label className="form-label" htmlFor="label">
+                          Label
+                        </label>
+                        <input
+                          id="label"
+                          name="label"
+                          maxLength={80}
+                          required
+                          placeholder="Our website"
+                          className="form-control"
+                        />
+                      </div>
                     </div>
-                    {mayEdit ? (
-                      <form action={deleteLinkAction.bind(null, id, link.id)}>
-                        <button type="submit" className={BUTTON}>
-                          Remove
-                        </button>
-                      </form>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </>
+
+                    <div className="mb-3">
+                      <label className="form-label" htmlFor="url">
+                        Web address
+                      </label>
+                      <input
+                        id="url"
+                        name="url"
+                        type="url"
+                        maxLength={1000}
+                        required
+                        placeholder="https://example.com"
+                        className="form-control"
+                      />
+                      <div className="form-text">
+                        A full address starting with http:// or https://. Anything else is refused.
+                      </div>
+                    </div>
+
+                    <button type="submit" className="btn btn-primary">
+                      Add
+                    </button>
+                  </form>
+                ) : full ? (
+                  <div className="alert alert-warning mb-0">
+                    This listing has all {links.data.limit} links its plan allows. Remove one to add
+                    another.
+                  </div>
+                ) : (
+                  <p className="text-muted font-size-13 mb-0">Nothing can be added on this plan.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="col-xl-7">
+            <div className="card h-100">
+              <div className="card-body">
+                <h4 className="card-title mb-1">Links</h4>
+                <p className="card-title-desc mb-3">Shown on the public page in this order.</p>
+
+                {links.data.items.length === 0 ? (
+                  <p className="text-muted font-size-13 mb-0">None added yet.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0">
+                      <thead className="table-light">
+                        <tr>
+                          <th scope="col">Label</th>
+                          <th scope="col">Address</th>
+                          {mayEdit ? (
+                            <th scope="col" className="text-end">
+                              Action
+                            </th>
+                          ) : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {links.data.items.map((link) => (
+                          <tr key={link.id}>
+                            <td className="py-3">
+                              <span className="fw-semibold">{link.label}</span>
+                              <span className="badge bg-secondary-subtle text-secondary ms-2">
+                                {link.linkType}
+                              </span>
+                            </td>
+                            <td className="py-3">
+                              {/* noreferrer as well as noopener: staff should not be leaking this
+                                  panel's URL to whatever a business put in the field. */}
+                              <a
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-break font-size-13"
+                              >
+                                {link.url}
+                              </a>
+                            </td>
+                            {mayEdit ? (
+                              <td className="py-3 text-end">
+                                <form action={deleteLinkAction.bind(null, id, link.id)}>
+                                  <button type="submit" className="btn btn-sm btn-outline-danger">
+                                    Remove
+                                  </button>
+                                </form>
+                              </td>
+                            ) : null}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    </main>
+    </>
   );
 }

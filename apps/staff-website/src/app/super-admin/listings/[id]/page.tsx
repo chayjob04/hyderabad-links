@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingForm } from "@/components/ListingForm";
 import { ListingStaffNav } from "@/components/ListingStaffNav";
+import { PageTitle } from "@/components/minia/PageTitle";
 import {
   PERMISSION_LISTINGS_DELETE,
   PERMISSION_LISTINGS_EDIT,
@@ -27,10 +28,10 @@ type Props = {
 };
 
 const TONES: Record<string, string> = {
-  grey: "bg-neutral-100 text-neutral-700",
-  amber: "bg-amber-50 text-amber-800",
-  green: "bg-green-50 text-green-800",
-  red: "bg-red-50 text-red-800",
+  grey: "bg-secondary-subtle text-secondary",
+  amber: "bg-warning-subtle text-warning",
+  green: "bg-success-subtle text-success",
+  red: "bg-danger-subtle text-danger",
 };
 
 export default async function ListingPage({ params, searchParams }: Props) {
@@ -49,12 +50,12 @@ export default async function ListingPage({ params, searchParams }: Props) {
   if (!result.ok) {
     if (result.status === 404) notFound();
     return (
-      <main className="mx-auto max-w-2xl px-4 pt-8">
-        <h1 className="text-2xl font-bold">Listing</h1>
-        <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+      <>
+        <PageTitle title="Listing" breadcrumb={[{ label: "Listings", href: "/super-admin/listings" }]} />
+        <div role="alert" className="alert alert-danger">
           {result.message}
-        </p>
-      </main>
+        </div>
+      </>
     );
   }
 
@@ -65,128 +66,176 @@ export default async function ListingPage({ params, searchParams }: Props) {
   const mayFeature = me.ok && me.data.permissions.includes(PERMISSION_LISTINGS_FEATURE);
 
   return (
-    <main className="mx-auto max-w-2xl px-4 pt-8 pb-12">
-      <Link href="/super-admin/listings" className="text-sm font-medium text-neutral-700 underline-offset-2 hover:underline">
-        &larr; Back to listings
-      </Link>
-
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">{listing.name}</h1>
-          <p className="mt-1 text-neutral-600">
-            {listing.categoryName ?? "No category"} &middot; {listing.localityName}
-          </p>
-        </div>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold `}>{tone.label}</span>
-      </div>
+    <>
+      <PageTitle
+        title={listing.name}
+        breadcrumb={[{ label: "Listings", href: "/super-admin/listings" }, { label: listing.name }]}
+        action={
+          <Link href="/super-admin/listings" className="btn btn-outline-secondary">
+            <i className="mdi mdi-arrow-left me-1" /> Back to listings
+          </Link>
+        }
+      />
 
       <ListingStaffNav listingId={listing.id} current="detail" />
 
       {added ? (
-        <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">
+        <div role="status" className="alert alert-success">
           Added and published.
-        </p>
+        </div>
       ) : null}
       {done ? (
-        <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">
+        <div role="status" className="alert alert-success">
           {done}
-        </p>
+        </div>
       ) : null}
       {error ? (
-        <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+        <div role="alert" className="alert alert-danger">
           {error}
-        </p>
+        </div>
       ) : null}
 
-      <dl className="mt-6 grid grid-cols-2 gap-3 rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm">
-        <Fact label="Web address" value={listing.url ?? "No category, so no public page"} />
-        <Fact label="Submitted by" value={listing.submittedByPhone ?? "Added by staff"} />
-        <Fact label="Added" value={formatWhen(listing.createdAt)} />
-        <Fact label="Last changed" value={formatWhen(listing.updatedAt)} />
-        <Fact label="Verified plan" value={listing.isVerified ? `Paid until ${formatWhen(listing.paidUntil)}` : "Free"} />
-        <Fact label="Last decision" value={listing.reviewedBy ? `${listing.reviewedBy}, ${formatWhen(listing.reviewedAt)}` : "None"} />
-      </dl>
+      <div className="row g-3 mb-4">
+        {/* The edit form takes the width; the facts about the listing sit beside it rather than
+            above, so correcting a detail does not mean scrolling past six read-only rows first. */}
+        <div className="col-xl-7">
+          <div className="card h-100">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Correct the details</h4>
+              <p className="card-title-desc mb-3">
+                Editing never changes the status: one waiting for review still needs a decision, and
+                a live one stays live. The area is fixed, because it is part of the public web
+                address.
+              </p>
 
-      {listing.status === "archived" ? (
-        <p className="mt-6 rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-          This listing is archived, so it can no longer be edited.
-        </p>
-      ) : mayEdit ? (
-        <section className="mt-8">
-          <h2 className="text-lg font-semibold">Correct the details</h2>
-          <p className="mt-1 text-sm text-neutral-600">
-            Editing never changes the status: one waiting for review still needs a decision, and a
-            live one stays live. The area is fixed, because it is part of the public web address.
-          </p>
-          <div className="mt-4">
-            <ListingForm
-              action={saveListingAction.bind(null, listing.id)}
-              categories={categories}
-              lockedLocalityName={listing.localityName}
-              initialValues={{
-                name: listing.name,
-                categorySlug: listing.categorySlug ?? "",
-                addressLine: listing.addressLine ?? "",
-                pincode: listing.pincode ?? "",
-                phonePrimary: listing.phonePrimary,
-                phoneWhatsapp: listing.phoneWhatsapp ?? "",
-                websiteUrl: listing.websiteUrl ?? "",
-                description: listing.description ?? "",
-              }}
-              submitLabel="Save changes"
-            />
+              {listing.status === "archived" ? (
+                <div className="alert alert-light border mb-0 font-size-13">
+                  This listing is archived, so it can no longer be edited.
+                </div>
+              ) : mayEdit ? (
+                <ListingForm
+                  action={saveListingAction.bind(null, listing.id)}
+                  categories={categories}
+                  lockedLocalityName={listing.localityName}
+                  initialValues={{
+                    name: listing.name,
+                    categorySlug: listing.categorySlug ?? "",
+                    addressLine: listing.addressLine ?? "",
+                    pincode: listing.pincode ?? "",
+                    phonePrimary: listing.phonePrimary,
+                    phoneWhatsapp: listing.phoneWhatsapp ?? "",
+                    websiteUrl: listing.websiteUrl ?? "",
+                    description: listing.description ?? "",
+                  }}
+                  submitLabel="Save changes"
+                />
+              ) : (
+                <div className="alert alert-light border mb-0 font-size-13">
+                  Your account cannot edit listings. It needs the &quot;Edit any listing&quot;
+                  permission.
+                </div>
+              )}
+            </div>
           </div>
-        </section>
-      ) : (
-        <p className="mt-6 rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-          Your account cannot edit listings. It needs the &quot;Edit any listing&quot; permission.
-        </p>
-      )}
+        </div>
 
-      {/* The homepage shelf, and asking the owner to fix something. Both apply whatever the
-          listing's status is, so they sit outside the edit form above. */}
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <FeaturedSection listing={listing} mayFeature={mayFeature} />
+        <div className="col-xl-5">
+          <div className="card mb-3">
+            <div className="card-body">
+              <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
+                <div className="min-w-0">
+                  <h5 className="font-size-15 mb-1">{listing.name}</h5>
+                  <p className="text-muted font-size-13 mb-0">
+                    {listing.categoryName ?? "No category"} &middot; {listing.localityName}
+                  </p>
+                </div>
+                <span className={`badge ${TONES[tone.tone] ?? TONES.grey}`}>{tone.label}</span>
+              </div>
 
-        {mayEdit && alerts.ok ? (
-          <AlertForm listingId={listing.id} reasons={alerts.data.reasons} />
-        ) : (
-          <p className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-            {mayEdit
-              ? "We could not load the message form. Reload the page to try again."
-              : "Your account cannot write to business owners. It needs the “Edit any listing” permission."}
-          </p>
-        )}
+              <table className="table table-sm mb-0">
+                <tbody>
+                  <Fact label="Web address" value={listing.url ?? "No category, so no public page"} />
+                  <Fact label="Submitted by" value={listing.submittedByPhone ?? "Added by staff"} />
+                  <Fact label="Added" value={formatWhen(listing.createdAt)} />
+                  <Fact label="Last changed" value={formatWhen(listing.updatedAt)} />
+                  <Fact
+                    label="Verified plan"
+                    value={listing.isVerified ? `Paid until ${formatWhen(listing.paidUntil)}` : "Free"}
+                  />
+                  <Fact
+                    label="Last decision"
+                    value={
+                      listing.reviewedBy
+                        ? `${listing.reviewedBy}, ${formatWhen(listing.reviewedAt)}`
+                        : "None"
+                    }
+                  />
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <FeaturedSection listing={listing} mayFeature={mayFeature} />
+        </div>
       </div>
 
-      {alerts.ok && alerts.data.items.length > 0 ? (
-        <section className="mt-6 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <h2 className="text-base font-semibold">What has been asked already</h2>
-          <ul className="mt-3 grid gap-3">
-            {alerts.data.items.map((alert) => (
-              <li key={alert.id} className="rounded-lg border border-neutral-200 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">{alert.reasonLabel}</p>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      alert.acknowledgedAt === null ? "bg-amber-100 text-amber-900" : "bg-neutral-100 text-neutral-600"
-                    }`}
-                  >
-                    {alert.acknowledgedAt === null ? "Not read yet" : "Read by the owner"}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm whitespace-pre-wrap text-neutral-800">{alert.message}</p>
-                <p className="mt-2 text-xs text-neutral-500">
-                  {alert.sentByName} &middot; {formatWhen(alert.createdAt)}
+      {/* Asking the owner to fix something, and what has already been asked. Both apply whatever
+          the listing's status is, so they sit outside the edit form above. */}
+      <div className="row g-3 mb-4">
+        <div className="col-xl-5">
+          <div className="card h-100">
+            <div className="card-body">
+              <h4 className="card-title mb-3">Ask the owner to change something</h4>
+              {mayEdit && alerts.ok ? (
+                <AlertForm listingId={listing.id} reasons={alerts.data.reasons} />
+              ) : (
+                <p className="text-muted font-size-13 mb-0">
+                  {mayEdit
+                    ? "We could not load the message form. Reload the page to try again."
+                    : "Your account cannot write to business owners. It needs the “Edit any listing” permission."}
                 </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="col-xl-7">
+          <div className="card h-100">
+            <div className="card-body">
+              <h4 className="card-title mb-3">What has been asked already</h4>
+              {!alerts.ok || alerts.data.items.length === 0 ? (
+                <p className="text-muted font-size-13 mb-0">Nobody has written to this owner yet.</p>
+              ) : (
+                alerts.data.items.map((alert) => (
+                  <div key={alert.id} className="border rounded p-3 mb-2">
+                    <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                      <span className="fw-semibold font-size-13">{alert.reasonLabel}</span>
+                      <span
+                        className={`badge ${
+                          alert.acknowledgedAt === null
+                            ? "bg-warning-subtle text-warning"
+                            : "bg-secondary-subtle text-secondary"
+                        }`}
+                      >
+                        {alert.acknowledgedAt === null ? "Not read yet" : "Read by the owner"}
+                      </span>
+                    </div>
+                    <p className="mt-2 mb-2" style={{ whiteSpace: "pre-wrap" }}>
+                      {alert.message}
+                    </p>
+                    <p className="text-muted font-size-12 mb-0">
+                      {alert.sentByName} &middot; {formatWhen(alert.createdAt)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {mayRemove ? <RemoveSection listing={listing} /> : null}
-    </main>
+    </>
   );
 }
 
@@ -202,46 +251,44 @@ function FeaturedSection({ listing, mayFeature }: { listing: ListingDetail; mayF
   const live = listing.status === "active";
 
   return (
-    <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-      <h2 className="text-base font-semibold">Homepage Featured shelf</h2>
-      <p className="mt-1 text-sm text-neutral-600">
-        {featured
-          ? `On the shelf since ${formatWhen(listing.featuredAt)}.`
-          : "Not on the shelf. Featured is chosen by hand; Trending next to it is counted from real activity and cannot be set."}
-      </p>
-
-      {!mayFeature ? (
-        <p className="mt-3 text-sm text-neutral-600">
-          Your account cannot change it. It needs the &quot;Choose which listings appear on the
-          homepage Featured shelf&quot; permission.
+    <div className="card mb-0">
+      <div className="card-body">
+        <h4 className="card-title mb-1">Homepage Featured shelf</h4>
+        <p className="card-title-desc mb-3">
+          {featured
+            ? `On the shelf since ${formatWhen(listing.featuredAt)}.`
+            : "Not on the shelf. Featured is chosen by hand; Trending next to it is counted from real activity and cannot be set."}
         </p>
-      ) : !live && !featured ? (
-        <p className="mt-3 text-sm text-neutral-600">
-          Only a live listing can be featured. This one is {describeStatus(listing.status).label.toLowerCase()}.
-        </p>
-      ) : (
-        <form action={setFeaturedAction.bind(null, listing.id)} className="mt-3">
-          <button
-            type="submit"
-            name="intent"
-            value={featured ? "unfeature" : "feature"}
-            className={
-              featured
-                ? "rounded-lg border border-neutral-300 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
-                : "rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-900"
-            }
-          >
-            {featured ? "Take off the shelf" : "Put on the homepage"}
-          </button>
-        </form>
-      )}
 
-      <p className="mt-3 text-xs text-neutral-500">
-        <Link href="/super-admin/featured" className="font-medium text-brand-700 underline-offset-2 hover:underline">
-          See the whole shelf
-        </Link>
-      </p>
-    </section>
+        {!mayFeature ? (
+          <p className="text-muted font-size-13 mb-0">
+            Your account cannot change it. It needs the &quot;Choose which listings appear on the
+            homepage Featured shelf&quot; permission.
+          </p>
+        ) : !live && !featured ? (
+          <p className="text-muted font-size-13 mb-0">
+            Only a live listing can be featured. This one is{" "}
+            {describeStatus(listing.status).label.toLowerCase()}.
+          </p>
+        ) : (
+          <form action={setFeaturedAction.bind(null, listing.id)}>
+            <button
+              type="submit"
+              name="intent"
+              value={featured ? "unfeature" : "feature"}
+              className={`btn btn-sm ${featured ? "btn-outline-secondary" : "btn-primary"}`}
+            >
+              <i className={`${featured ? "bx bxs-star" : "bx bx-star"} align-middle me-1`} />
+              {featured ? "Take off the shelf" : "Put on the homepage"}
+            </button>
+          </form>
+        )}
+
+        <p className="font-size-12 mt-3 mb-0">
+          <Link href="/super-admin/featured">See the whole shelf</Link>
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -264,50 +311,63 @@ function RemoveSection({ listing }: { listing: ListingDetail }) {
   );
 
   return (
-    <section className="mt-10 rounded-xl border border-red-200 bg-red-50/40 p-4">
-      <h2 className="text-lg font-semibold text-red-900">Remove this listing</h2>
+    <div className="row g-3">
+      <div className="col-12">
+        <div className="card border border-danger-subtle mb-0">
+          <div className="card-body">
+            <h4 className="card-title text-danger mb-3">Remove this listing</h4>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        {listing.status === "archived" ? (
-          <p className="text-sm text-neutral-700">Already archived.</p>
-        ) : (
-          <form action={archiveListingAction.bind(null, listing.id)}>
-            {hiddenPaths}
-            <button
-              type="submit"
-              className="rounded-lg border border-neutral-400 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-            >
-              Archive
-            </button>
-          </form>
-        )}
-        <p className="text-sm text-neutral-700">
-          Takes it off the public site and keeps everything attached to it. This is almost always the
-          one you want.
-        </p>
-      </div>
+            <div className="row g-3">
+              <div className="col-md-6">
+                <div className="d-flex align-items-start gap-3">
+                  {listing.status === "archived" ? (
+                    <span className="badge bg-secondary-subtle text-secondary">Already archived</span>
+                  ) : (
+                    <form action={archiveListingAction.bind(null, listing.id)}>
+                      {hiddenPaths}
+                      <button type="submit" className="btn btn-sm btn-outline-secondary text-nowrap">
+                        Archive
+                      </button>
+                    </form>
+                  )}
+                  <p className="text-muted font-size-13 mb-0">
+                    Takes it off the public site and keeps everything attached to it. This is almost
+                    always the one you want.
+                  </p>
+                </div>
+              </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-red-200 pt-4">
-        <form action={deleteListingAction.bind(null, listing.id)}>
-          {hiddenPaths}
-          <button type="submit" className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
-            Delete for good
-          </button>
-        </form>
-        <p className="text-sm text-neutral-700">
-          Deletes the listing and its photos, enquiries and reviews. This cannot be undone, and it is
-          refused if the business has ever paid — a payment record must not disappear with a listing.
-        </p>
+              <div className="col-md-6 border-start-md">
+                <div className="d-flex align-items-start gap-3">
+                  <form action={deleteListingAction.bind(null, listing.id)}>
+                    {hiddenPaths}
+                    <button type="submit" className="btn btn-sm btn-danger text-nowrap">
+                      Delete for good
+                    </button>
+                  </form>
+                  <p className="text-muted font-size-13 mb-0">
+                    Deletes the listing and its photos, enquiries and reviews. This cannot be undone,
+                    and it is refused if the business has ever paid — a payment record must not
+                    disappear with a listing.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
   );
 }
 
+/** One labelled fact, as a table row: label left, value right, one line each. */
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="text-neutral-500">{label}</dt>
-      <dd className="font-medium text-neutral-900">{value}</dd>
-    </div>
+    <tr>
+      <th scope="row" className="fw-normal text-muted ps-0" style={{ width: "42%" }}>
+        {label}
+      </th>
+      <td className="text-end pe-0 text-break">{value}</td>
+    </tr>
   );
 }
