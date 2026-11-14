@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
 import { AccessDenied } from "@/components/AccessDenied";
+import { PageTitle } from "@/components/minia/PageTitle";
 import { PERMISSION_HOMEPAGE, getAdminProfile, getPopularCategories } from "@/lib/admin-api";
 import { moveCategoryAction, togglePopularAction } from "../actions";
 
 export const metadata: Metadata = { title: "Popular categories" };
 
 type Props = { searchParams: Promise<{ done?: string; error?: string }> };
-
-const INPUT =
-  "w-20 rounded-lg border border-neutral-300 px-2 py-1.5 text-sm outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100";
-
-const BUTTON =
-  "rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-50";
-
-const PRIMARY = "rounded-lg bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-900";
 
 /** The name, its parent, and whether it has been retired — the same three facts on both lists. */
 function CategoryLabel({
@@ -26,17 +19,13 @@ function CategoryLabel({
   isActive: boolean;
 }) {
   return (
-    <p className="font-semibold">
-      {name}
-      {parentName ? (
-        <span className="ml-2 text-sm font-normal text-neutral-500">in {parentName}</span>
-      ) : null}
+    <>
+      <span className="fw-semibold">{name}</span>
+      {parentName ? <span className="text-muted font-size-13 ms-2">in {parentName}</span> : null}
       {!isActive ? (
-        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
-          RETIRED
-        </span>
+        <span className="badge bg-warning-subtle text-warning ms-2">Retired</span>
       ) : null}
-    </p>
+    </>
   );
 }
 
@@ -69,119 +58,176 @@ export default async function PopularCategoriesPage({ searchParams }: Props) {
   const rest = all.filter((category) => !category.isPopular);
 
   return (
-    <main className="mx-auto max-w-4xl px-4 pt-8 pb-12">
-      <h1 className="text-2xl font-bold">Popular categories</h1>
-      <p className="mt-2 text-sm text-neutral-600">
-        The categories shown under the search box on the homepage, in the order below. Choose none
-        and the homepage falls back to the first seven top-level categories.
-      </p>
+    <>
+      <PageTitle
+        title="Popular categories"
+        breadcrumb={[{ label: "Home page" }, { label: "Popular categories" }]}
+      />
 
       {done ? (
-        <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">
+        <div role="status" className="alert alert-success">
           {done}
-        </p>
+        </div>
       ) : null}
       {error ? (
-        <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+        <div role="alert" className="alert alert-danger">
           {error}
-        </p>
+        </div>
       ) : null}
 
       {!result.ok ? (
-        <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+        <div role="alert" className="alert alert-danger">
           {result.message}
-        </p>
+        </div>
       ) : (
-        <>
-          <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold">
-              On the homepage{chosen.length > 0 ? ` (${chosen.length})` : ""}
-            </h2>
-            {chosen.length === 0 ? (
-              <p className="mt-2 text-sm text-neutral-600">None chosen. Pick some from the list below.</p>
-            ) : (
-              <ul className="mt-3 divide-y divide-neutral-200">
-                {chosen.map((category) => (
-                  <li key={category.id} className="flex flex-wrap items-center gap-3 py-3">
-                    <div className="min-w-0 flex-1">
-                      <CategoryLabel
-                        name={category.name}
-                        parentName={category.parentName}
-                        isActive={category.isActive}
-                      />
-                      <p className="text-sm text-neutral-500">
-                        {/* Said plainly: a chosen category with nothing on it is an empty section,
-                            and staff should find that out here rather than on the homepage. */}
-                        {category.listingCount === 0 ?
-                          "No live listings — this would show an empty section"
-                        : `${category.listingCount} live ${category.listingCount === 1 ? "listing" : "listings"}`}
-                      </p>
-                    </div>
+        <div className="row g-3">
+          <div className="col-xl-6">
+            <div className="card h-100">
+              <div className="card-body">
+                <h4 className="card-title mb-1">
+                  On the homepage{chosen.length > 0 ? ` (${chosen.length})` : ""}
+                </h4>
+                <p className="card-title-desc mb-3">
+                  Shown under the search box, in the order below. Choose none and the homepage falls
+                  back to the first seven top-level categories.
+                </p>
 
-                    {mayEdit ? (
-                      <>
-                        <form action={moveCategoryAction} className="flex items-center gap-2">
-                          <input type="hidden" name="id" value={category.id} />
-                          <label className="text-sm text-neutral-600" htmlFor={`sort-${category.id}`}>
-                            Position
-                          </label>
-                          <input
-                            id={`sort-${category.id}`}
-                            name="sortOrder"
-                            type="number"
-                            defaultValue={category.sortOrder}
-                            className={INPUT}
-                          />
-                          <button type="submit" className={BUTTON}>
-                            Save
-                          </button>
-                        </form>
-                        <form action={togglePopularAction.bind(null, category.id, false)}>
-                          <button type="submit" className={BUTTON}>
-                            Remove
-                          </button>
-                        </form>
-                      </>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section className="mt-6 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold">Every other category</h2>
-            <p className="mt-1 text-sm text-neutral-600">
-              Retired categories are listed too, so one can be chosen and reinstated together. A
-              retired category never reaches the public homepage whatever is set here.
-            </p>
-            <ul className="mt-3 divide-y divide-neutral-200">
-              {rest.map((category) => (
-                <li key={category.id} className="flex flex-wrap items-center gap-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <CategoryLabel
-                      name={category.name}
-                      parentName={category.parentName}
-                      isActive={category.isActive}
-                    />
-                    <p className="text-sm text-neutral-500">
-                      {category.listingCount} live{" "}
-                      {category.listingCount === 1 ? "listing" : "listings"}
-                    </p>
+                {chosen.length === 0 ? (
+                  <p className="text-muted font-size-13 mb-0">
+                    None chosen. Pick some from the list beside this one.
+                  </p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0">
+                      <thead className="table-light">
+                        <tr>
+                          <th scope="col">Category</th>
+                          {mayEdit ? (
+                            <th scope="col" className="text-end">
+                              Position
+                            </th>
+                          ) : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {chosen.map((category) => (
+                          <tr key={category.id}>
+                            <td className="py-3">
+                              <CategoryLabel
+                                name={category.name}
+                                parentName={category.parentName}
+                                isActive={category.isActive}
+                              />
+                              {/* Said plainly: a chosen category with nothing on it is an empty
+                                  section, and staff should find that out here rather than on the
+                                  homepage. */}
+                              <span
+                                className={`d-block font-size-12 ${
+                                  category.listingCount === 0 ? "text-warning" : "text-muted"
+                                }`}
+                              >
+                                {category.listingCount === 0
+                                  ? "No live listings — this would show an empty section"
+                                  : `${category.listingCount} live ${
+                                      category.listingCount === 1 ? "listing" : "listings"
+                                    }`}
+                              </span>
+                            </td>
+                            {mayEdit ? (
+                              <td className="py-3">
+                                <div className="d-flex justify-content-end align-items-center gap-2">
+                                  <form
+                                    action={moveCategoryAction}
+                                    className="d-flex align-items-center gap-2"
+                                  >
+                                    <input type="hidden" name="id" value={category.id} />
+                                    <label className="visually-hidden" htmlFor={`sort-${category.id}`}>
+                                      Position
+                                    </label>
+                                    <input
+                                      id={`sort-${category.id}`}
+                                      name="sortOrder"
+                                      type="number"
+                                      defaultValue={category.sortOrder}
+                                      className="form-control form-control-sm"
+                                      style={{ width: "4.5rem" }}
+                                    />
+                                    <button type="submit" className="btn btn-sm btn-outline-secondary">
+                                      Save
+                                    </button>
+                                  </form>
+                                  <form action={togglePopularAction.bind(null, category.id, false)}>
+                                    <button type="submit" className="btn btn-sm btn-outline-danger">
+                                      Remove
+                                    </button>
+                                  </form>
+                                </div>
+                              </td>
+                            ) : null}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  {mayEdit ? (
-                    <form action={togglePopularAction.bind(null, category.id, true)}>
-                      <button type="submit" className={PRIMARY}>
-                        Add to homepage
-                      </button>
-                    </form>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </section>
-        </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="col-xl-6">
+            <div className="card h-100">
+              <div className="card-body">
+                <h4 className="card-title mb-1">Every other category</h4>
+                <p className="card-title-desc mb-3">
+                  Retired categories are listed too, so one can be chosen and reinstated together. A
+                  retired category never reaches the public homepage whatever is set here.
+                </p>
+
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th scope="col">Category</th>
+                        {mayEdit ? (
+                          <th scope="col" className="text-end">
+                            Action
+                          </th>
+                        ) : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rest.map((category) => (
+                        <tr key={category.id}>
+                          <td className="py-3">
+                            <CategoryLabel
+                              name={category.name}
+                              parentName={category.parentName}
+                              isActive={category.isActive}
+                            />
+                            <span className="d-block text-muted font-size-12">
+                              {category.listingCount} live{" "}
+                              {category.listingCount === 1 ? "listing" : "listings"}
+                            </span>
+                          </td>
+                          {mayEdit ? (
+                            <td className="py-3 text-end">
+                              <form action={togglePopularAction.bind(null, category.id, true)}>
+                                <button type="submit" className="btn btn-sm btn-primary">
+                                  Add to homepage
+                                </button>
+                              </form>
+                            </td>
+                          ) : null}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    </main>
+    </>
   );
 }

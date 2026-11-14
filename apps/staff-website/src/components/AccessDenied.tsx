@@ -27,37 +27,39 @@ export function AccessDenied({
     surface === "super"
       ? { href: "/super-admin/overview", label: "Back to the overview" }
       : { href: "/admin", label: "Back to the dashboard" };
+
   return (
-    <main className="mx-auto max-w-xl px-5 py-16 sm:px-8">
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-7 text-center">
-        <p aria-hidden="true" className="text-4xl leading-none text-amber-700">
-          &#9888;
-        </p>
-        <h1 className="mt-3 text-2xl font-black tracking-tight text-amber-900">
-          You do not have access to {what ?? "this screen"}
-        </h1>
-        <p className="mx-auto mt-3 max-w-sm text-[15px] leading-relaxed text-amber-900">
-          Your account is signed in, but your role does not include
-          {permission ? (
-            <>
-              {" "}
-              the <code className="rounded bg-amber-100 px-1.5 py-0.5 font-bold">{permission}</code>{" "}
-              permission
-            </>
-          ) : (
-            " this permission"
-          )}
-          . A super admin can add it to your role.
-        </p>
-        <p className="mt-6">
-          <Link
-            href={back.href}
-            className="inline-block rounded-full bg-brand-700 px-5 py-2.5 text-sm font-black text-white hover:bg-brand-800"
-          >
-            {back.label}
-          </Link>
-        </p>
+    <div className="row justify-content-center">
+      <div className="col-xl-6 col-lg-8">
+        <div className="card mt-4">
+          <div className="card-body text-center py-5">
+            <div className="avatar-md mx-auto mb-4">
+              <span className="avatar-title bg-warning-subtle text-warning rounded-circle font-size-24">
+                <i className="bx bx-shield-x" />
+              </span>
+            </div>
+
+            <h4 className="mb-3">You do not have access to {what ?? "this screen"}</h4>
+
+            <p className="text-muted mb-4">
+              Your account is signed in, but your role does not include
+              {permission ? (
+                <>
+                  {" "}
+                  the <code className="text-body">{permission}</code> permission
+                </>
+              ) : (
+                " this permission"
+              )}
+              . A super admin can add it to your role.
+            </p>
+
+            <Link href={back.href} className="btn btn-primary">
+              {back.label}
+            </Link>
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

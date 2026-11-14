@@ -1,19 +1,13 @@
 import type { Metadata } from "next";
 import { AccessDenied } from "@/components/AccessDenied";
+import { EmptyState } from "@/components/minia/FilterTabs";
+import { PageTitle } from "@/components/minia/PageTitle";
 import { PERMISSION_HOMEPAGE, getAdminProfile, getScrollingText } from "@/lib/admin-api";
 import { addLineAction, deleteLineAction, toggleLineAction } from "../actions";
 
 export const metadata: Metadata = { title: "Scrolling text" };
 
 type Props = { searchParams: Promise<{ done?: string; error?: string }> };
-
-const INPUT =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2 text-base outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100";
-
-const BUTTON =
-  "rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-800 hover:bg-neutral-50";
-
-const ADD = "rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-900";
 
 /**
  * The strip across the top of the public site — the original's `Admin/ScrollingText`.
@@ -40,136 +34,157 @@ export default async function ScrollingTextPage({ searchParams }: Props) {
   const live = lines.filter((line) => line.isActive).length;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-8 pb-12">
-      <h1 className="text-2xl font-bold">Scrolling text</h1>
-      <p className="mt-2 text-sm text-neutral-600">
-        The moving strip at the top of the public site. With no lines switched on it scrolls the
-        directory&rsquo;s own categories instead, so an empty list is safe.
-      </p>
+    <>
+      <PageTitle title="Scrolling text" breadcrumb={[{ label: "Home page" }, { label: "Scrolling" }]} />
 
       {done ? (
-        <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">
+        <div role="status" className="alert alert-success">
           {done}
-        </p>
+        </div>
       ) : null}
       {error ? (
-        <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+        <div role="alert" className="alert alert-danger">
           {error}
-        </p>
+        </div>
       ) : null}
 
       {!result.ok ? (
-        <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+        <div role="alert" className="alert alert-danger">
           {result.message}
-        </p>
+        </div>
       ) : (
-        <>
+        <div className="row g-3">
           {mayEdit ? (
-            <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-              <h2 className="text-base font-semibold">Add a line</h2>
-              <form action={addLineAction} className="mt-4 grid gap-3">
-                <div>
-                  <label className="text-sm font-semibold text-neutral-700" htmlFor="message">
-                    What it says
-                  </label>
-                  <input
-                    id="message"
-                    name="message"
-                    maxLength={200}
-                    required
-                    placeholder="Ramzan offers across Old City — see the list"
-                    className={`mt-1 ${INPUT}`}
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                  <div>
-                    <label className="text-sm font-semibold text-neutral-700" htmlFor="url">
-                      Where it goes (optional)
-                    </label>
-                    <input
-                      id="url"
-                      name="url"
-                      maxLength={300}
-                      placeholder="/verified"
-                      className={`mt-1 ${INPUT}`}
-                    />
-                    <p className="mt-1 text-xs text-neutral-500">
-                      A path on this site, starting with a single &ldquo;/&rdquo;. Links to other
-                      sites are refused on purpose. Leave it blank for an announcement with no link.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-neutral-700" htmlFor="sortOrder">
-                      Position
-                    </label>
-                    <input
-                      id="sortOrder"
-                      name="sortOrder"
-                      type="number"
-                      defaultValue={lines.length}
-                      className={`mt-1 ${INPUT}`}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <button type="submit" className={ADD}>
-                    Add
-                  </button>
-                </div>
-              </form>
-            </section>
-          ) : null}
+            <div className="col-xl-5">
+              <div className="card h-100">
+                <div className="card-body">
+                  <h4 className="card-title mb-1">Add a line</h4>
+                  <p className="card-title-desc mb-3">
+                    The moving strip at the top of the public site. With no lines switched on it
+                    scrolls the directory&rsquo;s own categories instead, so an empty list is safe.
+                  </p>
 
-          <section className="mt-6 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold">
-              Lines{lines.length > 0 ? ` (${live} of ${lines.length} showing)` : ""}
-            </h2>
-
-            {lines.length === 0 ? (
-              <p className="mt-2 text-sm text-neutral-600">
-                Nothing written yet. The strip is scrolling categories.
-              </p>
-            ) : (
-              <ul className="mt-3 divide-y divide-neutral-200">
-                {lines.map((line) => (
-                  <li key={line.id} className="flex flex-wrap items-center gap-3 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className={line.isActive ? "font-semibold" : "font-semibold text-neutral-400"}>
-                        {line.message}
-                        {!line.isActive ? (
-                          <span className="ml-2 rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] font-bold text-neutral-600">
-                            OFF
-                          </span>
-                        ) : null}
-                      </p>
-                      <p className="text-sm text-neutral-500">
-                        {line.url ?? "No link"} &middot; position {line.sortOrder}
-                      </p>
+                  <form action={addLineAction}>
+                    <div className="mb-3">
+                      <label className="form-label" htmlFor="message">
+                        What it says
+                      </label>
+                      <input
+                        id="message"
+                        name="message"
+                        maxLength={200}
+                        required
+                        placeholder="Ramzan offers across Old City — see the list"
+                        className="form-control"
+                      />
                     </div>
 
-                    {mayEdit ? (
-                      <>
-                        <form action={toggleLineAction.bind(null, line.id, !line.isActive)}>
-                          <button type="submit" className={BUTTON}>
-                            {line.isActive ? "Switch off" : "Switch on"}
-                          </button>
-                        </form>
-                        {/* Both offered: switching off is reversible and is the right tool for a
-                            seasonal line, while removing is for one that was a mistake. */}
-                        <form action={deleteLineAction.bind(null, line.id)}>
-                          <button type="submit" className={BUTTON}>
-                            Remove
-                          </button>
-                        </form>
-                      </>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </>
+                    <div className="row g-2 mb-3">
+                      <div className="col-sm-8">
+                        <label className="form-label" htmlFor="url">
+                          Where it goes (optional)
+                        </label>
+                        <input id="url" name="url" maxLength={300} placeholder="/verified" className="form-control" />
+                        <div className="form-text">
+                          A path on this site, starting with a single &ldquo;/&rdquo;. Links to
+                          other sites are refused on purpose. Leave it blank for an announcement
+                          with no link.
+                        </div>
+                      </div>
+                      <div className="col-sm-4">
+                        <label className="form-label" htmlFor="sortOrder">
+                          Position
+                        </label>
+                        <input
+                          id="sortOrder"
+                          name="sortOrder"
+                          type="number"
+                          defaultValue={lines.length}
+                          className="form-control"
+                        />
+                      </div>
+                    </div>
+
+                    <button type="submit" className="btn btn-primary">
+                      Add
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className={mayEdit ? "col-xl-7" : "col-12"}>
+            <div className="card h-100">
+              <div className="card-body">
+                <h4 className="card-title mb-1">
+                  Lines{lines.length > 0 ? ` (${live} of ${lines.length} showing)` : ""}
+                </h4>
+                <p className="card-title-desc mb-3">
+                  Switching a line off is reversible and is the right tool for a seasonal one;
+                  removing is for a line that was a mistake.
+                </p>
+
+                {lines.length === 0 ? (
+                  <EmptyState icon="bx bx-text" title="Nothing written yet">
+                    The strip is scrolling categories.
+                  </EmptyState>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0">
+                      <thead className="table-light">
+                        <tr>
+                          <th scope="col">Line</th>
+                          <th scope="col">Position</th>
+                          {mayEdit ? (
+                            <th scope="col" className="text-end">
+                              Action
+                            </th>
+                          ) : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lines.map((line) => (
+                          <tr key={line.id}>
+                            <td className="py-3">
+                              <span className={line.isActive ? "fw-semibold" : "fw-semibold text-muted"}>
+                                {line.message}
+                              </span>
+                              {!line.isActive ? (
+                                <span className="badge bg-secondary-subtle text-secondary ms-2">Off</span>
+                              ) : null}
+                              <span className="d-block text-muted font-size-12">
+                                {line.url ?? "No link"}
+                              </span>
+                            </td>
+                            <td className="py-3 text-muted">{line.sortOrder}</td>
+                            {mayEdit ? (
+                              <td className="py-3 text-end">
+                                <div className="d-flex justify-content-end gap-2">
+                                  <form action={toggleLineAction.bind(null, line.id, !line.isActive)}>
+                                    <button type="submit" className="btn btn-sm btn-outline-secondary">
+                                      {line.isActive ? "Switch off" : "Switch on"}
+                                    </button>
+                                  </form>
+                                  <form action={deleteLineAction.bind(null, line.id)}>
+                                    <button type="submit" className="btn btn-sm btn-outline-danger">
+                                      Remove
+                                    </button>
+                                  </form>
+                                </div>
+                              </td>
+                            ) : null}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-    </main>
+    </>
   );
 }
