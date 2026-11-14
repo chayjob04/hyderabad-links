@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AccessDenied } from "@/components/AccessDenied";
+import { PageTitle } from "@/components/minia/PageTitle";
+import { StatCard } from "@/components/minia/StatCard";
 import {
   PERMISSION_LISTINGS_EDIT,
   describeStatus,
@@ -16,10 +18,10 @@ export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> };
 
 const TONES: Record<string, string> = {
-  grey: "bg-neutral-100 text-neutral-700",
-  amber: "bg-amber-50 text-amber-800",
-  green: "bg-green-50 text-green-800",
-  red: "bg-red-50 text-red-800",
+  grey: "bg-secondary-subtle text-secondary",
+  amber: "bg-warning-subtle text-warning",
+  green: "bg-success-subtle text-success",
+  red: "bg-danger-subtle text-danger",
 };
 
 /**
@@ -48,11 +50,12 @@ export default async function CategoryDrillPage({ params, searchParams }: Props)
 
   if (!counts.ok) {
     return (
-      <main className="mx-auto max-w-4xl px-4 pt-8 pb-12">
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-red-800">
+      <>
+        <PageTitle title="Category" breadcrumb={[{ label: "Listings" }, { label: "By category" }]} />
+        <div role="alert" className="alert alert-danger">
           {counts.message}
-        </p>
-      </main>
+        </div>
+      </>
     );
   }
 
@@ -63,101 +66,141 @@ export default async function CategoryDrillPage({ params, searchParams }: Props)
     .filter((row) => row.parentSlug === slug)
     .sort((a, b) => b.activeCount - a.activeCount);
 
+  const liveTotal =
+    category.activeCount + children.reduce((sum, child) => sum + child.activeCount, 0);
+  const allTotal = category.totalCount + children.reduce((sum, child) => sum + child.totalCount, 0);
+
   return (
-    <main className="mx-auto max-w-4xl px-4 pt-8 pb-12">
-      <Link href="/super-admin/listings/by-category" className="text-sm font-semibold text-brand-700 hover:underline">
-        <span aria-hidden="true">&larr;</span> All categories
-      </Link>
+    <>
+      <PageTitle
+        title={category.name}
+        breadcrumb={[
+          { label: "By category", href: "/super-admin/listings/by-category" },
+          { label: category.name },
+        ]}
+        action={
+          <Link href="/super-admin/listings/by-category" className="btn btn-outline-secondary">
+            <i className="mdi mdi-arrow-left me-1" /> All categories
+          </Link>
+        }
+      />
 
-      <h1 className="mt-3 text-2xl font-bold">{category.name}</h1>
-      <p className="mt-1 text-neutral-600">
-        {children.length} {children.length === 1 ? "subcategory" : "subcategories"}
-        {category.totalCount > 0
-          ? ` · ${category.totalCount} filed directly on this category`
-          : ""}
-      </p>
+      <div className="row g-3 mb-4">
+        <StatCard label="Live listings" value={liveTotal} />
+        <StatCard label="All statuses" value={allTotal} />
+        <StatCard label="Subcategories" value={children.length} />
+        <StatCard label="Filed on the category" value={category.totalCount} />
+      </div>
 
-      <section className="mt-6">
-        <h2 className="text-base font-semibold">Subcategories</h2>
-        {children.length === 0 ? (
-          <p className="mt-2 text-sm text-neutral-600">
-            This category has no subcategories. Add one under Categories on the admin site before
-            filing listings here.
-          </p>
-        ) : (
-          <div className="mt-3 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-            <table className="w-full text-left">
-              <thead className="bg-neutral-50 text-sm text-neutral-600">
-                <tr>
-                  <th scope="col" className="px-4 py-3 font-semibold">
-                    Subcategory
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-semibold">
-                    Live
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-right font-semibold">
-                    All statuses
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200">
-                {children.map((child) => (
-                  <tr key={child.slug} className={child.activeCount === 0 ? "bg-amber-50/40" : undefined}>
-                    <th scope="row" className="px-4 py-3 font-semibold">
-                      <Link
-                        href={`/super-admin/listings/by-subcategory/${child.slug}`}
-                        className="text-brand-700 hover:underline"
-                      >
-                        {child.name}
-                      </Link>
-                      {!child.isActive ? (
-                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
-                          RETIRED
-                        </span>
-                      ) : null}
-                    </th>
-                    <td className="px-4 py-3 text-right tabular-nums">{child.activeCount}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-neutral-500">
-                      {child.totalCount}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="row g-3">
+        <div className="col-xl-7">
+          <div className="card h-100">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Subcategories</h4>
+              <p className="card-title-desc mb-3">
+                Busiest first. A subcategory with nothing live is a page that leads nowhere.
+              </p>
+
+              {children.length === 0 ? (
+                <div className="alert alert-light border mb-0 font-size-13">
+                  This category has no subcategories. Add one under Categories on the admin site
+                  before filing listings here.
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th scope="col">Subcategory</th>
+                        <th scope="col" className="text-end">
+                          Live
+                        </th>
+                        <th scope="col" className="text-end">
+                          All statuses
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {children.map((child) => (
+                        <tr key={child.slug} className={child.activeCount === 0 ? "table-warning" : undefined}>
+                          <td className="py-3">
+                            <Link
+                              href={`/super-admin/listings/by-subcategory/${child.slug}`}
+                              className="fw-semibold text-body"
+                            >
+                              {child.name}
+                            </Link>
+                            {!child.isActive ? (
+                              <span className="badge bg-warning-subtle text-warning ms-2">Retired</span>
+                            ) : null}
+                          </td>
+                          <td className="py-3 text-end">{child.activeCount}</td>
+                          <td className="py-3 text-end text-muted">{child.totalCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </section>
+        </div>
 
-      {listings.ok && listings.data.items.length > 0 ? (
-        <section className="mt-8">
-          <h2 className="text-base font-semibold">Filed directly on {category.name}</h2>
-          <p className="mt-1 text-sm text-neutral-600">
-            These sit on the category itself rather than a subcategory, so they do not appear on any
-            subcategory page. Usually worth moving.
-          </p>
-          <ul className="mt-3 divide-y divide-neutral-200 rounded-xl border border-neutral-200 bg-white shadow-sm">
-            {listings.data.items.map((listing) => {
-              const tone = describeStatus(listing.status);
-              return (
-                <li key={listing.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                  <Link
-                    href={`/super-admin/listings/${listing.id}`}
-                    className="min-w-0 flex-1 font-semibold text-brand-700 hover:underline"
-                  >
-                    {listing.name}
-                  </Link>
-                  <span className="text-sm text-neutral-500">{listing.localityName}</span>
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-semibold ${TONES[tone.tone] ?? TONES.grey}`}
-                  >
-                    {tone.label}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-    </main>
+        <div className="col-xl-5">
+          <div className="card h-100">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Filed directly on {category.name}</h4>
+              <p className="card-title-desc mb-3">
+                These sit on the category itself rather than a subcategory, so they do not appear on
+                any subcategory page. Usually worth moving.
+              </p>
+
+              {!listings.ok || listings.data.items.length === 0 ? (
+                <p className="text-muted font-size-13 mb-0">
+                  Nothing is filed at this level, which is how it should be.
+                </p>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th scope="col">Listing</th>
+                        <th scope="col">Area</th>
+                        <th scope="col" className="text-center">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {listings.data.items.map((listing) => {
+                        const tone = describeStatus(listing.status);
+                        return (
+                          <tr key={listing.id}>
+                            <td className="py-3">
+                              <Link
+                                href={`/super-admin/listings/${listing.id}`}
+                                className="fw-semibold text-body"
+                              >
+                                {listing.name}
+                              </Link>
+                            </td>
+                            <td className="py-3 text-muted">{listing.localityName}</td>
+                            <td className="py-3 text-center">
+                              <span className={`badge ${TONES[tone.tone] ?? TONES.grey}`}>
+                                {tone.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

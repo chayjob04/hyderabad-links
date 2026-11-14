@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AccessDenied } from "@/components/AccessDenied";
+import { PageTitle } from "@/components/minia/PageTitle";
 import {
   PERMISSION_ADMINS_MANAGE,
   PERMISSION_USERS_VIEW,
@@ -18,10 +19,10 @@ export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ done?: string; error?: string }> };
 
 const TONES: Record<string, string> = {
-  grey: "bg-neutral-100 text-neutral-700",
-  amber: "bg-amber-50 text-amber-800",
-  green: "bg-green-50 text-green-800",
-  red: "bg-red-50 text-red-800",
+  grey: "bg-secondary-subtle text-secondary",
+  amber: "bg-warning-subtle text-warning",
+  green: "bg-success-subtle text-success",
+  red: "bg-danger-subtle text-danger",
 };
 
 /**
@@ -36,6 +37,9 @@ const TONES: Record<string, string> = {
  * Suspending is gated on `admins.manage`, not the `users.view` that opens this page, and the
  * confirmation says what it does to their listings — because that is the part that is easy to
  * forget and hard to notice afterwards.
+ *
+ * Laid out as a narrow identity column beside a wide listings table: the four facts about the
+ * person are short and fixed, and the list of what they own is the part that grows.
  */
 export default async function AccountPage({ params, searchParams }: Props) {
   const { id: rawId } = await params;
@@ -53,11 +57,12 @@ export default async function AccountPage({ params, searchParams }: Props) {
   if (!result.ok) {
     if (result.status === 404) notFound();
     return (
-      <main className="mx-auto max-w-3xl px-4 pt-8 pb-12">
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-red-800">
+      <>
+        <PageTitle title="Account" breadcrumb={[{ label: "Business accounts", href: "/super-admin/accounts" }]} />
+        <div role="alert" className="alert alert-danger">
           {result.message}
-        </p>
-      </main>
+        </div>
+      </>
     );
   }
 
@@ -65,113 +70,171 @@ export default async function AccountPage({ params, searchParams }: Props) {
   const suspended = account.status === "suspended";
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-8 pb-12">
-      <Link href="/super-admin/accounts" className="text-sm font-semibold text-brand-700 hover:underline">
-        <span aria-hidden="true">&larr;</span> Business accounts
-      </Link>
-
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-        <h1 className="text-2xl font-bold">{account.name?.trim() || account.phoneE164}</h1>
-        <span
-          className={`rounded px-2.5 py-1 text-sm font-semibold ${
-            suspended ? "bg-red-50 text-red-800" : "bg-green-50 text-green-800"
-          }`}
-        >
-          {account.status}
-        </span>
-      </div>
+    <>
+      <PageTitle
+        title={account.name?.trim() || account.phoneE164}
+        breadcrumb={[
+          { label: "Business accounts", href: "/super-admin/accounts" },
+          { label: `#${account.id}` },
+        ]}
+        action={
+          <Link href="/super-admin/accounts" className="btn btn-outline-secondary">
+            <i className="mdi mdi-arrow-left me-1" /> All accounts
+          </Link>
+        }
+      />
 
       {done ? (
-        <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-green-800">
+        <div role="status" className="alert alert-success">
           {done}
-        </p>
+        </div>
       ) : null}
       {error ? (
-        <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+        <div role="alert" className="alert alert-danger">
           {error}
-        </p>
+        </div>
       ) : null}
 
-      <dl className="mt-6 grid gap-4 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-sm font-semibold text-neutral-600">Phone</dt>
-          <dd className="mt-0.5">
-            {account.phoneE164}
-            {account.phoneVerified ? null : (
-              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
-                UNVERIFIED
-              </span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-sm font-semibold text-neutral-600">Email</dt>
-          <dd className="mt-0.5">{account.email ?? "—"}</dd>
-        </div>
-        <div>
-          <dt className="text-sm font-semibold text-neutral-600">Joined</dt>
-          <dd className="mt-0.5">{formatWhen(account.createdAt)}</dd>
-        </div>
-        <div>
-          <dt className="text-sm font-semibold text-neutral-600">Listings</dt>
-          <dd className="mt-0.5">{account.listingCount}</dd>
-        </div>
-      </dl>
-
-      <p className="mt-2 text-xs text-neutral-500">
-        The name, email and phone belong to the account holder and are edited by them. Staff cannot
-        change them here, and there is no way to sign in as somebody.
-      </p>
-
-      <section className="mt-8">
-        <h2 className="text-base font-semibold">Their listings</h2>
-        {listings.length === 0 ? (
-          <p className="mt-2 text-sm text-neutral-600">None.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-neutral-200 rounded-xl border border-neutral-200 bg-white shadow-sm">
-            {listings.map((listing) => {
-              const tone = describeStatus(listing.status);
-              return (
-                <li key={listing.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                  <Link
-                    href={`/super-admin/listings/${listing.id}`}
-                    className="min-w-0 flex-1 font-semibold text-brand-700 hover:underline"
-                  >
-                    {listing.name}
-                  </Link>
-                  <span className="text-sm text-neutral-500">{listing.localityName}</span>
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-semibold ${TONES[tone.tone] ?? TONES.grey}`}
-                  >
-                    {tone.label}
+      <div className="row g-3">
+        <div className="col-xl-4">
+          <div className="card h-100">
+            <div className="card-body">
+              <div className="d-flex align-items-center mb-3">
+                <div className="avatar-sm me-3">
+                  <span className="avatar-title bg-primary-subtle text-primary rounded-circle font-size-20">
+                    <i className="bx bx-user" />
                   </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                </div>
+                <div className="flex-grow-1 min-w-0">
+                  <h5 className="font-size-15 mb-1">{account.name?.trim() || "No name given"}</h5>
+                  <span
+                    className={`badge ${
+                      suspended ? "bg-danger-subtle text-danger" : "bg-success-subtle text-success"
+                    }`}
+                  >
+                    {account.status}
+                  </span>
+                </div>
+              </div>
 
-      {maySuspend ? (
-        <section className="mt-8 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold">{suspended ? "Reinstate" : "Suspend"} this account</h2>
-          <p className="mt-1 text-sm text-neutral-600">
-            {suspended ?
-              "They will be able to sign in again. Their listings are unaffected by this — whatever status each one is in now is what it stays."
-            : "They will not be able to sign in. Their listings keep their own status, so anything live stays live — use the listing screens to take a business off the site."}
-          </p>
-          <form action={setAccountStatusAction.bind(null, id, suspended ? "active" : "suspended")} className="mt-4">
-            <button
-              type="submit"
-              className={`rounded-lg px-5 py-2.5 text-sm font-semibold text-white ${
-                suspended ? "bg-neutral-900 hover:bg-neutral-700" : "bg-red-700 hover:bg-red-800"
-              }`}
-            >
-              {suspended ? "Reinstate account" : "Suspend account"}
-            </button>
-          </form>
-        </section>
-      ) : null}
-    </main>
+              {/* A compact definition table rather than a two-column card grid: four short facts
+                  read faster stacked with their labels than spread across a wide panel. */}
+              <table className="table table-sm mb-3">
+                <tbody>
+                  <tr>
+                    <th scope="row" className="fw-normal text-muted ps-0">
+                      Phone
+                    </th>
+                    <td className="text-end pe-0">
+                      {account.phoneE164}
+                      {account.phoneVerified ? null : (
+                        <span className="badge bg-warning-subtle text-warning ms-2">Unverified</span>
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="fw-normal text-muted ps-0">
+                      Email
+                    </th>
+                    <td className="text-end pe-0 text-break">{account.email ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="fw-normal text-muted ps-0">
+                      Joined
+                    </th>
+                    <td className="text-end pe-0">{formatWhen(account.createdAt)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" className="fw-normal text-muted ps-0">
+                      Listings
+                    </th>
+                    <td className="text-end pe-0 fw-semibold">{account.listingCount}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <p className="text-muted font-size-12 mb-0">
+                The name, email and phone belong to the account holder and are edited by them. Staff
+                cannot change them here, and there is no way to sign in as somebody.
+              </p>
+
+              {maySuspend ? (
+                <div className="border-top mt-3 pt-3">
+                  <h5 className="font-size-14 mb-1">
+                    {suspended ? "Reinstate" : "Suspend"} this account
+                  </h5>
+                  <p className="text-muted font-size-12">
+                    {suspended
+                      ? "They will be able to sign in again. Their listings are unaffected by this — whatever status each one is in now is what it stays."
+                      : "They will not be able to sign in. Their listings keep their own status, so anything live stays live — use the listing screens to take a business off the site."}
+                  </p>
+                  <form action={setAccountStatusAction.bind(null, id, suspended ? "active" : "suspended")}>
+                    <button
+                      type="submit"
+                      className={`btn btn-sm ${suspended ? "btn-primary" : "btn-outline-danger"}`}
+                    >
+                      {suspended ? "Reinstate account" : "Suspend account"}
+                    </button>
+                  </form>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="col-xl-8">
+          <div className="card h-100">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Their listings</h4>
+              <p className="card-title-desc mb-3">
+                {listings.length} {listings.length === 1 ? "business" : "businesses"} on this
+                account.
+              </p>
+
+              {listings.length === 0 ? (
+                <p className="text-muted font-size-13 mb-0">None.</p>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th scope="col">Listing</th>
+                        <th scope="col">Area</th>
+                        <th scope="col" className="text-center" style={{ width: "10rem" }}>
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {listings.map((listing) => {
+                        const tone = describeStatus(listing.status);
+                        return (
+                          <tr key={listing.id}>
+                            <td className="py-3">
+                              <Link
+                                href={`/super-admin/listings/${listing.id}`}
+                                className="fw-semibold text-body"
+                              >
+                                {listing.name}
+                              </Link>
+                            </td>
+                            <td className="py-3 text-muted">{listing.localityName}</td>
+                            <td className="py-3 text-center">
+                              <span className={`badge ${TONES[tone.tone] ?? TONES.grey}`}>
+                                {tone.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

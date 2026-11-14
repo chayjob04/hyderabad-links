@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AccessDenied } from "@/components/AccessDenied";
+import { Pagination } from "@/components/Pagination";
+import { PageTitle } from "@/components/minia/PageTitle";
+import { StatCard } from "@/components/minia/StatCard";
 import {
   PERMISSION_LISTINGS_EDIT,
   describeStatus,
@@ -17,14 +20,14 @@ export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> };
 
 const TONES: Record<string, string> = {
-  grey: "bg-neutral-100 text-neutral-700",
-  amber: "bg-amber-50 text-amber-800",
-  green: "bg-green-50 text-green-800",
-  red: "bg-red-50 text-red-800",
+  grey: "bg-secondary-subtle text-secondary",
+  amber: "bg-warning-subtle text-warning",
+  green: "bg-success-subtle text-success",
+  red: "bg-danger-subtle text-danger",
 };
 
 /**
- * Every listing filed under one subcategory — the original's
+ * Everything filed under one subcategory — the original's
  * `Super/ListingsByCategory/ViewBySubCategory`.
  *
  * All statuses, not only the live ones. A subcategory that looks empty on the public site but holds
@@ -50,11 +53,12 @@ export default async function SubcategoryDrillPage({ params, searchParams }: Pro
 
   if (!counts.ok) {
     return (
-      <main className="mx-auto max-w-4xl px-4 pt-8 pb-12">
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-red-800">
+      <>
+        <PageTitle title="Subcategory" breadcrumb={[{ label: "Listings" }, { label: "By subcategory" }]} />
+        <div role="alert" className="alert alert-danger">
           {counts.message}
-        </p>
-      </main>
+        </div>
+      </>
     );
   }
 
@@ -62,102 +66,118 @@ export default async function SubcategoryDrillPage({ params, searchParams }: Pro
   if (!subcategory) notFound();
 
   return (
-    <main className="mx-auto max-w-4xl px-4 pt-8 pb-12">
-      <Link
-        href="/super-admin/listings/by-subcategory"
-        className="text-sm font-semibold text-brand-700 hover:underline"
-      >
-        <span aria-hidden="true">&larr;</span> All subcategories
-      </Link>
+    <>
+      <PageTitle
+        title={subcategory.name}
+        breadcrumb={[
+          { label: "By subcategory", href: "/super-admin/listings/by-subcategory" },
+          { label: subcategory.name },
+        ]}
+        action={
+          <Link href="/super-admin/listings/by-subcategory" className="btn btn-outline-secondary">
+            <i className="mdi mdi-arrow-left me-1" /> All subcategories
+          </Link>
+        }
+      />
 
-      <h1 className="mt-3 text-2xl font-bold">{subcategory.name}</h1>
-      <p className="mt-1 text-neutral-600">
-        {subcategory.parentName ? (
-          <>
-            In{" "}
-            <Link
-              href={`/super-admin/listings/by-category/${subcategory.parentSlug}`}
-              className="font-semibold text-brand-700 hover:underline"
-            >
-              {subcategory.parentName}
-            </Link>{" "}
-            &middot;{" "}
-          </>
-        ) : null}
-        {subcategory.activeCount} live of {subcategory.totalCount} filed
-      </p>
+      <div className="row g-3 mb-4">
+        <StatCard label="Live" value={subcategory.activeCount} />
+        <StatCard label="All statuses" value={subcategory.totalCount} />
+        <StatCard
+          label="Not live"
+          value={subcategory.totalCount - subcategory.activeCount}
+        />
+        <StatCard label="Parent category" value={subcategory.parentName ?? "—"} />
+      </div>
 
-      {!listings.ok ? (
-        <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
-          {listings.message}
-        </p>
-      ) : listings.data.items.length === 0 ? (
-        <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-amber-900">
-          Nothing is filed under this subcategory. It is a live page on the public site that returns
-          no results.
-        </p>
-      ) : (
-        <>
-          <ul className="mt-6 divide-y divide-neutral-200 rounded-xl border border-neutral-200 bg-white shadow-sm">
-            {listings.data.items.map((listing) => {
-              const tone = describeStatus(listing.status);
-              return (
-                <li key={listing.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={`/super-admin/listings/${listing.id}`}
-                      className="font-semibold text-brand-700 hover:underline"
-                    >
-                      {listing.name}
+      <div className="row g-3">
+        <div className="col-12">
+          <div className="card mb-0">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Listings</h4>
+              <p className="card-title-desc mb-3">
+                Every status, not only the live ones.
+                {subcategory.parentName ? (
+                  <>
+                    {" "}
+                    In{" "}
+                    <Link href={`/super-admin/listings/by-category/${subcategory.parentSlug}`}>
+                      {subcategory.parentName}
                     </Link>
-                    <p className="text-sm text-neutral-500">
-                      {listing.localityName} &middot; added {formatWhen(listing.createdAt)}
-                    </p>
-                  </div>
-                  {listing.isVerified ? (
-                    <span className="rounded bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-800">
-                      Verified
-                    </span>
-                  ) : null}
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-semibold ${TONES[tone.tone] ?? TONES.grey}`}
-                  >
-                    {tone.label}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+                    .
+                  </>
+                ) : null}
+              </p>
 
-          {listings.data.totalPages > 1 ? (
-            <nav className="mt-6 flex items-center justify-between gap-4" aria-label="Pages">
-              {currentPage > 1 ? (
-                <Link
-                  href={`/super-admin/listings/by-subcategory/${slug}?page=${currentPage - 1}`}
-                  className="font-semibold text-brand-700 hover:underline"
-                >
-                  &larr; Previous
-                </Link>
+              {!listings.ok ? (
+                <div role="alert" className="alert alert-danger mb-0">
+                  {listings.message}
+                </div>
+              ) : listings.data.items.length === 0 ? (
+                <div className="alert alert-warning mb-0">
+                  Nothing is filed under this subcategory. It is a live page on the public site that
+                  returns no results.
+                </div>
               ) : (
-                <span />
+                <>
+                  <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0">
+                      <thead className="table-light">
+                        <tr>
+                          <th scope="col">Listing</th>
+                          <th scope="col">Area</th>
+                          <th scope="col">Added</th>
+                          <th scope="col" className="text-center" style={{ width: "10rem" }}>
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {listings.data.items.map((listing) => {
+                          const tone = describeStatus(listing.status);
+                          return (
+                            <tr key={listing.id}>
+                              <td className="py-3">
+                                <div className="d-flex align-items-center gap-2">
+                                  <Link
+                                    href={`/super-admin/listings/${listing.id}`}
+                                    className="fw-semibold text-body"
+                                  >
+                                    {listing.name}
+                                  </Link>
+                                  {listing.isVerified ? (
+                                    <span className="badge bg-primary-subtle text-primary">Verified</span>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="py-3 text-muted">{listing.localityName}</td>
+                              <td className="py-3 text-muted font-size-13 text-nowrap">
+                                {formatWhen(listing.createdAt)}
+                              </td>
+                              <td className="py-3 text-center">
+                                <span className={`badge ${TONES[tone.tone] ?? TONES.grey}`}>
+                                  {tone.label}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <Pagination
+                    page={listings.data.page}
+                    totalPages={listings.data.totalPages}
+                    params={{}}
+                    basePath={`/super-admin/listings/by-subcategory/${slug}`}
+                  />
+                </>
               )}
-              <span className="text-sm text-neutral-600">
-                Page {listings.data.page} of {listings.data.totalPages}
-              </span>
-              {currentPage < listings.data.totalPages ? (
-                <Link
-                  href={`/super-admin/listings/by-subcategory/${slug}?page=${currentPage + 1}`}
-                  className="font-semibold text-brand-700 hover:underline"
-                >
-                  Next &rarr;
-                </Link>
-              ) : (
-                <span />
-              )}
-            </nav>
-          ) : null}
-        </>
-      )}
-    </main>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
