@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SuperAdminChrome } from "@/components/SuperAdminChrome";
+import { EmptyState } from "@/components/minia/FilterTabs";
+import { PageTitle } from "@/components/minia/PageTitle";
 import {
   PERMISSION_LISTINGS_FEATURE,
   formatWhen,
@@ -34,122 +36,143 @@ export default async function FeaturedPage({ searchParams }: Props) {
 
   return (
     <SuperAdminChrome>
-      <main className="mx-auto max-w-4xl px-4 pt-8 pb-16">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold">Homepage Featured shelf</h1>
-          {/* The way in. Adding happens from the listings page, where each row has a Feature
-              toggle, so this page needs to say where that is rather than leaving someone looking
-              for an "add" button that is deliberately not here. */}
-          <Link
-            href="/super-admin/listings?status=active"
-            className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700"
-          >
-            Add listings &rarr;
+      <PageTitle
+        title="Verified listing"
+        breadcrumb={[{ label: "Home page" }, { label: "Featured shelf" }]}
+        action={
+          /* The way in. Adding happens from the listings page, where each row has a Feature
+             toggle, so this page needs to say where that is rather than leaving someone looking
+             for an "add" button that is deliberately not here. */
+          <Link href="/super-admin/listings?status=active" className="btn btn-primary">
+            Add listings <i className="mdi mdi-arrow-right ms-1" />
           </Link>
+        }
+      />
+
+      {done ? (
+        <div role="status" className="alert alert-success">
+          {done}
         </div>
-        <p className="mt-2 text-sm text-neutral-600">
-          Chosen by hand, newest choice first. Featuring a listing again moves it to the front. To
-          add one, open <strong>Listings</strong> and use the <strong>Feature</strong> toggle on any
-          live listing.
-        </p>
+      ) : null}
+      {error ? (
+        <div role="alert" className="alert alert-danger">
+          {error}
+        </div>
+      ) : null}
 
-        {done ? (
-          <p role="status" className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
-            {done}
-          </p>
-        ) : null}
-        {error ? (
-          <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
-            {error}
-          </p>
-        ) : null}
+      <div className="row g-3 mb-4">
+        <div className="col-12">
+          <div className="card mb-0">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Homepage Featured shelf</h4>
+              <p className="card-title-desc mb-3">
+                Chosen by hand, newest choice first. Featuring a listing again moves it to the
+                front. To add one, open <strong>Listings</strong> and use the{" "}
+                <strong>Feature</strong> toggle on any live listing.
+              </p>
 
-        {!result.ok ? (
-          <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
-            {result.message}
-          </p>
-        ) : (
-          <>
-            <p className="mt-6 text-sm text-neutral-700">
-              {result.data.items.length} of {result.data.max} slots used.{" "}
-              {result.data.remaining === 0
-                ? "The shelf is full: take one off before adding another."
-                : `${result.data.remaining} free.`}
-            </p>
+              {!result.ok ? (
+                <div role="alert" className="alert alert-danger mb-0">
+                  {result.message}
+                </div>
+              ) : (
+                <>
+                  <p className="text-muted font-size-13">
+                    {result.data.items.length} of {result.data.max} slots used.{" "}
+                    {result.data.remaining === 0
+                      ? "The shelf is full: take one off before adding another."
+                      : `${result.data.remaining} free.`}
+                  </p>
 
-            {result.data.items.length === 0 ? (
-              <div className="mt-6 rounded-xl border border-neutral-200 bg-white p-6 text-sm text-neutral-600 shadow-sm">
-                <p className="font-semibold text-neutral-900">Nothing is featured yet.</p>
-                <p className="mt-2">
-                  The homepage shows no Featured section until something is on this shelf. Open{" "}
-                  <Link href="/super-admin/listings?status=active" className="font-medium text-brand-700 underline-offset-2 hover:underline">
-                    Listings
-                  </Link>{" "}
-                  and switch <strong>Feature</strong> on for any live business.
-                </p>
-              </div>
-            ) : (
-              <ul className="mt-4 grid gap-3">
-                {result.data.items.map((row, index) => (
-                  <li
-                    key={row.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-neutral-900">
-                        <span className="mr-2 text-neutral-400">{index + 1}.</span>
-                        <Link href={`/super-admin/listings/${row.id}`} className="underline-offset-2 hover:underline">
-                          {row.name}
-                        </Link>
-                      </p>
-                      <p className="mt-1 text-xs text-neutral-500">
-                        Chosen {formatWhen(row.featuredAt)}
-                        {row.featuredBy ? ` by ${row.featuredBy}` : ""}
-                        {/* A featured listing can be suspended afterwards. The homepage drops it
-                            immediately, but it stays on the shelf until somebody takes it off, so
-                            this row has to say why it is not showing. */}
-                        {row.status !== "active" ? ` · ${row.status.replace("_", " ")}, so it is not showing` : ""}
-                      </p>
+                  {result.data.items.length === 0 ? (
+                    <EmptyState icon="bx bx-star" title="Nothing is featured yet">
+                      The homepage shows no Featured section until something is on this shelf. Open{" "}
+                      <Link href="/super-admin/listings?status=active">Listings</Link> and switch{" "}
+                      <strong>Feature</strong> on for any live business.
+                    </EmptyState>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="table table-hover align-middle mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th scope="col" style={{ width: "3rem" }}>
+                              #
+                            </th>
+                            <th scope="col">Listing</th>
+                            <th scope="col">Chosen</th>
+                            <th scope="col" className="text-end">
+                              Action
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {result.data.items.map((row, index) => (
+                            <tr key={row.id}>
+                              <td className="py-3 text-muted">{index + 1}</td>
+                              <td className="py-3">
+                                <Link
+                                  href={`/super-admin/listings/${row.id}`}
+                                  className="fw-semibold text-body"
+                                >
+                                  {row.name}
+                                </Link>
+                                {/* A featured listing can be suspended afterwards. The homepage
+                                    drops it immediately, but it stays on the shelf until somebody
+                                    takes it off, so this row has to say why it is not showing. */}
+                                {row.status !== "active" ? (
+                                  <span className="badge bg-warning-subtle text-warning ms-2">
+                                    {row.status.replace("_", " ")} — not showing
+                                  </span>
+                                ) : null}
+                              </td>
+                              <td className="py-3 text-muted font-size-13">
+                                {formatWhen(row.featuredAt)}
+                                {row.featuredBy ? (
+                                  <span className="d-block font-size-12">by {row.featuredBy}</span>
+                                ) : null}
+                              </td>
+                              <td className="py-3 text-end">
+                                <div className="d-flex justify-content-end align-items-center gap-2">
+                                  {row.url ? (
+                                    <a
+                                      href={row.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="btn btn-sm btn-outline-secondary"
+                                    >
+                                      Public page
+                                    </a>
+                                  ) : null}
+                                  {mayFeature ? (
+                                    <form action={removeFromShelfAction.bind(null, row.id)}>
+                                      <button type="submit" className="btn btn-sm btn-outline-danger">
+                                        Take off
+                                      </button>
+                                    </form>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
-                    <div className="flex items-center gap-3">
-                      {row.url ? (
-                        <a
-                          href={row.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sm font-medium text-brand-700 underline-offset-2 hover:underline"
-                        >
-                          Public page
-                        </a>
-                      ) : null}
-                      {mayFeature ? (
-                        <form action={removeFromShelfAction.bind(null, row.id)}>
-                          <button
-                            type="submit"
-                            className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
-                          >
-                            Take off
-                          </button>
-                        </form>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
+      {groups.ok ? <HomepageGroups groups={groups.data} mayEdit={mayFeature} /> : null}
 
-        {groups.ok ? <HomepageGroups groups={groups.data} mayEdit={mayFeature} /> : null}
-
-        {!mayFeature ? (
-          <p className="mt-6 rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-            Your account can see the shelf but not change it. It needs the &quot;Choose which
-            listings appear on the homepage Featured shelf&quot; permission.
-          </p>
-        ) : null}
-      </main>
+      {!mayFeature ? (
+        <div className="alert alert-light border font-size-13">
+          Your account can see the shelf but not change it. It needs the &quot;Choose which listings
+          appear on the homepage Featured shelf&quot; permission.
+        </div>
+      ) : null}
     </SuperAdminChrome>
   );
 }
