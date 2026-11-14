@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PERMISSION_LISTINGS_EDIT, getCategoryCounts, getProfile } from "@/lib/super-admin-api";
 import { AccessDenied } from "@/components/AccessDenied";
+import { PageTitle } from "@/components/minia/PageTitle";
 
 export const metadata: Metadata = { title: "Listings by category" };
 export const dynamic = "force-dynamic";
@@ -30,14 +31,26 @@ export default async function ListingsByCategoryPage() {
     return <AccessDenied surface="super" permission={PERMISSION_LISTINGS_EDIT} what="listings by category" />;
   }
 
+  const title = (
+    <PageTitle
+      title="By category"
+      breadcrumb={[{ label: "Listings" }, { label: "By category" }]}
+      action={
+        <Link href="/super-admin/listings/by-subcategory" className="btn btn-outline-secondary">
+          By subcategory <i className="mdi mdi-arrow-right ms-1" />
+        </Link>
+      }
+    />
+  );
+
   if (!result.ok) {
     return (
-      <main className="mx-auto max-w-4xl px-4 pt-8 pb-12">
-        <h1 className="text-2xl font-bold">Listings by category</h1>
-        <p role="alert" className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+      <>
+        {title}
+        <div role="alert" className="alert alert-danger">
           {result.message}
-        </p>
-      </main>
+        </div>
+      </>
     );
   }
 
@@ -61,63 +74,64 @@ export default async function ListingsByCategoryPage() {
   const liveTotal = rolled.reduce((sum, row) => sum + row.activeCount, 0);
 
   return (
-    <main className="mx-auto max-w-4xl px-4 pt-8 pb-12">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Listings by category</h1>
-        <Link href="/super-admin/listings/by-subcategory" className="text-sm font-semibold text-brand-700 hover:underline">
-          By subcategory &rarr;
-        </Link>
-      </div>
-      <p className="mt-1 text-neutral-600">
-        {liveTotal} live {liveTotal === 1 ? "listing" : "listings"} across {rolled.length}{" "}
-        categories, busiest first. A category with very few is a thin page &mdash; worth filling
-        before it is promoted.
-      </p>
+    <>
+      {title}
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
-        <table className="w-full text-left">
-          <thead className="bg-neutral-50 text-sm text-neutral-600">
-            <tr>
-              <th scope="col" className="px-4 py-3 font-semibold">
-                Category
-              </th>
-              <th scope="col" className="px-4 py-3 text-right font-semibold">
-                Live
-              </th>
-              <th scope="col" className="px-4 py-3 text-right font-semibold">
-                All statuses
-              </th>
-              <th scope="col" className="px-4 py-3 text-right font-semibold">
-                Subcategories
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-200">
-            {rolled.map((row) => (
-              <tr key={row.slug} className={row.activeCount === 0 ? "bg-amber-50/40" : undefined}>
-                <th scope="row" className="px-4 py-3 font-semibold">
-                  <Link
-                    href={`/super-admin/listings/by-category/${row.slug}`}
-                    className="text-brand-700 hover:underline"
-                  >
-                    {row.name}
-                  </Link>
-                  {!row.isActive ? (
-                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
-                      RETIRED
-                    </span>
-                  ) : null}
-                </th>
-                <td className="px-4 py-3 text-right tabular-nums">{row.activeCount}</td>
-                {/* The gap between the two columns is the useful part: a category with 40 filed
-                    and 3 live has 37 sitting in review or suspended. */}
-                <td className="px-4 py-3 text-right tabular-nums text-neutral-500">{row.totalCount}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-neutral-500">{row.subcategories}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="row g-3">
+        <div className="col-12">
+          <div className="card mb-0">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Where the directory is thin</h4>
+              <p className="card-title-desc mb-3">
+                {liveTotal} live {liveTotal === 1 ? "listing" : "listings"} across {rolled.length}{" "}
+                categories, busiest first. A category with very few is a thin page &mdash; worth
+                filling before it is promoted.
+              </p>
+
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th scope="col">Category</th>
+                      <th scope="col" className="text-end">
+                        Live
+                      </th>
+                      <th scope="col" className="text-end">
+                        All statuses
+                      </th>
+                      <th scope="col" className="text-end">
+                        Subcategories
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rolled.map((row) => (
+                      <tr key={row.slug} className={row.activeCount === 0 ? "table-warning" : undefined}>
+                        <td className="py-3">
+                          <Link
+                            href={`/super-admin/listings/by-category/${row.slug}`}
+                            className="fw-semibold text-body"
+                          >
+                            {row.name}
+                          </Link>
+                          {!row.isActive ? (
+                            <span className="badge bg-warning-subtle text-warning ms-2">Retired</span>
+                          ) : null}
+                        </td>
+                        <td className="py-3 text-end">{row.activeCount}</td>
+                        {/* The gap between the two columns is the useful part: a category with 40
+                            filed and 3 live has 37 sitting in review or suspended. */}
+                        <td className="py-3 text-end text-muted">{row.totalCount}</td>
+                        <td className="py-3 text-end text-muted">{row.subcategories}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </main>
+    </>
   );
 }
