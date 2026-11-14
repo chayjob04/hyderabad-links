@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AdminChrome } from "@/components/AdminChrome";
+import { PageTitle } from "@/components/minia/PageTitle";
 import { getAdminProfile, getPasswordState } from "@/lib/admin-api";
 import { PasswordForm } from "./PasswordForm";
 
@@ -19,22 +20,26 @@ export default async function AdminPasswordPage() {
 
   return (
     <AdminChrome>
-      <main className="mx-auto max-w-xl px-4 pt-8 pb-12">
-        <h1 className="text-2xl font-bold text-neutral-900">Change my password</h1>
-        <p className="mt-1 text-neutral-600">
-          {me.ok ? me.data.email : "Your account"}
-        </p>
+      <PageTitle title="My password" breadcrumb={[{ label: "Account" }, { label: "Password" }]} />
 
-        <div className="mt-6 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-          {state.ok ? (
-            <PasswordForm mustChange={state.data.mustChangePassword} />
-          ) : (
-            <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
-              {state.message}
-            </p>
-          )}
+      <div className="row g-3">
+        <div className="col-xl-5 col-lg-7">
+          <div className="card">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Change my password</h4>
+              <p className="card-title-desc mb-3">{me.ok ? me.data.email : "Your account"}</p>
+
+              {state.ok ? (
+                <PasswordForm mustChange={state.data.mustChangePassword} />
+              ) : (
+                <div role="alert" className="alert alert-danger mb-0">
+                  {state.message}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </main>
+      </div>
     </AdminChrome>
   );
 }

@@ -4,12 +4,8 @@ import { useActionState } from "react";
 import { changePasswordAction } from "./actions";
 import { emptyPasswordState, type ChangePasswordState } from "./password-state";
 
-const input =
-  "mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100";
-const label = "block text-xs font-semibold tracking-wide text-neutral-600 uppercase";
-
 /**
- * Change your own password. Shared in shape with the admin surface's copy; each posts to the
+ * Change your own password. Shared in shape with the super-admin surface's copy; each posts to the
  * action that holds its own session's cookie.
  *
  * The current password is asked for even though you are already signed in, because being signed in
@@ -24,69 +20,92 @@ export function PasswordForm({ mustChange }: { mustChange: boolean }) {
 
   if (state.success) {
     return (
-      <div role="status" className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-900">
-        <p className="font-semibold">{state.message}</p>
-        <p className="mt-1">You can carry on in this window.</p>
+      <div role="status" className="alert alert-success mb-0">
+        <h5 className="alert-heading font-size-14">{state.message}</h5>
+        <p className="mb-0 font-size-13">You can carry on in this window.</p>
       </div>
     );
   }
 
   return (
-    <form action={formAction} className="grid gap-4">
+    <form action={formAction}>
       {mustChange ? (
-        <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="alert alert-warning">
           You are on a temporary password. Choose your own before you can do anything else.
-        </p>
+        </div>
       ) : null}
 
-      <div>
-        <label htmlFor="currentPassword" className={label}>
+      <div className="mb-3">
+        <label htmlFor="currentPassword" className="form-label">
           Current password
         </label>
-        <input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required className={input} />
+        <input
+          id="currentPassword"
+          name="currentPassword"
+          type="password"
+          autoComplete="current-password"
+          required
+          className={`form-control${state.fieldErrors.currentPassword ? " is-invalid" : ""}`}
+        />
         {state.fieldErrors.currentPassword ? (
-          <p role="alert" className="mt-1 text-xs font-medium text-red-700">{state.fieldErrors.currentPassword}</p>
+          <div role="alert" className="invalid-feedback d-block">
+            {state.fieldErrors.currentPassword}
+          </div>
         ) : null}
       </div>
 
-      <div>
-        <label htmlFor="newPassword" className={label}>
+      <div className="mb-3">
+        <label htmlFor="newPassword" className="form-label">
           New password
         </label>
-        <input id="newPassword" name="newPassword" type="password" autoComplete="new-password" required className={input} />
-        <p className="mt-1 text-xs text-neutral-500">At least 12 characters.</p>
+        <input
+          id="newPassword"
+          name="newPassword"
+          type="password"
+          autoComplete="new-password"
+          required
+          className={`form-control${state.fieldErrors.newPassword ? " is-invalid" : ""}`}
+        />
+        <div className="form-text">At least 12 characters.</div>
         {state.fieldErrors.newPassword ? (
-          <p role="alert" className="mt-1 text-xs font-medium text-red-700">{state.fieldErrors.newPassword}</p>
+          <div role="alert" className="invalid-feedback d-block">
+            {state.fieldErrors.newPassword}
+          </div>
         ) : null}
       </div>
 
-      <div>
-        <label htmlFor="confirmPassword" className={label}>
+      <div className="mb-3">
+        <label htmlFor="confirmPassword" className="form-label">
           Confirm new password
         </label>
-        <input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" required className={input} />
+        <input
+          id="confirmPassword"
+          name="confirmPassword"
+          type="password"
+          autoComplete="new-password"
+          required
+          className={`form-control${state.fieldErrors.confirmPassword ? " is-invalid" : ""}`}
+        />
         {state.fieldErrors.confirmPassword ? (
-          <p role="alert" className="mt-1 text-xs font-medium text-red-700">{state.fieldErrors.confirmPassword}</p>
+          <div role="alert" className="invalid-feedback d-block">
+            {state.fieldErrors.confirmPassword}
+          </div>
         ) : null}
       </div>
 
       {state.message && Object.keys(state.fieldErrors).length === 0 ? (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{state.message}</p>
+        <div role="alert" className="alert alert-danger py-2 px-3 font-size-13">
+          {state.message}
+        </div>
       ) : null}
 
-      <p className="text-xs text-neutral-500">
+      <p className="text-muted font-size-12">
         Your other sessions will be signed out. Your authenticator is not affected.
       </p>
 
-      <div>
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex items-center justify-center rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
-        >
-          {pending ? "Changing..." : "Change password"}
-        </button>
-      </div>
+      <button type="submit" disabled={pending} className="btn btn-primary">
+        {pending ? "Changing..." : "Change password"}
+      </button>
     </form>
   );
 }
