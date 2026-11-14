@@ -48,8 +48,8 @@ export default async function OverviewPage() {
           </div>
 
           <div className="row g-3 mb-4">
-            <StatCard label="Reviews waiting" value={result.data.pendingReviews} href="/admin/reviews" />
-            <StatCard label="Reports open" value={result.data.openReports} href="/admin/reports" />
+            <StatCard label="Reviews waiting" value={result.data.pendingReviews} href="/admin/reviews" width="col-xl-6 col-md-6" />
+            <StatCard label="Reports open" value={result.data.openReports} href="/admin/reports" width="col-xl-6 col-md-6" />
           </div>
 
           <div className="row g-3 mb-4">
@@ -66,6 +66,7 @@ export default async function OverviewPage() {
                         key={row.key}
                         label={STATUS_LABEL[row.key] ?? row.key}
                         value={row.count}
+                      width="col-6 col-md-4 col-xl"
                       />
                     ))}
                   </div>
@@ -86,7 +87,7 @@ export default async function OverviewPage() {
                   </p>
                   <div className="row g-3">
                     {result.data.listingsByPlan.map((row) => (
-                      <StatCard key={row.key} label={row.key} value={row.count} width="col-xl-3 col-md-6" />
+                      <StatCard key={row.key} label={row.key} value={row.count} width="col-6 col-xl" />
                     ))}
                   </div>
                 </div>

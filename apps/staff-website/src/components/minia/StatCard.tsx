@@ -18,12 +18,16 @@ export function StatCard({
   label,
   value,
   href,
-  width = "col-xl-3 col-md-6",
+  width = "col-xl-3 col-md-6 col-sm-6",
 }: {
   label: string;
   value: number | string;
   href?: string;
-  /** Grid columns, so a row of two reads as wide as a row of four. */
+  /**
+   * Grid columns. The default is a quarter on a wide screen and a half below it, so a row of two
+   * fills the width instead of leaving half the row empty — which is what "Reviews waiting" and
+   * "Reports open" did on the dashboard.
+   */
   width?: string;
 }) {
   /*
@@ -33,11 +37,17 @@ export function StatCard({
    * 30px less height, and every card the same height as its neighbours because they all hold
    * exactly these two lines.
    */
+  /*
+   * Trimmed to `py-3` in the last pass, which went too far the other way: the label sat almost on
+   * top of the figure and the cards read as cramped. Default `card-body` padding back, the label
+   * and figure two steps apart, and a minimum height so a one-digit card and a long wrapped label
+   * end up the same size in a row.
+   */
   const body = (
     <div className="card card-h-100 mb-0">
-      <div className="card-body py-3">
-        <span className="text-muted mb-2 lh-1 d-block text-truncate">{label}</span>
-        <h4 className="mb-0">{value}</h4>
+      <div className="card-body d-flex flex-column justify-content-center" style={{ minHeight: "6.5rem" }}>
+        <span className="text-muted mb-2 lh-sm d-block text-truncate">{label}</span>
+        <h4 className="mb-0 lh-1">{value}</h4>
       </div>
     </div>
   );

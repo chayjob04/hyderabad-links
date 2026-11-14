@@ -1,0 +1,57 @@
+/*
+ * Shared table and badge treatment for the staff panels.
+ *
+ * Scoped to `#layout-wrapper .table`, so it reaches the migrated screens and nothing else — the
+ * sign-in page has no wrapper, and neither does anything outside these two route groups.
+ *
+ * Three things, all reported from the live listings table and all of them applying equally to the
+ * nine other tables in these panels:
+ *
+ *   the header row read as another data row, because `.table-light` tints it but nothing else
+ *     separates it;
+ *   status badges changed size with their text, so a column of them had ragged edges;
+ *   row actions sat at different heights depending on whether the cell held a link or a form.
+ */
+
+/* A header that announces itself: smaller, spaced, and sitting on a real rule rather than a tint. */
+#layout-wrapper .table > thead > tr > th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+  border-bottom: 2px solid var(--bs-border-color);
+  white-space: nowrap;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+/* Badges in a table line up with each other rather than hugging their own text. */
+#layout-wrapper .table .badge {
+  display: inline-block;
+  min-width: 5.5rem;
+  padding: 0.4em 0.6em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* A badge that is a suffix to something else — "Verified" beside a name — is not a column, so it
+   keeps its natural width. */
+#layout-wrapper .table td > .d-flex .badge,
+#layout-wrapper .table .badge.ms-2 {
+  min-width: 0;
+}
+
+/* Row actions at one height, whether the cell holds a link, a button or a form around one. */
+#layout-wrapper .table td .btn-sm {
+  --bs-btn-padding-y: 0.3rem;
+  --bs-btn-padding-x: 0.75rem;
+  white-space: nowrap;
+}
+
+#layout-wrapper .table td form {
+  display: inline-block;
+  margin: 0;
+}

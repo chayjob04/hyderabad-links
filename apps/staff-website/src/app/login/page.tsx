@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { MiniaStyles } from "@/components/minia/MiniaStyles";
+import "./minia-login.css";
 import { BRAND_NAME } from "@/lib/brand";
 import { safeNextPath } from "@/lib/session";
 import { LoginForm } from "./LoginForm";

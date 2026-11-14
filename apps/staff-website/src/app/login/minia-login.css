@@ -1,0 +1,52 @@
+/*
+ * The sign-in page's own surface.
+ *
+ * The original set `data-bs-theme="dark"` on `<body>`, so Bootstrap's own `--bs-body-bg` painted
+ * the page and its `--bs-body-color` was readable against it. Here the attribute is on the page
+ * wrapper instead — that is what lets one route serve both tabs — and the background underneath
+ * still came from the root layout. The dark tab therefore took the dark theme's *text* colours
+ * (#adb5bd and friends) onto a white panel, which is the faint text that was reported.
+ *
+ * Painting the wrapper from the same variables the theme sets fixes it at the cause: each tab now
+ * supplies its own surface, so every colour Bootstrap derives — body text, muted text, borders,
+ * form controls, the card the form sits on — lands on the background it was computed against.
+ * Nothing per-element is overridden, and no colour is invented.
+ *
+ * Scoped to `.auth-page`, which exists on no other route.
+ */
+
+.auth-page,
+.auth-page .auth-full-page-content {
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+/*
+ * The wordmark beside the logo. `.logo-txt` is given its colour by the sidebar in the panels; on
+ * the sign-in page there is no sidebar, so it inherits — which on the dark tab was the same faint
+ * grey as everything else. Headings are the right weight for a brand mark here.
+ */
+.auth-page .logo-txt {
+  color: var(--bs-heading-color, var(--bs-emphasis-color));
+  font-size: 20px;
+}
+
+/*
+ * The two tabs. `nav-pills` colours its inactive links with `--bs-nav-link-color`, which on the
+ * dark tab is dim enough to read as disabled rather than merely unselected. Lifting the inactive
+ * one to the body colour and giving it a surface makes the pair read as a choice.
+ */
+.auth-page .nav-pills .nav-link {
+  color: var(--bs-body-color);
+  background-color: var(--bs-tertiary-bg);
+  font-weight: 500;
+}
+
+.auth-page .nav-pills .nav-link:hover {
+  color: var(--bs-emphasis-color);
+}
+
+.auth-page .nav-pills .nav-link.active {
+  color: #fff;
+  background-color: var(--bs-primary);
+}

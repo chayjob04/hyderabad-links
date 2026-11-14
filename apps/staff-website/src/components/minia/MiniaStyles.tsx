@@ -1,5 +1,6 @@
 import "./minia-compat.css";
 import "./minia-fonts.css";
+import "./minia-tables.css";
 
 /**
  * The original theme's stylesheets, loaded in the order the Razor layouts loaded them.
