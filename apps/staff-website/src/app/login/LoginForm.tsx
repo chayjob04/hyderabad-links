@@ -5,17 +5,17 @@ import { useActionState, useState } from "react";
 import { loginAction } from "./actions";
 import { initialLoginState, type StaffTab } from "./state";
 
-const inputClass =
-  "w-full rounded-lg border border-neutral-300 px-3 py-2.5 text-base outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100";
-const primaryButton =
-  "w-full rounded-lg bg-brand-700 px-5 py-2.5 text-base font-semibold text-white hover:bg-brand-900 disabled:opacity-60";
-
 /**
  * Admin sign-in in stages: password, then the mandatory authenticator code. A first-time admin gets
  * the enrollment stage in between, and their recovery codes once, before being let through.
  *
  * The token that links the stages is never in this component. It is in an httpOnly cookie the
  * server action sets, so nothing in the browser can read it.
+ *
+ * On the theme's form classes. Not one line of the flow changed with them: the same action, the
+ * same four stages, the same hidden `next`/`tab`/`intent` fields re-read by the server on every
+ * submit, and the same recovery-code fallback. The original's login had none of this — it was one
+ * password box — so there was nothing to copy for the stages beyond the look of the controls.
  */
 export function LoginForm({ next, tab }: { next: string; tab: StaffTab }) {
   /* The tab seeds the initial state so the first submit already carries it, and is sent again as a
@@ -26,30 +26,33 @@ export function LoginForm({ next, tab }: { next: string; tab: StaffTab }) {
   const [useRecovery, setUseRecovery] = useState(false);
 
   const error = state.error ? (
-    <p role="alert" className="mt-3 text-sm text-red-700">
+    <div role="alert" className="alert alert-danger py-2 px-3 mt-3 mb-0 font-size-13">
       {state.error}
-    </p>
+    </div>
   ) : null;
-
-  const shell = "rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm";
 
   if (state.stage === "codes") {
     return (
-      <div className={shell}>
-        <h2 className="text-lg font-semibold">Save your recovery codes</h2>
-        <p className="mt-1 text-sm text-neutral-600">
+      <div>
+        <h5 className="font-size-15 mb-1">Save your recovery codes</h5>
+        <p className="text-muted font-size-13">
           Each code signs you in once if you lose your authenticator. They are shown now and never
           again, so store them somewhere safe before continuing.
         </p>
-        <ul className="mt-4 grid gap-1.5 rounded-lg bg-neutral-50 p-4 font-mono text-sm sm:grid-cols-2">
-          {state.recoveryCodes?.map((code) => <li key={code}>{code}</li>)}
-        </ul>
+        <div className="border rounded p-3 mb-3">
+          <div className="row g-1">
+            {state.recoveryCodes?.map((code) => (
+              <div key={code} className="col-6">
+                <code className="text-body">{code}</code>
+              </div>
+            ))}
+          </div>
+        </div>
         {/* The action always sets `next` on this stage, so the fallback is belt-and-braces — but it
-            has to name a route that exists and belongs to the tab that just enrolled. It used to say
-            "/listings", which is now /admin/listings and would 404 for either surface. */}
+            has to name a route that exists and belongs to the tab that just enrolled. */}
         <Link
           href={state.next ?? (state.tab === "super" ? "/super-admin/overview" : "/admin")}
-          className={`${primaryButton} mt-5 block text-center`}
+          className="btn btn-primary w-100"
         >
           I have saved them &mdash; continue
         </Link>
@@ -59,42 +62,43 @@ export function LoginForm({ next, tab }: { next: string; tab: StaffTab }) {
 
   if (state.stage === "enroll") {
     return (
-      <form action={formAction} className={shell}>
+      <form action={formAction}>
         <input type="hidden" name="next" value={next} />
         <input type="hidden" name="tab" value={tab} />
         <input type="hidden" name="intent" value="enroll-confirm" />
 
-        <h2 className="text-lg font-semibold">Set up your authenticator</h2>
-        <p className="mt-1 text-sm text-neutral-600">
-          Every administrator signs in with a one-time code. Add this account to an authenticator app,
-          then enter the code it shows.
+        <h5 className="font-size-15 mb-1">Set up your authenticator</h5>
+        <p className="text-muted font-size-13">
+          Every administrator signs in with a one-time code. Add this account to an authenticator
+          app, then enter the code it shows.
         </p>
 
-        <p className="mt-4 text-xs font-semibold tracking-wide text-neutral-500 uppercase">Setup key</p>
-        <p className="mt-1 font-mono text-sm break-all">{state.enrollment?.secret}</p>
-        <p className="mt-1 text-xs text-neutral-500">
-          Type this into your authenticator app, or open{" "}
-          <a href={state.enrollment?.otpauthUri} className="font-medium text-brand-700 underline">
-            this setup link
-          </a>{" "}
-          on the device that has it.
-        </p>
+        <div className="border rounded p-3 mb-3">
+          <p className="text-muted font-size-12 text-uppercase mb-1">Setup key</p>
+          <code className="text-body text-break">{state.enrollment?.secret}</code>
+          <p className="text-muted font-size-12 mt-2 mb-0">
+            Type this into your authenticator app, or open{" "}
+            <a href={state.enrollment?.otpauthUri}>this setup link</a> on the device that has it.
+          </p>
+        </div>
 
-        <label htmlFor="code" className="mt-5 block text-sm font-medium">
-          6-digit code
-        </label>
-        <input
-          id="code"
-          name="code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          autoFocus
-          required
-          className={`${inputClass} mt-1`}
-        />
+        <div className="mb-3">
+          <label htmlFor="code" className="form-label">
+            6-digit code
+          </label>
+          <input
+            id="code"
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            autoFocus
+            required
+            className="form-control"
+          />
+        </div>
 
-        <button type="submit" disabled={pending} className={`${primaryButton} mt-5`}>
+        <button type="submit" disabled={pending} className="btn btn-primary w-100">
           {pending ? "Checking..." : "Confirm and sign in"}
         </button>
         {error}
@@ -104,21 +108,21 @@ export function LoginForm({ next, tab }: { next: string; tab: StaffTab }) {
 
   if (state.stage === "mfa") {
     return (
-      <form action={formAction} className={shell}>
+      <form action={formAction}>
         <input type="hidden" name="next" value={next} />
         <input type="hidden" name="tab" value={tab} />
         <input type="hidden" name="intent" value="verify" />
 
-        <h2 className="text-lg font-semibold">Enter your code</h2>
-        <p className="mt-1 text-sm text-neutral-600">
+        <h5 className="font-size-15 mb-1">Enter your code</h5>
+        <p className="text-muted font-size-13">
           {useRecovery
             ? "Enter one of the recovery codes you saved when you set up your authenticator."
             : "Open your authenticator app and enter the 6-digit code for Hyderabad Links."}
         </p>
 
         {useRecovery ? (
-          <>
-            <label htmlFor="recoveryCode" className="mt-4 block text-sm font-medium">
+          <div className="mb-3">
+            <label htmlFor="recoveryCode" className="form-label">
               Recovery code
             </label>
             <input
@@ -127,12 +131,12 @@ export function LoginForm({ next, tab }: { next: string; tab: StaffTab }) {
               autoComplete="off"
               autoFocus
               required
-              className={`${inputClass} mt-1 font-mono`}
+              className="form-control"
             />
-          </>
+          </div>
         ) : (
-          <>
-            <label htmlFor="code" className="mt-4 block text-sm font-medium">
+          <div className="mb-3">
+            <label htmlFor="code" className="form-label">
               6-digit code
             </label>
             <input
@@ -143,19 +147,19 @@ export function LoginForm({ next, tab }: { next: string; tab: StaffTab }) {
               maxLength={6}
               autoFocus
               required
-              className={`${inputClass} mt-1`}
+              className="form-control"
             />
-          </>
+          </div>
         )}
 
-        <button type="submit" disabled={pending} className={`${primaryButton} mt-5`}>
+        <button type="submit" disabled={pending} className="btn btn-primary w-100">
           {pending ? "Checking..." : "Sign in"}
         </button>
 
         <button
           type="button"
           onClick={() => setUseRecovery((on) => !on)}
-          className="mt-3 w-full cursor-pointer text-sm font-medium text-brand-700 underline-offset-2 hover:underline"
+          className="btn btn-link w-100 mt-2 font-size-13"
         >
           {useRecovery ? "Use my authenticator instead" : "Use a recovery code instead"}
         </button>
@@ -165,38 +169,42 @@ export function LoginForm({ next, tab }: { next: string; tab: StaffTab }) {
   }
 
   return (
-    <form action={formAction} className={shell}>
+    <form action={formAction}>
       <input type="hidden" name="next" value={next} />
       <input type="hidden" name="tab" value={tab} />
       <input type="hidden" name="intent" value="password" />
 
-      <label htmlFor="email" className="block text-sm font-medium">
-        Email address
-      </label>
-      <input
-        id="email"
-        name="email"
-        type="email"
-        autoComplete="username"
-        defaultValue={state.email}
-        autoFocus
-        required
-        className={`${inputClass} mt-1`}
-      />
+      <div className="mb-3">
+        <label htmlFor="email" className="form-label">
+          Email address
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="username"
+          defaultValue={state.email}
+          autoFocus
+          required
+          className="form-control"
+        />
+      </div>
 
-      <label htmlFor="password" className="mt-4 block text-sm font-medium">
-        Password
-      </label>
-      <input
-        id="password"
-        name="password"
-        type="password"
-        autoComplete="current-password"
-        required
-        className={`${inputClass} mt-1`}
-      />
+      <div className="mb-3">
+        <label htmlFor="password" className="form-label">
+          Password
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+          className="form-control"
+        />
+      </div>
 
-      <button type="submit" disabled={pending} className={`${primaryButton} mt-5`}>
+      <button type="submit" disabled={pending} className="btn btn-primary w-100">
         {pending ? "Signing in..." : "Continue"}
       </button>
       {error}

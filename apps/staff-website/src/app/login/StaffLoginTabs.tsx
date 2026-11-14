@@ -11,33 +11,33 @@ import type { StaffTab } from "./state";
  *
  * Switching tab reloads the page, which clears any half-finished sign-in. That is deliberate: an
  * MFA token issued for one surface should not be spent on the other.
+ *
+ * The original had no tabs — it had two separate login pages. `nav-pills nav-justified` is the
+ * theme's own way of saying "one of these two", and it is what lets both of those pages become one.
  */
 const TABS: { id: StaffTab; label: string }[] = [
-  { id: "admin", label: "Admin login" },
-  { id: "super", label: "Super admin login" },
+  { id: "admin", label: "Admin" },
+  { id: "super", label: "Super Admin" },
 ];
 
 export function StaffLoginTabs({ active }: { active: StaffTab }) {
   return (
-    <div role="tablist" aria-label="Choose a staff sign-in" className="grid grid-cols-2 gap-3">
+    <ul role="tablist" aria-label="Choose a staff sign-in" className="nav nav-pills nav-justified mb-4">
       {TABS.map((tab) => {
         const selected = tab.id === active;
         return (
-          <Link
-            key={tab.id}
-            href={`/login?tab=${tab.id}`}
-            role="tab"
-            aria-selected={selected}
-            className={`rounded-md px-4 py-3 text-center text-base font-semibold transition ${
-              selected
-                ? "bg-neutral-700 text-white"
-                : "bg-neutral-200 text-neutral-800 hover:bg-neutral-300"
-            }`}
-          >
-            {tab.label}
-          </Link>
+          <li key={tab.id} className="nav-item">
+            <Link
+              href={`/login?tab=${tab.id}`}
+              role="tab"
+              aria-selected={selected}
+              className={`nav-link${selected ? " active" : ""}`}
+            >
+              {tab.label}
+            </Link>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }

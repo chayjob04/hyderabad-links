@@ -58,6 +58,20 @@
 }
 
 /*
+ * The same rule for the sign-in page, which has no `#layout-wrapper` to hang off. The original's
+ * `auth-logo` sets `height="28"` on the image, and preflight cancels it exactly as it did in the
+ * topbar. 34px here rather than 28: the sign-in logo sits alone above the form with nothing to
+ * balance against, and the original's 28 leaves it smaller than the wordmark beside it.
+ */
+.auth-logo img {
+  display: inline-block;
+  vertical-align: middle;
+  height: 34px;
+  width: auto;
+  max-width: 100%;
+}
+
+/*
  * The brand row itself. `.logo` is given `line-height: 69px` by the theme to centre a single line
  * of text in the 70px topbar; an image and a label of different heights sitting on that line box
  * drift apart. Laying the row out as a flex line centres both against each other instead.
