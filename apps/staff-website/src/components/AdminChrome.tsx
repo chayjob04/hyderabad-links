@@ -24,7 +24,7 @@ export async function AdminChrome({ children }: { children: React.ReactNode }) {
       <MiniaStyles />
       <MiniaShell
         homeHref="/admin"
-        nav={visibleNav(ADMIN_NAV, permissions)}
+        nav={visibleNav(ADMIN_NAV, permissions, "admin")}
         displayName={me.ok ? me.data.displayName : "Signed in"}
         subtitle={me.ok ? me.data.email : undefined}
         profileHref="/admin/password"

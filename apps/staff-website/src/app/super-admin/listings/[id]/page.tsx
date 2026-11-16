@@ -154,7 +154,7 @@ export default async function ListingPage({ params, searchParams }: Props) {
 
               <table className="table table-sm mb-0">
                 <tbody>
-                  <Fact label="Web address" value={listing.url ?? "No category, so no public page"} />
+                  <Fact label="Web address" value={listing.url ?? "No category, so no public page"} block />
                   <Fact label="Submitted by" value={listing.submittedByPhone ?? "Added by staff"} />
                   <Fact label="Added" value={formatWhen(listing.createdAt)} />
                   <Fact label="Last changed" value={formatWhen(listing.updatedAt)} />
@@ -360,8 +360,26 @@ function RemoveSection({ listing }: { listing: ListingDetail }) {
   );
 }
 
-/** One labelled fact, as a table row: label left, value right, one line each. */
-function Fact({ label, value }: { label: string; value: string }) {
+/**
+ * One labelled fact, as a table row: label left, value right, one line each.
+ *
+ * `block` is the same variant the admin review screen uses for a description — label on its own
+ * line, value starting at the left margin. A full URL in a right-aligned 58% cell wraps into
+ * ragged lines running away from the eye, which is the shape that was reported there and is true
+ * of any long value.
+ */
+function Fact({ label, value, block = false }: { label: string; value: string; block?: boolean }) {
+  if (block) {
+    return (
+      <tr>
+        <td colSpan={2} className="px-0 py-3">
+          <span className="d-block text-muted mb-1">{label}</span>
+          <span className="d-block text-break">{value}</span>
+        </td>
+      </tr>
+    );
+  }
+
   return (
     <tr>
       <th scope="row" className="fw-normal text-muted ps-0" style={{ width: "42%" }}>

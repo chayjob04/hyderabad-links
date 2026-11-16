@@ -48,8 +48,8 @@ export default async function OverviewPage() {
           </div>
 
           <div className="row g-3 mb-4">
-            <StatCard label="Reviews waiting" value={result.data.pendingReviews} href="/admin/reviews" width="col-xl-6 col-md-6" />
-            <StatCard label="Reports open" value={result.data.openReports} href="/admin/reports" width="col-xl-6 col-md-6" />
+            <StatCard label="Reviews waiting" value={result.data.pendingReviews} width="col-xl-6 col-md-6" />
+            <StatCard label="Reports open" value={result.data.openReports} width="col-xl-6 col-md-6" />
           </div>
 
           <div className="row g-3 mb-4">

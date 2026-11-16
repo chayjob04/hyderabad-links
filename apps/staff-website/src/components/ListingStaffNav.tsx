@@ -17,6 +17,10 @@ const SCREENS: { key: StaffListingScreen; path: string; label: string }[] = [
  *
  * `aria-current` rather than only a colour: the current tab has to be announced, not just look
  * different.
+ *
+ * On `nav nav-pills`, the same control the sign-in page uses for its two tabs. It kept its Tailwind
+ * styling when the listing screens were migrated, which left a grey-and-white tab strip sitting
+ * inside four otherwise fully themed pages.
  */
 export function ListingStaffNav({
   listingId,
@@ -26,24 +30,21 @@ export function ListingStaffNav({
   current: StaffListingScreen;
 }) {
   return (
-    <nav aria-label="This listing" className="mt-4 flex flex-wrap gap-2 border-b border-neutral-200 pb-4">
+    <ul className="nav nav-pills mb-3" aria-label="This listing">
       {SCREENS.map((screen) => {
         const active = screen.key === current;
         return (
-          <Link
-            key={screen.key}
-            href={`/super-admin/listings/${listingId}${screen.path}`}
-            aria-current={active ? "page" : undefined}
-            className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-              active ?
-                "bg-neutral-900 text-white"
-              : "border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50"
-            }`}
-          >
-            {screen.label}
-          </Link>
+          <li key={screen.key} className="nav-item">
+            <Link
+              href={`/super-admin/listings/${listingId}${screen.path}`}
+              aria-current={active ? "page" : undefined}
+              className={`nav-link${active ? " active" : ""}`}
+            >
+              {screen.label}
+            </Link>
+          </li>
         );
       })}
-    </nav>
+    </ul>
   );
 }

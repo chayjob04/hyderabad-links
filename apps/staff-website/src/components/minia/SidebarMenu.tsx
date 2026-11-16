@@ -121,6 +121,27 @@ function Row({
     );
   }
 
+  /* The page exists, but on the other sign-in. Following it would bounce you to that surface's
+     login, which reads as being logged out at random — so the row says where the screen lives
+     instead of pretending it is one click away. */
+  if (item.otherSurface) {
+    return (
+      <li>
+        <span
+          className="minia-nav-btn minia-coming-soon"
+          aria-disabled="true"
+          title={`This screen is on the ${item.otherSurface === "super" ? "Super Admin" : "Admin"} panel. Sign in there to open it.`}
+        >
+          {!nested && item.icon ? <i className={item.icon} /> : null}
+          <span>{item.label}</span>
+          <span className="badge bg-light text-muted ms-2">
+            {item.otherSurface === "super" ? "Super Admin" : "Admin"}
+          </span>
+        </span>
+      </li>
+    );
+  }
+
   const current = isCurrent(pathname, item.href);
   return (
     <li className={current ? "mm-active" : undefined}>

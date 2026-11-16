@@ -24,7 +24,7 @@ export async function SuperAdminChrome({ children }: { children: React.ReactNode
       <MiniaStyles />
       <MiniaShell
         homeHref="/super-admin/overview"
-        nav={visibleNav(SUPER_ADMIN_NAV, permissions)}
+        nav={visibleNav(SUPER_ADMIN_NAV, permissions, "super")}
         displayName={me.ok ? me.data.displayName : "Signed in"}
         subtitle={me.ok ? me.data.email : undefined}
         profileHref="/super-admin/password"

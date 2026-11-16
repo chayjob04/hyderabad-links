@@ -26,6 +26,15 @@ export type MiniaNavItem = {
   permission?: string;
   /** Rendered but inert: the original had it, this backend does not. */
   comingSoon?: boolean;
+  /**
+   * Set by `visibleNav`, never by hand: this row's page lives on the *other* staff surface.
+   *
+   * A session holds one surface's cookies and no more — signing in on super-admin writes
+   * `hl_super_*` and nothing else. So a sidebar row pointing across surfaces hits the middleware
+   * with no cookie for the surface it names, and gets bounced to that surface's sign-in. From the
+   * inside that looks exactly like being logged out at random, which is how it was reported.
+   */
+  otherSurface?: "admin" | "super";
   children?: MiniaNavItem[];
 };
 
@@ -180,17 +189,42 @@ export const SUPER_ADMIN_NAV: MiniaNavItem[] = [
   { label: "My password", href: "/super-admin/password", icon: "fas fa-key" },
 ];
 
-/** Drops the rows this account may not see, and any group left with no children. */
-export function visibleNav(items: MiniaNavItem[], permissions: readonly string[]): MiniaNavItem[] {
+/**
+ * Drops the rows this account may not see, and any group left with no children.
+ *
+ * It also enforces the one rule a staff sidebar cannot break: **a row may only link to a route on
+ * its own surface.** Anything pointing across is marked `otherSurface` and rendered inert, because
+ * following it would bounce the person to the other sign-in — they hold one surface's cookies, not
+ * both. Doing it here rather than by hand means a row added later cannot reintroduce the bug: the
+ * menus are free to describe the original's hierarchy, and this decides what is actually clickable.
+ */
+export function visibleNav(
+  items: MiniaNavItem[],
+  permissions: readonly string[],
+  /** The surface these menus are being drawn on. */
+  surface: "admin" | "super",
+): MiniaNavItem[] {
+  const prefix = surface === "super" ? "/super-admin" : "/admin";
+  const other = surface === "super" ? "admin" : "super";
+
   const allowed = (item: MiniaNavItem) => !item.permission || permissions.includes(item.permission);
+
+  /* `/admin` is a prefix of nothing else, but `/super-admin` is not a prefix of `/admin` — so a
+     plain startsWith is enough in one direction and wrong in the other. Comparing the first path
+     segment is exact either way. */
+  const onThisSurface = (href: string) => href === prefix || href.startsWith(`${prefix}/`);
+
+  const mark = (item: MiniaNavItem): MiniaNavItem =>
+    item.href && !onThisSurface(item.href) ? { ...item, otherSurface: other } : item;
+
   const result: MiniaNavItem[] = [];
   for (const item of items) {
     if (!allowed(item)) continue;
     if (!item.children) {
-      result.push(item);
+      result.push(mark(item));
       continue;
     }
-    const children = item.children.filter(allowed);
+    const children = item.children.filter(allowed).map(mark);
     // A group whose every row was hidden would otherwise open onto nothing.
     if (children.length > 0) result.push({ ...item, children });
   }
