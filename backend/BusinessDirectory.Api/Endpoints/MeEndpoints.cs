@@ -1,3 +1,4 @@
+using BusinessDirectory.Api.Auth;
 using BusinessDirectory.Api.Data;
 using System.Security.Claims;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -17,7 +18,12 @@ public static class MeEndpoints
 
     public static RouteGroupBuilder MapMeEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/me").RequireAuthorization("Owner");
+        /* RequireActiveAccount is the second gate, after the token's audience: a suspended owner is
+           refused on every route here rather than fifteen minutes later when their access token
+           runs out. See ActiveAccount for why it is a filter and not a clause in each query. */
+        var group = app.MapGroup("/api/v1/me")
+            .RequireAuthorization("Owner")
+            .RequireActiveAccount(ActiveAccount.Owner);
         group.MapGet("", GetMe);
         group.MapOwnerOnboardingEndpoints();
         group.MapOwnerOverviewEndpoints();

@@ -150,6 +150,42 @@ public sealed class SessionStore
         return new Rotated(subjectId, newRefreshToken);
     }
 
+    /// <summary>The reason written when an account is suspended and its sessions are ended with it.</summary>
+    public const string SuspendedReason = "suspended";
+
+    /// <summary>
+    /// The statement <see cref="RevokeAllFor"/> runs. Exposed so a test can assert what it touches
+    /// without a database: the integration suite deliberately has none, and the table name is the
+    /// one thing here that is interpolated rather than parameterised.
+    /// </summary>
+    public string RevokeAllSql =>
+        $@"UPDATE {_sessions}
+              SET revoked_at = SYSDATETIMEOFFSET(), revoked_reason = @reason
+            WHERE {_subjectColumn} = @subject AND revoked_at IS NULL";
+
+    /// <summary>
+    /// Ends every live session this subject has, inside the caller's transaction, and reports how
+    /// many it ended.
+    ///
+    /// <para>
+    /// It runs in the caller's transaction on purpose: suspending an account and ending its sessions
+    /// are one decision, and a suspension that commits while the revocation fails would leave
+    /// somebody suspended on paper and signed in in fact. Rotation already refuses a non-active
+    /// identity, so this is not what *keeps* a suspended account out — it is what stops the
+    /// refresh token it already holds from being worth anything, and it is paired with the
+    /// active-account check on every request (see <c>ActiveAccount</c>) which closes the access
+    /// token's remaining minutes.
+    /// </para>
+    /// </summary>
+    public async Task<int> RevokeAllFor(
+        SqlConnection conn, SqlTransaction tx, long subjectId, string reason, CancellationToken ct)
+    {
+        await using var command = new SqlCommand(RevokeAllSql, conn, tx);
+        command.Parameters.AddWithValue("subject", subjectId);
+        command.Parameters.Add(new SqlParameter("reason", SqlDbType.NVarChar, 200) { Value = reason });
+        return await command.ExecuteNonQueryAsync(ct);
+    }
+
     /// <summary>Ends the whole family the presented token belongs to. Silent about whether it existed.</summary>
     public async Task Revoke(string refreshToken, SqlDatabase db, CancellationToken ct)
     {

@@ -28,7 +28,12 @@ public static class CustomerEndpoints
 
     public static RouteGroupBuilder MapCustomerEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/customer").RequireAuthorization(CustomerAccess.Policy);
+        /* The same second gate the owner surface has: a customer whose account is not active is
+           refused here, on every route, rather than on whichever queries happen to say
+           status = 'active' themselves. See ActiveAccount. */
+        var group = app.MapGroup("/api/v1/customer")
+            .RequireAuthorization(CustomerAccess.Policy)
+            .RequireActiveAccount(ActiveAccount.Customer);
         group.MapGet("", GetMe);
         group.MapPut("/profile", UpdateProfile);
         group.MapFavouriteEndpoints();
