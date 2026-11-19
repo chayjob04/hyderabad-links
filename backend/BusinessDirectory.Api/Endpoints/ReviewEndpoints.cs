@@ -96,16 +96,12 @@ public static class ReviewEndpoints
                   WHERE ci.slug = @city AND lo.slug = @locality AND li.slug = @slug AND li.status = 'active'
               ),
               approved AS (
-                  /* Two LEFT JOINs, not one JOIN. A review written since the identity split has a
-                     customer_id and no user_id; one written before it may still have only a
-                     user_id until S0027 drops the column. An inner join on either would silently
-                     drop half the reviews. */
+                  /* Reviews are associated with customers after the customer identity migration. */
                   SELECT r.id, r.rating, r.body, r.created_at,
-                         COALESCE(c.name, u.name) AS author_name
+                         c.name AS author_name
                   FROM reviews r
                   JOIN target t ON t.id = r.listing_id
                   LEFT JOIN customers c ON c.id = r.customer_id
-                  LEFT JOIN users u ON u.id = r.user_id
                   WHERE r.status = 'approved'
               )
               SELECT (SELECT COUNT_BIG(*) FROM approved),
@@ -335,14 +331,12 @@ public static class ReviewEndpoints
 
         await using var command = db.CreateCommand(
             @"WITH matching AS (
-                  -- LEFT JOINs for the same reason as the public query above: a review has a
-                  -- customer_id or a user_id, and the moderator must see it either way.
+                  -- Reviews are associated with customers after the customer identity migration.
                   SELECT r.id, r.listing_id, li.name AS listing_name, r.rating, r.body,
-                         COALESCE(c.phone_e164, u.phone_e164) AS phone_e164, r.created_at
+                         c.phone_e164 AS phone_e164, r.created_at
                   FROM reviews r
                   JOIN listings li ON li.id = r.listing_id
                   LEFT JOIN customers c ON c.id = r.customer_id
-                  LEFT JOIN users u ON u.id = r.user_id
                   WHERE r.status = @status
               ),
               page AS (
