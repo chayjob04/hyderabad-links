@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { checkMigrations, literalDropConstraints, stripSql } from "./check-migrations.mjs";
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 function withMigrations(files, fn) {
   const dir = mkdtempSync(path.join(tmpdir(), "mig-"));
@@ -154,7 +156,7 @@ test("migrations below the floor are left alone: they are already applied", () =
 });
 
 test("the real S0026 discovers every constraint it drops", () => {
-  const dir = path.join(path.dirname(new URL(import.meta.url).pathname.slice(1)), "..", "database", "sqlserver", "migrations");
+  const dir = path.join(scriptDir, "..", "database", "sqlserver", "migrations");
   const sql = readFileSync(path.join(dir, "S0026__customer_identity.sql"), "utf8");
   assert.deepEqual(literalDropConstraints(stripSql(sql)), []);
 });
@@ -221,7 +223,7 @@ test("a rollback script does not reserve its migration's number", () => {
 });
 
 test("the real folders pass, with S0027 reserved by manual", () => {
-  const here = path.dirname(new URL(import.meta.url).pathname.slice(1));
+  const here = scriptDir;
   const dir = path.join(here, "..", "database", "sqlserver", "migrations");
   assert.deepEqual(checkMigrations(dir), []);
 });
