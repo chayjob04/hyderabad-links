@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Threading.RateLimiting;
+using BusinessDirectory.Api;
 using BusinessDirectory.Api.Auth;
 using BusinessDirectory.Api.Data;
 using BusinessDirectory.Api.Endpoints;
@@ -8,6 +9,7 @@ using BusinessDirectory.Api.Notifications;
 using BusinessDirectory.Api.Payments;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -354,6 +356,24 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser());
 });
 
+/* ---- The caller's real IP address ------------------------------------------------------
+   Everything below that partitions or counts by IP -- the rate limiter here, the OTP allowance in
+   OtpFlow, the enquiry and abuse-report limits -- reads Connection.RemoteIpAddress, which behind
+   App Service is the front end rather than the caller. ClientIpForwarding explains the options and
+   why reading exactly one hop is what keeps them safe. */
+var trustForwardedHeaders = ClientIpForwarding.ShouldTrust(builder.Configuration, builder.Environment.IsDevelopment());
+var hostAlreadyForwards = ClientIpForwarding.HostAlreadyForwards(builder.Configuration);
+builder.Services.Configure<ForwardedHeadersOptions>(ClientIpForwarding.Configure);
+
+if (!trustForwardedHeaders && !builder.Environment.IsDevelopment())
+{
+    // Deliberately loud: with this off behind a proxy, every per-IP limit in the application is
+    // measuring one address and protecting nobody.
+    Console.Error.WriteLine(
+        $"WARNING: {ClientIpForwarding.TrustSetting} is false outside Development. Rate limiting and "
+        + "the per-IP OTP, enquiry and report limits will all see the proxy's address, not the caller's.");
+}
+
 // Baseline per-IP limit. Stricter, database-backed OTP limits are in OwnerAuthEndpoints.
 builder.Services.AddRateLimiter(options =>
 {
@@ -419,8 +439,18 @@ if (app.Services.GetService<BlobMediaStorage>() is { } blobStorage)
 }
 
 // ---- Pipeline ------------------------------------------------------------------------
-// Behind Azure App Service the real client IP arrives in X-Forwarded-For. Set the environment
-// variable ASPNETCORE_FORWARDEDHEADERS_ENABLED=true there so rate limiting sees real IPs.
+/* First, before anything that reads the caller's address or logs it: behind Azure App Service the
+   real client IP arrives in X-Forwarded-For, and the rate limiter further down partitions on it.
+
+   Skipped when the host has already added this middleware from ASPNETCORE_FORWARDEDHEADERS_ENABLED
+   -- two passes would read one entry too far to the left, which is the entry a caller can write
+   for themselves. Either route gives the same behaviour; this one does not depend on an environment
+   variable being remembered. */
+if (trustForwardedHeaders && !hostAlreadyForwards)
+{
+    app.UseForwardedHeaders();
+}
+
 app.UseExceptionHandler();   // returns a generic problem response, never a stack trace
 if (!app.Environment.IsDevelopment())
 {

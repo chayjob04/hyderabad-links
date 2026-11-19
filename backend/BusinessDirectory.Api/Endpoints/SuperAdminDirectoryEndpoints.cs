@@ -357,8 +357,23 @@ public static class SuperAdminDirectoryEndpoints
             return Results.NotFound(new { message = "No such account, or it has been deleted." });
         }
 
+        /* Suspending ends the account's live sessions, in this transaction, with the status change.
+           Without it the refresh token the person already holds stays valid-looking until it
+           expires, and only `Rotate`'s own status check turns it away -- which means a suspension
+           whose status change was later undone by hand would hand the session straight back. The
+           access token's remaining minutes are closed by the ActiveAccount filter on every request;
+           this closes the refresh side. Reinstating deliberately does not restore sessions: the
+           person signs in again. */
+        var revokedSessions = 0;
+        if (status != "active")
+        {
+            revokedSessions = await SessionStore.Owner.RevokeAllFor(
+                conn, tx, id, SessionStore.SuspendedReason, ct);
+        }
+
         await AuditLog.WriteAsync(
-            conn, tx, admin!.Id, "account.status", "user", id.ToString(), http, new { status }, ct);
+            conn, tx, admin!.Id, "account.status", "user", id.ToString(), http,
+            new { status, revokedSessions }, ct);
         await tx.CommitAsync(ct);
 
         return Results.NoContent();
