@@ -97,15 +97,77 @@ jobs:
       # What it is about to do, before it does it. This half is read-only — it reads the journal and
       # nothing else — and it names the server and database, so the job log is a record of what ran
       # and where.
-      - name: List what would be applied
+      #
+      # It also decides whether this job may apply anything at all.
+      #
+      # Applying the schema before the code is the right order only while a migration is
+      # **additive**: old code tolerates a schema that has moved ahead of it, so the window between
+      # the two is harmless. A migration that changes or removes something the running build reads
+      # inverts that, and `S0029` is the first one in this project to do so — it turns
+      # `listing_entitlements.link_limit` from a number into NULL, which the previous API build
+      # reads with `GetInt32` and throws on. Applied in this slot, it would break the owner's links
+      # screen for as long as the deployment that follows it takes.
+      #
+      # Rather than reorder the jobs — which would give up the guarantee that a failed additive
+      # migration stops the deployment — this job declines to apply a non-additive migration and
+      # says so. Those are applied by hand, after the API is deployed and verified, which is the
+      # order `docs/deployment.md` sets out and the same convention `database/sqlserver/manual/`
+      # already follows for `S0027`.
+      #
+      # "Non-additive" is read from the `approved-destructive:` marker the script carries. That
+      # marker is not decoration: `scripts/check-migrations.mjs` requires it on any migration with a
+      # destructive statement in it, so a script that needs this treatment cannot reach main without
+      # the thing this step looks for.
+      - name: List what would be applied, and check it is additive
+        id: pending
         env:
           ConnectionStrings__Default: ${{ secrets.DATABASE_CONNECTION_STRING }}
-        run: dotnet run --project backend/BusinessDirectory.Api --no-launch-profile -- migrate --what-if
+        run: |
+          set -euo pipefail
+
+          dotnet run --project backend/BusinessDirectory.Api --no-launch-profile -- migrate --what-if | tee what-if.log
+
+          # The pending list only. The seeds section below it lists .sql files too, and is re-applied
+          # on every run by design, so reading past "Reference seeds" would flag those as pending.
+          sed -n '/migration(s) would be applied:/,/Reference seeds/p' what-if.log | grep -oE 'S[0-9]{4}__[A-Za-z0-9_]+\.sql' > pending.txt || true
+
+          destructive=""
+          while read -r script; do
+            [ -n "$script" ] || continue
+            file="database/sqlserver/migrations/$script"
+            if [ -f "$file" ] && grep -q 'approved-destructive' "$file"; then
+              destructive="$destructive $script"
+            fi
+          done < pending.txt
+
+          if [ -n "$destructive" ]; then
+            echo "additive=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Migration not applied automatically::Pending non-additive migration(s):$destructive — apply by hand after the API deployment is verified."
+          else
+            echo "additive=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Apply migrations and reference seeds
+        if: steps.pending.outputs.additive == 'true'
         env:
           ConnectionStrings__Default: ${{ secrets.DATABASE_CONNECTION_STRING }}
         run: dotnet run --project backend/BusinessDirectory.Api --no-launch-profile -- migrate
+
+      # Succeeds deliberately. A failure here would stop `deploy`, and deploying the new API is
+      # exactly what has to happen first in this case. Nothing was written to the database — not the
+      # migration and not the reference seeds, which this job would otherwise re-apply.
+      - name: Explain why nothing was applied
+        if: steps.pending.outputs.additive != 'true'
+        run: |
+          echo "A pending migration is marked approved-destructive, so this job applied nothing."
+          echo
+          echo "The deployment continues: the new API ships first, by design."
+          echo "Apply the migration by hand once it is verified, from a trusted machine:"
+          echo
+          echo "  npm run db:migrate -- --what-if   # read this before the next line"
+          echo "  npm run db:migrate"
+          echo
+          echo "See docs/deployment.md for the order and the rollback path."
 
   deploy:
     runs-on: ubuntu-latest
