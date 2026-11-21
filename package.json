@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "description": "HYDERABAD LINKS monorepo: three Next.js websites, one ASP.NET Core API, one Microsoft SQL Server database.",
   "engines": {
-    "node": ">=22"
+    "node": "24.x"
   },
   "workspaces": [
     "apps/main-website",

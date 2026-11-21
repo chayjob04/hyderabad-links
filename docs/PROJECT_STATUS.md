@@ -1,169 +1,438 @@
 # Project status and handoff
 
-**Updated:** 2026-10-27. Read this first, then `CLAUDE.md`. It replaces re-auditing the repository.
+**Updated:** 2026-11-20, at commit `b6a2f50`. Read this first, then `CLAUDE.md`. It replaces
+re-auditing the repository.
 
 ## How to read this file
 
 It is cumulative, and the project has moved faster than its prose. Three rules settle any
 disagreement inside it:
 
-1. **This section, "Where the project is today" and "What changed since 2026-10-25" are the current
-   record.** Where anything further down contradicts them, they are wrong and these are right.
+1. **"Current architecture", "Where the project is today", "What is applied to which database" and
+   "What changed since 2026-11-02" are the current record.** Where anything further down
+   contradicts them, they are wrong and these are right.
 2. **`docs/REPAIR_STATUS.md` (2026-10-25)** is the record of the production database repair and the
-   four passes that followed it, and is still accurate on the database, the paid path, and what the
-   owner has to supply.
-3. **A section headed with a date is history.** "Verified on 2026-10-20" and "SQL Server conversion"
-   are both that. Their results stand as the record of what was run on the day, but they describe
-   public URLs and an owner flow that the 26 October changes replaced, so do not read them as a
-   description of today's site.
+   four passes that followed it, and is still accurate on how that database was adopted, on the
+   paid path, and on what the owner has to supply.
+3. **A section headed with a date is history.** In particular, **every section below dated before
+   2026-11-10 describes three websites** — `apps/main-website`, `apps/admin-website` and
+   `apps/super-admin-website` — and two of those no longer exist. They were merged into one
+   `apps/staff-website` on 2026-11-10. Where an older section says "the admin site" or "the
+   super-admin site", read "the `/admin` surface" and "the `/super-admin` surface" of the one staff
+   application. Likewise, sections dated before 2026-11-10 describe favourites and reviews as
+   belonging to a `users` row; since `S0026` they belong to a `customers` row (decision D56).
+4. **Every verification claim carries a date, and the date is part of the claim.** "Verification"
+   below separates the **current** run (today's tree, including a step that could not execute) from
+   the **historical** run (the last time everything, backend tests included, went green). A
+   "verified" or "works" in any section headed with an earlier date is historical: it is the record
+   of what was run on that day, against the code of that day, and it is not a statement about HEAD.
+
+## Current architecture
+
+**Two** Next.js App Router websites, one ASP.NET Core minimal API, one SQL Server database. The
+browser talks only to its own Next.js server, which calls the API server-to-server. No ORM: raw
+parameterised SQL through `Microsoft.Data.SqlClient`.
+
+| Piece | Surfaces | Who signs in, and how |
+|---|---|---|
+| `apps/main-website` | `/` and the public directory (category-first URLs, `/areas/*`, `/search`, `/blog`, `/trending`, `/verified`) | nobody |
+| | `/my` — the customer account (Saved, Chat, Profile, Help) | a **customer**, by phone OTP, `hl_cust_*` cookies |
+| | `/account` — the business owner dashboard | an **owner**, by phone OTP, `hl_*` cookies |
+| `apps/staff-website` | `/login` — one page, two tabs | — |
+| | `/admin/*` — moderation, taxonomy, blog, SEO, homepage curation | an **admin**, password + TOTP, `hl_admin_*` cookies |
+| | `/super-admin/*` — listings, business accounts, admin accounts, Featured, audit log | a **super admin**, password + TOTP, `hl_super_*` cookies |
+| `backend/BusinessDirectory.Api` | `/api/v1/public`, `/api/v1/customer`, `/api/v1/me`, `/api/v1/admin`, `/api/v1/super-admin` | four separate token audiences |
+| the database | `hyderab3_workingmodel` on `198.38.93.235`, SQL Server 2022 Express, shared with an unrelated application | — |
+
+`packages/api-client` is still an empty placeholder waiting on OpenAPI; `packages/config` holds
+shared config. `tests/e2e/` holds a README and nothing else.
+
+**Four identities, not three.** Customer, owner, admin and super admin are separate tables,
+separate session tables, separate token audiences and separate cookies. No token works on another
+realm's routes, and no sign-in creates or opens another realm's account.
 
 ## Where the project is today
 
-- **The platform runs on one shared SQL Server database** (`hyderab3_workingmodel`), which holds an
-  unrelated application as well. Migrations `S0001`–`S0017` are applied to it and the 17
-  transactional checks in `database/sqlserver/checks/` pass against it. See `REPAIR_STATUS.md` for
-  how that database was adopted and what it cost.
+- **The platform runs on one shared SQL Server database** which holds an unrelated application as
+  well. See "What is applied to which database" below for the migration state, which is the one
+  thing in this file worth checking before you touch anything.
 - **Two plans, not four.** Free, and **Verified at ₹399 a year**: 10 photos, 2 videos, 1 logo, 5
-  links and the badge (`S0016`; the three old tiers were deleted by `S0011`). Entitlement is
-  computed from the subscription period against the clock through the `listing_entitlements` view,
-  never read from `listings.plan_slug`, and the allowance is applied at read time by
-  `dbo.listing_visible_media`, so a lapsed plan hides media instead of deleting it.
+  links and the badge (`S0016`). Entitlement is computed from the subscription period against the
+  clock through the `listing_entitlements` view, never read from `listings.plan_slug`, and the
+  allowance is applied at read time by `dbo.listing_visible_media`, so a lapsed plan hides media
+  instead of deleting it.
 - **Public URLs are category-first** — `/food`, `/food/cafes`, `/food/cafes/garden-cafe`, with areas
-  at `/areas/madhapur` and `/areas/madhapur/cafes`. This replaced the locality-first
-  `/{city}/{locality}/{category}/{slug}` scheme on 26 October and **supersedes D22**, which
-  `docs/decisions.md` does not yet say. The **API** still addresses a listing as
-  `{city}/{locality}/{slug}`; only the websites' URLs changed.
-- **An admin reviews; a super admin writes.** Approve, reject, suspend, reinstate, the review and
-  report queues, correction requests and the taxonomy are the admin surface. Creating, editing,
-  archiving and deleting a listing, and curating Featured, are super-admin only. The write routes
-  are *absent* from `/api/v1/admin` rather than merely refused, and a test asserts they answer 404
-  or 405.
+  at `/areas/madhapur` and `/areas/madhapur/cafes`. This **supersedes D22**. The **API** still
+  addresses a listing as `{city}/{locality}/{slug}`; only the websites' URLs changed.
+- **An admin reviews; a super admin writes.** The write routes are *absent* from `/api/v1/admin`
+  rather than merely refused, and a test asserts they answer 404 or 405.
 - **Saving an owner listing sends it to review**, and so does every later edit — including an edit
   to a live listing, which leaves the public site until a moderator approves the change. Onboarding
-  is the one exception and stays a draft, because it collects no address or description.
+  is the one exception and stays a draft.
 - **Nothing that costs money is configured.** No payment has ever been taken, no media file has ever
   been stored in a real bucket, and no email or SMS has been delivered outside Development. Each of
   those integrations refuses to pretend: the paying routes answer 503, uploads answer 503, and a
   notification is recorded as `failed` rather than reported as sent.
 - **`Auth:DummyOtpEnabled` is an authentication bypass** that makes every owner login code `123456`.
-  It is off by default, announced on every start and logged on every code issued. It exists because
-  MSG91 delivery is still unproven and the owner journey is untestable without it. **Turn it off
+  It is off by default, announced on every start and logged on every code issued. **Turn it off
   before anyone else can reach the site.**
-- **The deployed sites are the three Vercel projects**, not `hyderabadlinks.com` — that domain still
-  answers from the other application. See `REPAIR_STATUS.md`.
+- **The deployed sites are the Vercel projects**, not `hyderabadlinks.com` — that domain still
+  answers from the other application.
 
-## What changed since 2026-10-25
+## Status, separated four ways
 
-`REPAIR_STATUS.md` ends with its fourth pass. These are the commits after it, which no other
-document records; each commit message carries the full reasoning.
+### Done, and verified — but check when
 
-**2 November — UI parity with the original site, finished.**
+Built, and proved by something that was actually run: a test, a transactional database check, or a
+walk against a running API recorded in a dated section below. **Most of that evidence is
+historical.** The backend suite last ran on 2026-11-11 (961 of 961), the database checks on the same
+day, and the browser walks on 2026-10-20. Today's run covers the builds, the typechecks and the
+script tests only — see "Verification".
 
-`docs/original-ui-parity-plan.md` mapped every view in the original `WebZyte.HL.WebApp` to a route
-here. That work is now done, across all four groups. What is worth knowing:
+- The public directory: category-first URLs, search (full-text, trigram typo tolerance, search
+  terms, distance ordering), locality autocomplete, listing detail, sitemap and robots, blog,
+  `/trending`, `/verified`, `/categories`, `/areas`, `/groups/[slug]`, page meta.
+- The owner journey: OTP sign-in, onboarding in one transaction, listings, media within the plan's
+  allowance, opening hours, FAQs, About content, links, alerts, enquiries, subscription screens.
+- The customer journey as far as it is built: OTP sign-in into `/my`, Saved, Profile. Chat says
+  plainly that it is not built.
+- Moderation: the queue, approve, reject with a reason, suspend, reinstate, the review queue, the
+  report queue, correction requests, the taxonomy, blog, SEO, search tuning, popular categories and
+  the scrolling strip.
+- Super admin: listings and the by-category / by-subcategory drill-downs, the shared listing form,
+  staff editors for About, FAQs and links, Featured curation, homepage groups, business accounts,
+  **admin account management** (new — see D59), the audit log.
+- Admin MFA: password + TOTP, ten recovery codes, lockout, rotating refresh tokens whose reuse
+  revokes the family.
+- The security baseline: headers, deny-by-default CORS, per-IP and per-phone rate limits, generic
+  errors, permissions read from the database on every request, cross-surface permissions refused.
+- `S0026` against production — applied on 2026-11-11, and its 19-assertion smoke check passed
+  there. `S0025` and `S0028` are applied too, but their *behaviour* has never been exercised against
+  the live database: `admin_management_smoke.sql` has not been run and the homepage-curation screens
+  have not been used. See "What is applied to which database".
 
-- **Every inner public page carries the original's breadcrumb band** (`PageHero`). Search, the blog,
-  a post, membership, about, help, terms and privacy were still using a centred white header, which
-  is what made the site read as a different product on every route.
-- **New public pages:** `/categories`, `/areas`, `/trending`, `/verified` (with the by-category
-  variant folded in as `?category=`, not a second route), and `/groups/[slug]` — one named Featured
-  shelf on its own page, built from the highlights payload the homepage already reads, so no new
-  endpoint and no shelf that can say two different things.
-- **Owner:** adding a business now ends on its own confirmation page
-  (`/account/listings/[id]/created`) instead of dropping back into the form it was just filled in
-  from, plus a preview checklist and an access-denied page.
-- **Admin:** popular categories and the scrolling strip, both of which needed `S0025` — see below.
-- **Super admin, the largest gap:** listings by category and by subcategory with counts and
-  drill-in; staff editors for a listing's About, FAQs and links; and business accounts. Nine pages,
-  each needing an endpoint.
-- **`S0025` is written but NOT applied.** It adds `categories.is_popular`, `dbo.scrolling_texts` and
-  the `homepage.manage` permission, all additive. The two admin screens and the homepage's curated
-  chips do nothing until `npm run db:migrate` runs, and `v0003_smoke` **will fail** until then,
-  because its expected permission list now includes `homepage.manage`.
-- **The link validator is now shared.** `OwnerLinkEndpoints.TryNormalise` was private to the owner's
-  screen; the staff editor needed the same rule, and two implementations of "http or https only" is
-  how one of them ends up accepting `javascript:`. The scrolling strip's URL has its own rule — a
-  site-relative path and nothing else — enforced in the API *and* by a CHECK constraint.
-- **Two decisions are still open and were taken the no-database-change way:** the third taxonomy
-  level (Segment) is not built, so the five original views that need it are not either; and the
-  staff config screens stay on admin rather than being duplicated onto super admin.
-- `npm run verify` passes: migration check, script tests, three production builds, .NET build,
-  669 unit and 245 integration tests, no warnings. **Nothing was checked in a browser** — no
-  browser tooling was available in that session, so the responsive behaviour is written to the
-  same breakpoints as the rest of the site but has not been seen rendered.
+### Done in code, not proved against a live database or a browser
 
-**26 October — the shape of the public site.**
+This is the honest category for most of the last three weeks' work.
 
-- **Category-first URLs** (`e44396a`). Category browsing used to be `/search?category=cafes`, which
-  a search engine reads as one page with a parameter rather than as a page each. The two shapes
-  cannot coexist — `/food/cafes/garden-cafe` and `/hyderabad/madhapur/dentists` are both three
-  segments, so the router would read "food" as a city — so the city/locality shape went rather than
-  sitting alongside. Areas moved under `/areas`, and that word is now reserved: a category slugged
-  `areas` would make every area page unreachable, so the taxonomy endpoints refuse it.
-- **A redirect loop that made every listing page unreachable** (`076957c`), caused by that move and
-  fixed the same day: the canonical check compared the *parent* category with the listing's
-  subcategory, so every listing redirected to itself. It now compares whole paths, which cannot
-  loop.
-- **The admin / super-admin split** (`2b9acaa`). Admins review and manage the taxonomy; super admins
-  write listings. A slug is never editable after creation, because public URLs are built from it and
-  these tables have no slug history, and retiring a category sets `is_active = 0` rather than
-  deleting it, so the listings on it keep working.
-- **Saving sends a listing to review** (`5d00039`), and so does every edit. A listing used to sit as
-  a draft until the owner found a button nobody had told them about, and a live listing could be
-  rewritten without any moderator seeing the change.
-- **Search became about finding a business rather than narrowing a list** (`2f7de67`, `738e0ef`,
-  `b6d4221`). Choosing an area no longer filters: it supplies a point and orders by distance from
-  it, because on a directory this size a hard area filter almost always returns nothing (Habsiguda
-  went from 0 results to both businesses, nearest first). Typed text becomes a category filter only
-  when it *is* a category, so "Dental Delights" is no longer hidden by the Dentists filter. "All" is
-  now an explicit choice in both pickers instead of a blank first option.
-- **Chrome and content** (`85d8d85`, `5fd05ec`, `e99892c`, `4f26b02`, `077e26f`, `7a8cb16`): an
-  account menu in place of the LogIn button for someone already signed in, a reworked footer, a
-  category bar that no longer overlaps the logo, and `/help`, `/terms` and `/privacy`, which exist
-  now.
-- **MSG91 finished** (`903d4df`): a failed send no longer burns the owner's five-codes-an-hour
-  allowance, an outage answers 503 instead of 500, and MSG91's own words travel with the failure —
-  an unapproved template, a wrong auth key and an empty balance were previously indistinguishable.
-- **The dummy OTP switch** (`c67ca32`) — see "Where the project is today".
+- **Admin account management (D59) has its schema but no exercise.** `S0028` **is applied to
+  production** — see "What is applied to which database" — so the forced password change is live in
+  the database. What has never happened is anybody using it: `admin_management_smoke.sql` has not
+  been run, no account has been created in the panel, and no temporary password has been handed
+  over.
+- **`S0027`** (the hand-run finalise that drops `favourites.user_id` and `reviews.user_id`) is
+  written and has **not** been run. The `S0026` rollback window is open until it is.
+- **The whole staff redesign and the staff consolidation have never been seen rendered.** Thirteen
+  commits between 2026-11-13 and 2026-11-16 moved every staff screen onto the Minia layout; all of
+  it rests on a passing build and typecheck. No browser tooling has been available in any session
+  since this work began.
+- **Neither staff sign-in has been run end to end since the merge.** There is no SQL Server on the
+  development machine and the only reachable database is production.
+- **The customer sign-in has never been run at all** — the realm was added on 2026-11-10 and
+  `database/sqlserver/checks/customer_identity_smoke.sql` is the only thing that has exercised it,
+  against production, once.
+- **`/api/revalidate` from the staff site** has not been re-checked since the two sites became one.
 
-**27 October — the plan, the media store, and what staff can do.**
+### Pending — code work, nobody is blocked on the owner
 
-- **The Verified plan allows two videos** (`3ae7f7b`, `S0016`), the one number that differed from
-  the plan the owner confirmed. Existing media is untouched and does not need to be:
-  `listing_visible_media` applies the allowance at read time, so a listing with three videos shows
-  two and keeps the third.
-- **Link previews** (`3ae7f7b`). The site had no Open Graph or Twitter metadata at all, so a listing
-  shared into WhatsApp — which this directory tells people to use to reach a business — arrived as a
-  bare URL. The homepage also carries `Organization` and `WebSite` structured data, and `/search`
-  left the sitemap, because that page sets `noindex` and listing it was a contradiction.
-- **`Server: Kestrel` is off** (`a7a579b`). The rest of that response audit was clean.
-- **Media can be stored in Cloudflare R2** (`4914ff1`, D49), through the AWS S3 client behind the
-  `IMediaStorage` seam that was already there; Azure Blob Storage still works and `Media:Provider`
-  chooses. Unlike the Azure path, the API does not create the bucket: an R2 bucket serves nothing
-  until a domain is bound to it in the dashboard, so one created automatically would accept uploads
-  and serve nothing.
-- **A `rzp_live_` key is refused** unless `Payments:LiveModeApproved` is true (`4914ff1`, D50), on
-  the owner's instruction to keep test mode until live payments are approved.
-- **Featured is curated by a super admin** (`3225bc3`, D51). It used to mean "has a paid Verified
-  period running", which made the shelf a list of whoever had bought the plan rather than a
-  recommendation anybody had made. It starts **empty**. Trending is untouched and stays computed
-  from enquiries, favourites and approved reviews over 30 days, at read time, with no screen
-  anywhere, because the earned shelf only works if nobody can touch it.
-- **Staff can send an owner a correction request** (`3225bc3`, D52, `listing_alerts`). The only
-  thing an admin could do about a wrong phone number was suspend the business, which punishes the
-  customer looking for them more than the owner who mistyped a digit. It has its own table rather
-  than reusing `notifications`, which records delivery *attempts*, so a bounced address cannot lose
-  the message.
-- **The permission catalogue is asserted by name** (`4c5d2aa`), not by count, and the admin-role
-  check now looks both ways: written as one `EXCEPT … UNION ALL … EXCEPT` chain it could only see a
-  *missing* grant and never an extra one, which is the half that exists to catch an admin holding
-  `listings.create`.
+1. **Exercise the admin account screens against the live database.** The migration is in; the
+   behaviour is unproven. Run `npm run db:check -- admin_management`, then create an account in the
+   panel and confirm the temporary password reaches nothing but the password-change endpoint.
+2. **Look at the staff and customer screens in a browser** at 375 / 768 / 1280 px.
+3. **Switch on the `migrate` job** in `.github/workflows/main_hyderabad-links-api.yml`. It was
+   written on 2026-10-27 and **has never run**; every migration so far was applied by hand.
+4. **End-to-end tests** for the journeys only ever walked by hand: owner sign-in → listing → review
+   → publish; customer sign-in → save → review; staff sign-in on both tabs; the paid path as far as
+   an unconfigured provider allows.
+5. **A nonce-based CSP** — `'unsafe-inline'` on `script-src` is the last known weakness from the
+   security pass.
+6. **OpenAPI**, which the brief asks for and which `packages/api-client` is waiting on.
+7. **Run `S0027`** once the deployment carrying the identity split is verified in production, and
+   not before.
 
-**Verified on 2026-10-27:** `npm run verify` **passes** — migration check, 19 script tests,
-typecheck, three production builds, .NET build with 0 warnings, **534 unit and 185 integration
-tests**. `npm run db:check` was last run by the commit that needed it (`4c5d2aa`): **17 checks
-against the live database**. It was not re-run while this file was written, because it runs against
-whatever `ConnectionStrings:Default` points at, which is the shared production database.
+### Unconfigured — nothing here can work until the owner supplies something
+
+Unchanged in substance since 2026-10-27, and still the ceiling on the product.
+
+1. **The first super-admin account on the live database.** `create-admin` on the command line is
+   still the only way to make the *first* one. Until one exists, both staff surfaces can only be
+   tested as far as their sign-in screens — and the new admin-management screens, which need a
+   super admin to use them, cannot be tested at all.
+2. **A payment provider.** The Razorpay adapter is written, refuses to run unconfigured, and
+   refuses a live key without `Payments:LiveModeApproved` (D45, D50). No account exists.
+3. **An email provider.** D14's Resend has never been confirmed, so no adapter was written. This
+   also holds up the correction-request email (D52), the payment receipt (`S0013`) and the
+   credential delivery that D59 works around by hand.
+4. **A media bucket** (R2 or Azure, D49). Every upload answers 503 until one is configured.
+5. **MSG91 delivery.** The code is finished and diagnosable; no real code has ever been delivered,
+   which is why the dummy-OTP bypass exists.
+
+See "Missing credentials and configuration" below for the exact keys, and "Decisions needed from
+the owner" for what is still open.
+
+## What is applied to which database
+
+**Every DbUp migration through `S0028` is applied to production.** That is the current record, and
+it comes from a **direct SQL inspection of production**, reported on 2026-11-20. It is *later and
+stronger evidence* than the commit messages, which is worth saying because `ecd4530` (2026-11-11)
+records `S0028` as applied nowhere and is simply out of date: it was written when the migration was
+committed, before it was run. Where a commit message and that inspection disagree, the inspection
+wins.
+
+What this table is **not** is a live read taken while this file was written. There is no connection
+string configured on the development machine, so nothing here was re-checked today.
+`npm run db:migrate -- --what-if` lists what a database is missing and changes nothing — run it
+after any gap in the record, and before assuming a feature is dark.
+
+| Script | Kind | State | On what evidence |
+|---|---|---|---|
+| `S0001`–`S0024` | DbUp | **Applied to production** | `S0001`–`S0007` adopted into the journal by `db:baseline`; the rest applied by hand and recorded in `REPAIR_STATUS.md` and the commits |
+| `S0025` (popular categories, scrolling text, `homepage.manage`) | DbUp | **Applied to production** | Direct SQL inspection of production. No commit records applying it, and the previous version of this file said it was outstanding; `8d901b4` independently shows the journal standing at 25 before `S0026` ran, which agrees |
+| `S0026` (customer identity) | DbUp | **Applied to production on 2026-11-11** | `8d901b4`, after a rolled-back dry run and one real failure; `customer_identity_smoke.sql` passed there, 19 assertions. Confirmed again by the direct inspection |
+| `S0027` (finalise: drop the legacy `user_id` columns) | **manual, never DbUp** | **Not run** | Nothing records it running, and it is run by hand. It owns the number `S0027` from `database/sqlserver/manual/`, which is why the DbUp sequence skips it and why `check-migrations.mjs` has a rule teaching it that the gap is deliberate |
+| `S0026_down` (rollback) | manual | **Not run**, and the reason the rollback window is open | — |
+| `S0028` (`admin_users.must_change_password`) | DbUp | **Applied to production** | Direct SQL inspection of production. This **supersedes `ecd4530`'s "not run: `S0028` against any database"**, which was true on the day it was written |
+
+Three consequences worth stating plainly. **No screen is dark for want of a migration**, which is a
+change from the previous version of this file. **Admin account management has its column**, so what
+is outstanding there is a *behavioural* check and not a migration: `admin_management_smoke.sql` has
+still never been run, and no admin account has been created anywhere. And **`S0026` must stay
+unfinalised** until the deployment carrying the split is verified, because `S0027` is what removes
+the ability to roll back.
+
+## What changed since 2026-11-02
+
+Thirty commits. Each commit message carries the full reasoning; this is what a new reader needs.
+
+### The staff consolidation — 2026-11-10 (`b65150b`, `6495e44`, `efabdbe`)
+
+`apps/admin-website` and `apps/super-admin-website` became **one** `apps/staff-website`, with one
+`/login` page carrying Admin and Super admin tabs.
+
+The reason was a cookie, not a preference: both sites sat on `*.vercel.app`, which is a public
+suffix, so a cookie scoped to `.vercel.app` is rejected by every browser and no session could be
+shared between the two hosts. One origin removes the problem rather than engineering around it,
+with no cookie security relaxed and no token ever placed in a URL.
+
+**What was not merged:** two cookie sets (`hl_admin_*`, `hl_super_*`), both httpOnly and host-only;
+two token audiences; two permission lists; two dashboards with their own guards and API clients. MFA,
+recovery codes, lockout and the audit log are untouched. No API change and no migration — the
+backend already worked this way.
+
+**The tab never grants anything.** It chooses the words, the cookie and the destination; the API
+decides whether there is a session to keep, because a super-admin token is minted only for an
+account holding `admins.manage`, read from the database at sign-in. An ordinary admin choosing the
+super tab is refused after MFA rather than shown a dashboard that would 403 on every request.
+
+Fixed while merging: the old middleware matchers listed sections individually and missed admin's
+blog, categories, locations, search, seo and homepage, and super-admin's accounts, featured and
+listings — on those pages a 15-minute-old session was bounced to sign-in instead of refreshed. Both
+prefixes are now matched whole.
+
+**Vercel needs attention.** `hyderabad-links-super-admin` still exists as a project, its build
+settings point at `apps/super-admin-website`, which no longer exists, and its last production
+deployment is an **ERROR** from 2026-11-10. `hyderabad-links-main` and `hyderabad-links-staff` both
+deployed READY on 2026-11-19. The dead project should be deleted or repointed; while it sits there
+it is a URL that looks like a staff panel and serves a build failure.
+
+### Customer and business owner are separate identities — 2026-11-10 (`d037c53`, D56)
+
+Verifying a login code upserted a row in `users` whichever tab you came from, so somebody signing in
+to save a shop became a business account by accident: "has this person registered a business?" was
+answered by `name IS NULL`.
+
+    customer   customers / customer_sessions / customer_login / "customer"
+               hl_cust_* cookies / /api/v1/customer / /my
+    owner      users / user_sessions / owner_login / "owner"
+               hl_* cookies / /api/v1/me / /account
+
+The same mobile number may hold both, independently. Neither token works on the other's routes: each
+realm has its own JWT audience, validated by its own authentication scheme with the policy pinning
+it, and the foreign keys refuse a `customers` id where a `users` id belongs. Staff authentication is
+untouched.
+
+**Three things stay shared, each for a reason.** `otp_challenges` serves both purposes because the
+per-phone and per-IP limits are counted from those rows and a second table would hand an attacker a
+second allowance against the same number; redeeming matches on `purpose`, so a code minted for one
+sign-in cannot open the other. `OtpFlow` and `SessionStore` hold one copy of the rate limits and of
+the refresh-token theft detection, because two copies of a security rule eventually disagree and the
+weaker one gets used.
+
+Also in that commit: the customer dashboard (Saved, Chat, Profile, Help & Support, List your
+business), a Chat page that says plainly it is not built yet, and `/list-your-business`.
+
+Full detail is in `docs/customer-identity-split.md`.
+
+### `S0026`, and the two things it taught — 2026-11-11 (`0a28a09`, `8d901b4`, D57, D58)
+
+`S0026` is additive and safe to run while the old API is still serving. It creates `dbo.customers`
+and `dbo.customer_sessions`, backfills a customer twin for every user holding a favourite or a
+review, repoints those rows, and **aborts rather than leave the split half applied**. The primary key
+on `favourites` and the unique constraint on `reviews` become filtered indexes, because a primary key
+cannot hold NULL and SQL Server's UNIQUE treats two NULLs as equal — which is what lets the old and
+new API write to those tables during a deployment. Nothing is deleted; `user_id` stays populated and
+is the rollback material.
+
+It did not get there in one go, and both failures are worth keeping:
+
+**It would have failed on production's constraint names (D57).** A read-only audit found the live
+schema — applied by hand, adopted into the journal by `db:baseline` — carries server-generated names:
+56 primary keys, 31 foreign keys, 129 defaults and 2 unique keys.
+
+    S0026 said : ALTER TABLE favourites DROP CONSTRAINT favourites_pkey
+    live name  : PK__favourit__E123B678E7D5A97B
+
+That is the worst way for a migration to be wrong: it passes every test here and breaks the only
+database that matters. Every constraint `S0026` drops is now found in `sys` by *what it is* and
+dropped through `QUOTENAME`. `check-migrations.mjs` gained a rule — from `S0026` on, a hard-coded
+`DROP CONSTRAINT` name is rejected — with the floor set there because earlier migrations are already
+applied.
+
+**It then did fail in production, and rolled back cleanly (D58).** The production login's default
+schema is `hyderab3_workingmodeluser`, not `dbo`, while all 103 existing tables live in `dbo`. SQL
+Server falls back to `dbo` when reading or altering an unqualified name, so every SELECT, UPDATE and
+ALTER in these scripts had always worked — but CREATE does not: `CREATE TABLE customers` put the
+table in the login's own schema. Every other statement succeeded and `OBJECT_ID('dbo.customers')`
+was still NULL. The closing assertion threw and DbUp rolled the whole script back with nothing lost.
+That is the assertion earning its place. Every object in `S0026`, `S0027`, `S0026_down` and the smoke
+check is now schema-qualified.
+
+Applied to production on 2026-11-11 after a full dry run in a rolled-back transaction: `dbo.customers`
+and `dbo.customer_sessions` created with types matching the live `users`; 8 users, 50 user_sessions,
+9 listings, 9 businesses, 4 subscriptions unchanged; 1 customer twin created; both reviews carrying
+`customer_id` and keeping their `user_id`; 0 favourites or reviews without a `customer_id`; the smoke
+check passing with 19 assertions. **`S0027` has not been run and the rollback window is open.**
+
+### Admin account management, and `S0028` — 2026-11-11 (`ecd4530`, D59)
+
+Creating an administrator was the command line's job because a new account needs a credential
+delivered to its owner and no email provider is configured (D40). That is still true, so nothing is
+delivered: the super admin sets a temporary password, reads it once off the screen and hands it over.
+`S0028` adds the one column that makes that safe:
+
+    dbo.admin_users.must_change_password bit NOT NULL DEFAULT 0
+
+**The flag is not a hint to the UI.** It is checked in `AdminAccess.Authorize` and `AuthorizeSuper`
+— the two gates every permission-checked endpoint already passes through — so a session opened with
+a temporary password reaches nothing at all. The password-change endpoint requires no permission and
+therefore never passes those gates, which is exactly what keeps it reachable while everything else
+is shut. It is mounted on **both** staff surfaces, because a session carries one audience or the
+other.
+
+New endpoints, all on the super-admin policy plus `admins.manage`: `GET /admins/summary`,
+`/admins/page`, `/admins/{id}`; `POST /admins`, `/admins/{id}/password`,
+`/admins/{id}/revoke-sessions`; `PUT /admins/{id}`. Plus `GET` and `POST /me/password` on both staff
+surfaces. No delete, per S0003 and D55 — an account is disabled, so the audit log and the record of
+what it approved survive. Passwords are PBKDF2-HMAC-SHA256 at 210,000 iterations, never returned,
+logged or written to the audit trail; the one temporary password is echoed in the response that set
+it and nowhere else.
+
+**The last-active-super-admin guard was widened.** It previously only fired when you were editing
+yourself, which missed the case that actually strands a platform: taking the role from the *other*
+super admin and then losing your own account.
+
+This closes item 9 of the old "Not built yet" list, and changes the old limitation that "nothing
+forces a password change" — something does now, for an account created or reset this way.
+
+### The staff screens on the Minia layout — 2026-11-13 to 2026-11-16
+
+Thirteen commits (`28b68c7` through `c7d528e`) moved every staff screen onto the original's Minia
+layout: the sidebar and chrome, both dashboards, the review and report queues, blog and SEO, search
+and categories, locations, homepage management, the password screens, the super-admin listing list
+and detail with its tabs, business accounts, Featured and homepage groups, the by-category and
+by-subcategory count screens, the shared listing form, and the access-denied screens. IBM Plex Sans
+is self-hosted rather than fetched. Both original sign-in designs were combined into the one
+two-tab page.
+
+One of those commits fixed a bug worth recording, because it was reported as *being logged out at
+random* (`c7d528e`). A session holds one surface's cookies and no more. The menus had been
+transcribed faithfully from the original — which was one application with one cookie — so eleven rows
+in the Super Admin sidebar pointed at `/admin/*` and two in the Admin sidebar pointed at
+`/super-admin/*`. Each hit the middleware with no cookie for the surface it named and was redirected
+to that surface's sign-in. The session survived; it only looked like a logout, which is arguably
+worse. `visibleNav` now takes the surface and renders an off-surface row inert with a badge naming
+the panel the screen lives on, in one function rather than in thirteen `href`s.
+
+Every form, action, permission check and API call in that work is unchanged. **None of it has been
+seen in a browser.**
+
+### 2026-11-20 (`eede913`, `b6a2f50`)
+
+- **The migration checker is cross-platform again, and the SDK is pinned.** Two tests derived a path
+  from `import.meta.url` by slicing the leading slash off the pathname, which only works on Windows;
+  both now go through `fileURLToPath`. `global.json` pins the .NET SDK to `10.0.404` with
+  `rollForward: latestPatch`.
+- **The review queries no longer read `users`.** The public review list and the moderation queue
+  dropped their `LEFT JOIN users` and now read the author from `customers` alone. **Know what this
+  assumes:** before this commit the author name came from `COALESCE(c.name, u.name)`, which covered a
+  review written before the split that still had only a `user_id`. `S0026`'s backfill left no such
+  row in production — both reviews carry a `customer_id` — so the queries are correct there. But the
+  join to `customers` is still a LEFT JOIN, so **any review row with a NULL `customer_id` now
+  renders a blank author** rather than falling back. Only an older API build writing during a
+  deployment could produce one. Worth a glance after `S0027`.
+
+## Verification
+
+Two runs are recorded here and they are **not** the same thing. The **current** run is what this
+working tree does today, and one of its steps could not execute. The **historical** run is the last
+time the whole of `npm run verify` went green, including the backend suite. Neither stands in for the
+other: quote the historical run for the test count, and the current run for the state of the tree.
+Anything a dated section further down this file calls "verified" is historical by definition.
+
+### Current verification — run here on 2026-11-20, at `b6a2f50`
+
+| Step | Result |
+|---|---|
+| `npm run check:migrations` | **passed** |
+| `npm run test:scripts` | **passed — 29 of 29**, 0 failed |
+| `npm run typecheck` | **passed** — both workspaces, `tsc --noEmit`, no errors |
+| `npm run build` | **passed** — both production builds compiled successfully |
+| `dotnet build backend/BusinessDirectory.sln` | **passed** — 0 errors, 6 warnings, all of them `CS8034` analyzer-load warnings caused by the machine policy below, none from project code |
+| `dotnet test backend/BusinessDirectory.sln` | **BLOCKED — not run. Not failed, and not passed** |
+
+`npm run verify` therefore **exited non-zero on 2026-11-20**, and the reason is the machine, not the
+code. A **Windows Application Control policy** blocked the test host from loading
+`BusinessDirectory.Api.dll` (`0x800711C7`), so xUnit discovered **zero** tests in both assemblies.
+The same policy produces the six `CS8034` analyzer warnings on the build step. **Do not read this as
+a regression, and do not read it as a pass either.** The current state of the backend suite is
+*unknown*, and two commits have landed since it last ran — `eede913`, which changed two script
+tests, and `b6a2f50`, which changed one endpoint's SQL.
+
+To clear it, run `dotnet test backend/BusinessDirectory.sln` on a machine without that policy, or
+get the three assemblies allow-listed, and record the result here under a new date.
+
+### Historical verification — the last full green run, 2026-11-11 at `ecd4530`
+
+`npm run verify` **green end to end**, every step executed:
+
+| Step | Result |
+|---|---|
+| migration check | **passed** |
+| script tests | **passed — 29 of 29** |
+| typecheck | **passed**, both workspaces |
+| production builds | **passed**, both |
+| .NET build | **passed** |
+| backend tests | **passed — 961 of 961**, 0 failed (9 unit and 15 integration new in that commit) |
+
+**961 of 961 is the number to quote for the backend suite**, and the date is part of the number: it
+is the state of the tree at `ecd4530` on 2026-11-11, two commits behind HEAD. It is *not* evidence
+about today, and today's blocked run is *not* evidence against it.
+
+### Database checks
+
+`npm run db:check` has not been run since 2026-11-11, when `customer_identity_smoke.sql` passed
+against production with 19 assertions as part of applying `S0026`. There are now **24** check files,
+including `admin_management_smoke.sql`, which has never been run although its migration is applied. The
+suite runs against whatever `ConnectionStrings:Default` points at and prints the server and database
+first — read that line, because the only reachable database is production.
+
+### What has never been verified
+
+- No staff, owner or customer sign-in has been run end to end since 2026-11-10.
+- Nothing has been seen in a browser since 2026-10-20.
+- `admin_management_smoke.sql` has never run, and no administrator account has been created in the
+  panel — although `S0028`, the migration behind it, is applied to production.
+- No payment, no media upload to a real bucket, no delivered email, no delivered SMS — ever.
 
 ## SQL Server conversion — DONE for the application (2026-10-20 to 2026-10-21)
 
@@ -172,7 +441,7 @@ approved by the owner). PostgreSQL support was **not** kept: nothing in the appl
 it, and `database/migrations`, `database/seeds` and `database/checks` are kept only as history.
 
 **What that means in practice.** `npm run db:migrate` builds the schema with DbUp from `database/sqlserver/migrations`, `npm run db:seed-dev` loads the
-sample listings, and the API, the three websites and every feature built before the conversion work
+sample listings, and the API, the websites (three of them at the time) and every feature built before the conversion work
 exactly as they did. The whole site was driven end to end against SQL Server; see the table below.
 
 ### What was converted
@@ -291,11 +560,12 @@ that step is untested and is the next thing to verify.
 
 ## Architecture as built
 
-Three Next.js apps (`apps/main-website`, `apps/admin-website`,
-`apps/super-admin-website`), one ASP.NET Core API
+**Two** Next.js apps (`apps/main-website`, `apps/staff-website`), one ASP.NET Core API
 (`backend/BusinessDirectory.Api`), and one Microsoft SQL Server /
 Azure SQL Database. Browser → its own Next.js server → API → SQL Server.
 No ORM; raw parameterized SQL via `Microsoft.Data.SqlClient`.
+See "Current architecture" at the top for the surfaces and the four identities; it was three apps
+until 2026-11-10.
 
 > **Open architecture question.** The master brief asks for *two* APIs — `BusinessListings.Api`
 > (businesses, listings, branches, categories, localities, search) and `Platform.Api` (auth, users,
@@ -388,6 +658,22 @@ you need it. `Auth:TotpEncryptionKey` is regenerated on every development start,
 only survives while the API keeps running; signing in again simply walks the setup screens.
 
 ## What works today
+
+*Written before 2026-11-10 and kept because it is still the fullest description of each feature.
+Two things it does not cover: the **customer realm** (`/my`, `hl_cust_*`, `/api/v1/customer`), added
+on 2026-11-10 and summarised below, and the staff consolidation — read "the admin site" and "the
+super-admin site" here as the `/admin` and `/super-admin` surfaces of `apps/staff-website`.*
+
+**Customer account (`apps/main-website`, `/my`) — added 2026-11-10, never run end to end**
+- Phone-OTP sign-in as a **customer**, separate from the owner realm in every respect (D56):
+  its own table, session table, OTP purpose, token audience and cookies.
+- Saved (favourites), Profile, and Help & Support. **Chat is a page that says plainly it is not
+  built yet**, rather than an empty feature pretending to work.
+- `/list-your-business` is the information page that leads a customer to the business sign-in, which
+  is the only route between the two realms: signing in to one never creates or opens the other.
+- Favourites and reviews now belong to a `customers` row. `S0026` created a customer twin for every
+  user that held one and repointed the rows; the legacy `user_id` is still populated and is the
+  rollback material until the hand-run `S0027` drops it.
 
 **Public site (`apps/main-website`)**
 - **Design system (redesign pass 1).** The palette, type and spacing now come from tokens in
@@ -509,8 +795,8 @@ only survives while the API keeps running; signing in again simply walks the set
   database-backed OTP limits, generic error responses, startup refusal of wildcard CORS outside
   Development.
 
-**Admin site (`apps/admin-website`) — listing moderation, end to end**
-- Staff sign-in at `/login` (email + password). No sign-up: accounts are created by the CLI bootstrap.
+**The `/admin` surface of `apps/staff-website`** (until 2026-11-10, `apps/admin-website`) **— listing moderation, end to end**
+- Staff sign-in at `/login`, Admin tab (email + password, then TOTP). Since 2026-11-11 a super admin can create an account in the panel (D59); the CLI bootstrap is still the only way to make the *first* one.
 - `/listings`: the moderation queue, filtered by status, `pending_review` first and oldest-first,
   paginated, with the total of all matches.
 - `/listings/{id}`: everything a reviewer needs (contact details, map point, who submitted it, the
@@ -813,7 +1099,7 @@ just look like the site had lost it.
 
 ### Platform administration (super-admin, decisions D39–D40, D51)
 
-`apps/super-admin-website` runs on port 3002 and has:
+The `/super-admin` surface of `apps/staff-website` (until 2026-11-10 a separate app on port 3002) has:
 
 - **Sign-in.** The same staff password and the same authenticator as the admin site, because it is
   the same account. What differs is the token it keeps: only an account holding `admins.manage` is
@@ -908,8 +1194,10 @@ UI — the only reader of the table today is SQL.
 Ordered by what unblocks the most. The first four need the owner rather than code.
 
 1. **The first super-admin account.** `create-admin` on the command line is still the only way to
-   make one, and until one exists on the live database the admin and super-admin sites can only be
-   tested as far as their sign-in screens.
+   make the **first** one — further accounts are created in the Super Admin panel since D59, but
+   only by a super admin who is already signed in. Until one exists on the live database, both
+   staff surfaces can only be tested as far as their sign-in screens, and the new
+   account-management screens cannot be tested at all.
 2. **A payment provider.** The Razorpay adapter is written, refuses to run unconfigured, and refuses
    a live key without `Payments:LiveModeApproved` (D45, D50). No account exists and no payment has
    ever been taken, so the integration is unverified end to end.
@@ -922,19 +1210,24 @@ Ordered by what unblocks the most. The first four need the owner rather than cod
    applies the migrations and the reference seeds before the API ships, but it is **off**: it needs
    a `production-database` environment holding `DATABASE_CONNECTION_STRING`, and the repository
    variable `RUN_MIGRATIONS` set to `true`. Until then every migration is applied by hand, as
-   `S0009`–`S0017` were. **It has never run.** The database is on shared hosting rather than Azure
+   `S0009`–`S0026` were. **It has never run.** The database is on shared hosting rather than Azure
    SQL, so it may only accept allow-listed addresses, and a GitHub runner has no fixed one; if that
    is how it is configured this needs a self-hosted runner, and `npm run db:migrate` from a trusted
    machine stays the fallback.
-6. **End-to-end tests.** `tests/e2e/` is empty and Playwright is not set up. Every critical journey
-   has been walked by hand in a browser and recorded here; nothing re-walks them.
+6. **End-to-end tests.** `tests/e2e/` holds only a README and Playwright is not set up. Most
+   critical journeys were walked by hand in a browser and recorded here; nothing re-walks them,
+   and nothing has walked the customer realm or the consolidated staff sign-in at all.
 7. **A nonce-based CSP.** `'unsafe-inline'` on `script-src` is the remaining weakness, and closing
    it means a per-request nonce through middleware and re-verifying every page.
 8. **OpenAPI documentation** — the API publishes none, the brief requires it, and
    `packages/api-client` is an empty placeholder waiting for a generated client.
-9. **Admin account management** — inviting admins, assigning roles and changing passwords have no
-   screens, and an admin who loses both authenticator and recovery codes needs a direct database
-   edit (D40: both need email).
+9. ~~**Admin account management**~~ — **built on 2026-11-11** (`ecd4530`, D59): accounts are
+   created, edited, disabled and have their passwords reset in the Super Admin panel, with the
+   temporary password shown once and a forced change at first sign-in. `S0028`, the migration it
+   needs, **is applied to production**; what is outstanding is that nobody has used the screens and
+   `admin_management_smoke.sql` has never run. Still outstanding as a feature: an admin who loses
+   both authenticator and recovery codes — a super admin can clear the authenticator, but a
+   super admin who loses their own still needs a direct database edit (D40: both need email).
 10. **Editing plans from the super-admin site.** `plans.manage` is seeded and unused.
 11. **Marking a business verified by hand.** `listings.verify` is seeded and unused. The badge now
     comes from a paid period, so a manual grant would be an override of that and needs a rule first.
@@ -1041,8 +1334,12 @@ migration chain into a brand-new database, not only by altering the dev one.
   and sort, just not filter by area from this form (a `locality=` already in the URL still applies).
 - **Page size on `/search` is fixed** at the API default of 20; `pageSize` in the URL is ignored by
   the page on purpose, so visitors cannot ask for huge pages.
-- **Admin password strength is judged by length only** (12 characters minimum), and nothing forces a
-  password change. MFA itself is built and mandatory (D28–D31).
+- **Admin password strength is judged by length only** (12 characters minimum). Since D59 an
+  account created or reset in the Super Admin panel **is** forced to change its password at first
+  sign-in, enforced in `AdminAccess.Authorize` and `AuthorizeSuper` rather than in the UI. `S0028`
+  is applied to production, so that rule is live in the database, though it has never been exercised
+  by a real account; nothing expires a password after the first change. MFA itself is built and
+  mandatory (D28–D31).
 - **An owner is told by email when their listing is decided on** — and when an enquiry arrives, when
   staff ask for a correction, and when a subscription is activated. **No email provider is
   configured**, so outside Development every one of those is recorded as a `failed` notification
@@ -1120,7 +1417,11 @@ that, and the redesign changes no URL.
 **Settled since this list was last written:** the plan structure and its allowances (D48, `S0016`),
 the verified badge (a paid period grants it and nothing else does), the OTP provider (MSG91 —
 integrated and diagnosable, delivery still unproven), the media store (D49) and live payment mode
-(D50).
+(D50). Settled since 2026-11-02: staff curation of the homepage (D53), staff editing of a
+listing's content (D54), business accounts on the super-admin surface (D55), **full separation of
+customer and owner identities (D56, approved 2026-11-10)**, two migration rules learned from
+production (D57, D58) and **administrator accounts managed in the panel (D59, approved
+2026-11-11)**.
 
 ## Missing credentials and configuration
 
@@ -1170,31 +1471,50 @@ reason. Until that has actually been run, **nothing should claim email delivery 
 
 ## The next step
 
-**Last finished (2026-11-02):** UI parity with the original site across all four groups — see
-"What changed since 2026-10-25" for what that covers and what it deliberately left out.
-`npm run verify` passes: 669 unit and 245 integration tests, three production builds, no warnings.
+**Last finished (2026-11-20):** the migration checker made cross-platform, the SDK pinned, and the
+review queries moved off the legacy `users` join. Before that, the staff screens on the Minia
+layout. See "What changed since 2026-11-02" and "Verification" for what that rests on — which is a
+passing build and typecheck, and a backend suite last run green on 2026-11-11.
 
-**Two things are outstanding from it, and they are the first things to do:**
+**The first three things to do, in this order:**
 
-1. **Apply `S0025`** (`npm run db:migrate`). It is additive — one column, one table, one permission —
-   and until it runs the admin's popular-categories and scrolling-text screens have nothing to read,
-   and `npm run db:check` fails `v0003_smoke` because that check now expects `homepage.manage`.
-2. **Look at the pages in a browser** at 375 / 768 / 1280px. Every claim about the parity work rests
-   on a passing build and typecheck, not on anything having been seen to render.
+1. **Get a connection string back onto the development machine.** There is none configured right
+   now — `dotnet user-secrets list` reports nothing — so no database command can run at all, which
+   is why the migration record in this file rests on a reported inspection rather than on a read
+   anyone here can repeat. Set `ConnectionStrings:Default` with `dotnet user-secrets`, then
+   `npm run db:migrate -- --what-if`, which lists what is missing and changes nothing. Read the
+   server and database name it prints first: the only reachable database is production.
+2. **Exercise the admin account screens.** The schema is in (`S0028`); the behaviour is not proved.
+   `npm run db:check -- admin_management`, then create an account in the panel and confirm a
+   temporary password reaches nothing but the password-change endpoint.
+3. **Re-run the backend tests on a machine that can load them.** `dotnet test` is currently blocked
+   by a Windows Application Control policy, so the 961 tests have not been executed since
+   2026-11-11, across two commits that touched tests and SQL.
 
-Everything that remains is listed in "Not built yet", in the order that unblocks the most. Its first
-four items are the owner's to unblock, and until the first one lands — **the first super-admin
-account** — a large part of the product cannot be tested at all.
+**Then, and still outstanding from earlier:**
 
-The most useful code-side work, in order:
+4. **Look at the staff screens in a browser** at 375 / 768 / 1280 px, and the customer screens under
+   `/my` with them. Three weeks of UI work has never been rendered in front of anybody.
+5. **Deal with the dead Vercel project.** `hyderabad-links-super-admin` points at an app that no
+   longer exists and its last deployment is an error. Delete it or repoint it; do not leave a
+   staff-looking URL serving a build failure.
+6. **Run `S0027`** — but only once the deployment carrying the identity split is verified in
+   production. It is what closes the rollback window.
+
+Everything else that remains is in "Pending" and "Unconfigured" above, and in "Not built yet" below.
+The owner's four items are still the ceiling, and until the first one lands — **the first
+super-admin account on the live database** — a large part of the product cannot be tested at all.
+
+The most useful code-side work after the list above, in order:
 
 1. **Switch on the `migrate` job** in `.github/workflows/main_hyderabad-links-api.yml`, which was
-   written on 2026-10-27 and has never run. Nine migrations were applied by hand, and code shipping
-   ahead of its schema is the likeliest cause of a production incident here. Switching it on is
-   three settings (item 5 of "Not built yet"); proving it is one deployment with nothing pending,
-   which `migrate --what-if` reports without changing anything.
+   written on 2026-10-27 and has never run. Ten migrations have now been applied by hand, and code
+   shipping ahead of its schema is the likeliest cause of a production incident here. Switching it
+   on is three settings (item 5 of "Not built yet"); proving it is one deployment with nothing
+   pending, which `migrate --what-if` reports without changing anything.
 2. **End-to-end tests** for the journeys that have only ever been walked by hand: owner sign-in →
-   listing → review → publish, and the paid path as far as an unconfigured provider allows.
+   listing → review → publish, customer sign-in → save → review, both staff tabs, and the paid path
+   as far as an unconfigured provider allows.
 3. **A nonce-based CSP**, the last known weakness from the security pass.
 4. **OpenAPI**, which the brief asks for and which `packages/api-client` is waiting on.
 

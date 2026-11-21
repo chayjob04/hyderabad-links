@@ -42,3 +42,8 @@ database/backups/
 # Written and re-added by `next dev` (see node_modules/next/dist/server/lib/generate-agent-files.js).
 # Generated, not authored here, so it is not committed. Delete these two lines if you would rather keep them.
 apps/*/AGENTS.md
+
+# MCP server configuration for local tooling. It carries Authorization headers for whatever servers
+# a developer has connected, so it is a credentials file in all but name — and this repository is
+# public. Never commit it.
+.mcp.json
