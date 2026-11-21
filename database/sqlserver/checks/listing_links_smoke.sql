@@ -33,7 +33,7 @@ GO
 
 DECLARE @failed int = 0;
 DECLARE @owner bigint, @business bigint, @free bigint, @paid bigint, @lapsed bigint, @cancelled bigint;
-DECLARE @renamed nvarchar(80), @slotBefore int, @slotAfter int;
+DECLARE @renamed nvarchar(80), @slotBefore int, @slotAfter int, @savedLabel nvarchar(80);
 DECLARE @locality int, @centre geography, @category int;
 DECLARE @n int, @limit int, @verified bit, @plan varchar(60);
 
@@ -338,8 +338,15 @@ IF NOT EXISTS (
     WHERE listing_id = @lapsed AND label = 'Book a table')
 BEGIN
     SET @failed = @failed + 1;
+    /* Read into a variable first. PRINT takes a scalar expression and a subquery is not one, which
+       is what SQL Server means by "Subqueries are not allowed in this context" -- the message names
+       the context, not the query. The assertion above is unchanged; this is only the message that
+       explains a failure, and it is worth keeping because "found Link 1" and "found no links at
+       all" are two different bugs. A row that matched leaves @savedLabel NULL only when there are
+       no rows at all, which is the case ISNULL covers. */
+    SELECT TOP (1) @savedLabel = label FROM dbo.listing_links WHERE listing_id = @lapsed;
     PRINT 'FAIL: a lapsed listing did not keep its saved link names; found '
-        + ISNULL((SELECT TOP (1) label FROM dbo.listing_links WHERE listing_id = @lapsed), 'no links at all');
+        + ISNULL(@savedLabel, 'no links at all');
 END
 ELSE PRINT 'ok: a lapsed listing keeps the names it chose, ready for renewal';
 
