@@ -205,7 +205,7 @@ apps/main-website       public directory, /my (customers), /account (business ow
 apps/staff-website      /login with two tabs, /admin (moderation), /super-admin (platform admin)
 backend/                ASP.NET Core API + unit and integration test projects
 packages/config         shared TypeScript config
-packages/api-client     placeholder, waiting on OpenAPI
+packages/api-client     placeholder; the OpenAPI document it needs now exists, the generator does not
 database/sqlserver/     the live path: migrations/ (forward-only T-SQL), seeds/, checks/,
                         manual/ (never run by DbUp), repair/
 database/migrations     the original PostgreSQL migrations, kept as history; never run

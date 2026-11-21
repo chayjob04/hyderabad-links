@@ -36,6 +36,7 @@ reference that quietly implies more than is true is worse than no reference.
 | GitHub Actions | CI/CD |
 | Claude Code | AI-coding |
 | xUnit | Testing |
+| Microsoft.AspNetCore.OpenApi | API-contract |
 | Azure environment variables | Configuration |
 
 ### Not in this project
@@ -46,7 +47,7 @@ diagram by habit.
 | Not used | Why |
 | --- | --- |
 | Docker | No Dockerfile, no compose file, no container in CI or deployment. The API ships to App Service as a zip; the sites are built by Vercel. See CLAUDE.md. |
-| Swagger / OpenAPI | No Swashbuckle and no `AddOpenApi`. The endpoint list below is maintained by hand. |
+| Swashbuckle | The API describes itself through `Microsoft.AspNetCore.OpenApi`, which is part of ASP.NET Core. No third-party package and no bundled UI. |
 | SSMS / VS Code SQL extension | Developer tooling, not a project dependency. |
 
 ### Not yet configured

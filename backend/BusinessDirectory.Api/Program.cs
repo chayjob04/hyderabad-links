@@ -113,6 +113,14 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 
+/* The OpenAPI document. See ApiDescription.cs for what it adds and why it is not published
+   everywhere -- the registration here is only the two transformers and the document name. */
+builder.Services.AddOpenApi("v1", options =>
+{
+    options.AddDocumentTransformer<ApiDescription.Describe>();
+    options.AddOperationTransformer<ApiDescription.AudienceTags>();
+});
+
 // Deny-by-default CORS: with no configured origins, no cross-origin browser access is granted.
 // (Browsers talk to their own Next.js server, which calls this API server-to-server.)
 builder.Services.AddCors(options =>
@@ -476,6 +484,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // ---- Endpoints -----------------------------------------------------------------------
+/* /openapi/v1.json. Served in Development, and elsewhere only when OpenApi:Enabled says so:
+   a generated client is built from it, so CI and staging want it, while production has no reason
+   to hand out a map of the staff API. ApiDescription.ShouldPublish is the whole rule. */
+if (ApiDescription.ShouldPublish(app.Configuration, app.Environment.IsDevelopment()))
+{
+    app.MapOpenApi();
+}
+
 // live = the process is up (runs no checks, so a database outage never restarts the app).
 // ready = the process can reach its database.
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });

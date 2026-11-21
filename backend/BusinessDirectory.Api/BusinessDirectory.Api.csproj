@@ -12,6 +12,10 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.*" />
     <PackageReference Include="dbup-sqlserver" Version="5.*" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
+    <!-- Describes the API as OpenAPI. Microsoft's own package rather than Swashbuckle: it is part of
+         ASP.NET Core, reads the minimal-API metadata this project already produces, and adds no UI
+         or third-party dependency. -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.*" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="9.0.21" />
   </ItemGroup>

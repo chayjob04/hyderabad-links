@@ -33,6 +33,11 @@
     "DummyOtpEnabled": false
   },
 
+  "OpenApi": {
+    "//": "The API describes itself at /openapi/v1.json. With this key absent it is on in Development and off everywhere else, so production does not hand out a map of the /admin and /super-admin routes; set it either way to override that. Set it to true in CI or on staging when generating the client in packages/api-client.",
+    "Enabled": true
+  },
+
   "Cors": {
     "AllowedOrigins": [
       "http://localhost:3000",

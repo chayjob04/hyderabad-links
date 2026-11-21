@@ -44,7 +44,8 @@ parameterised SQL through `Microsoft.Data.SqlClient`.
 | `backend/BusinessDirectory.Api` | `/api/v1/public`, `/api/v1/customer`, `/api/v1/me`, `/api/v1/admin`, `/api/v1/super-admin` | four separate token audiences |
 | the database | `hyderab3_workingmodel` on `198.38.93.235`, SQL Server 2022 Express, shared with an unrelated application | — |
 
-`packages/api-client` is still an empty placeholder waiting on OpenAPI; `packages/config` holds
+`packages/api-client` is still an empty placeholder: the OpenAPI document it was waiting on now
+exists at `GET /openapi/v1.json`, but no generator reads it yet. `packages/config` holds
 shared config. `tests/e2e/` holds a README and nothing else.
 
 **Four identities, not three.** Customer, owner, admin and super admin are separate tables,
@@ -146,7 +147,8 @@ This is the honest category for most of the last three weeks' work.
    an unconfigured provider allows.
 5. **A nonce-based CSP** — `'unsafe-inline'` on `script-src` is the last known weakness from the
    security pass.
-6. **OpenAPI**, which the brief asks for and which `packages/api-client` is waiting on.
+6. **A generated TypeScript client.** The OpenAPI document exists (below); nothing generates from
+   it, so `packages/api-client` is still empty and every frontend call is written by hand.
 7. **Run `S0027`** once the deployment carrying the identity split is verified in production, and
    not before.
 
@@ -1219,8 +1221,16 @@ Ordered by what unblocks the most. The first four need the owner rather than cod
    and nothing has walked the customer realm or the consolidated staff sign-in at all.
 7. **A nonce-based CSP.** `'unsafe-inline'` on `script-src` is the remaining weakness, and closing
    it means a per-request nonce through middleware and re-verifying every page.
-8. **OpenAPI documentation** — the API publishes none, the brief requires it, and
-   `packages/api-client` is an empty placeholder waiting for a generated client.
+8. ~~**OpenAPI documentation**~~ — **built on 2026-11-21.** The API describes itself through
+   `Microsoft.AspNetCore.OpenApi` and serves the document at `GET /openapi/v1.json`: on by default
+   in Development, and elsewhere only when `OpenApi:Enabled` is true, so production does not publish
+   a map of the staff routes. Operations are tagged by audience from their own path, so a dropped or
+   renamed route group cannot quietly go missing. `ApiDescription.cs` holds the reasoning and
+   `OpenApiDocumentTests.cs` asserts it. **Not verified by running:** Windows Application Control
+   blocked every test run and every launch of a freshly built assembly on this machine, so the
+   solution builds clean and nothing has served the document yet — CI is the first thing that will.
+   Still outstanding, and the reason `packages/api-client` is empty: the generator and the CI
+   "client is up to date" check. Choosing a generator is a dependency decision.
 9. ~~**Admin account management**~~ — **built on 2026-11-11** (`ecd4530`, D59): accounts are
    created, edited, disabled and have their passwords reset in the Super Admin panel, with the
    temporary password shown once and a forced change at first sign-in. `S0028`, the migration it
@@ -1516,7 +1526,7 @@ The most useful code-side work after the list above, in order:
    listing → review → publish, customer sign-in → save → review, both staff tabs, and the paid path
    as far as an unconfigured provider allows.
 3. **A nonce-based CSP**, the last known weakness from the security pass.
-4. **OpenAPI**, which the brief asks for and which `packages/api-client` is waiting on.
+4. **A generated TypeScript client** from the OpenAPI document the API now serves.
 
 ### The redesign (history — finished 2026-10-18)
 
