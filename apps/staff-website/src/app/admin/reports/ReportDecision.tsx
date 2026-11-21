@@ -26,6 +26,7 @@ export function ReportDecision({ reportId }: { reportId: number }) {
         name="note"
         rows={3}
         defaultValue={state.note}
+        maxLength={1000}
         placeholder="What did you find, and what did you do about it?"
         className="form-control"
       />

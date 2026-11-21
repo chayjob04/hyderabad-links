@@ -14,10 +14,26 @@ const input =
  * The form is keyed on `state.rev`, which the action bumps on every submit, so a successful add
  * re-mounts it and the fields clear. Without that the owner's last entry stays on screen looking
  * like it has not been saved.
+ *
+ * <b>The label field is the paid part.</b> A free listing has no name to give: the API calls each
+ * link after its position, so the field is left out entirely rather than shown disabled. A disabled
+ * input invites the owner to work out why it is dead; its absence, with one line saying what
+ * Verified adds, says the same thing without the puzzle.
  */
-export function AddLinkForm({ listingId, disabled }: { listingId: number; disabled?: boolean }) {
+export function AddLinkForm({
+  listingId,
+  canNameLinks,
+  nextNumber,
+  disabled,
+}: {
+  listingId: number;
+  canNameLinks: boolean;
+  /** What the next link will be called when the listing may not name its own. */
+  nextNumber: number;
+  disabled?: boolean;
+}) {
   const [state, formAction, pending] = useActionState<LinkFormState, FormData>(
-    (previous, formData) => addLinkAction(listingId, previous, formData),
+    (previous, formData) => addLinkAction(listingId, canNameLinks, previous, formData),
     emptyLinkFormState,
   );
 
@@ -33,17 +49,25 @@ export function AddLinkForm({ listingId, disabled }: { listingId: number; disabl
         </select>
       </Field>
 
-      <Field id="label" label="Label" error={state.fieldErrors?.label} help="What the button will say, e.g. “Our Instagram”.">
-        <input
-          id="label"
-          name="label"
-          maxLength={80}
-          disabled={disabled}
-          aria-invalid={state.fieldErrors?.label ? true : undefined}
-          aria-describedby={state.fieldErrors?.label ? "label-error" : undefined}
-          className={input}
-        />
-      </Field>
+      {canNameLinks ? (
+        <Field id="label" label="Label" error={state.fieldErrors?.label} help="What the button will say, e.g. “Our Instagram”.">
+          <input
+            id="label"
+            name="label"
+            maxLength={80}
+            disabled={disabled}
+            aria-invalid={state.fieldErrors?.label ? true : undefined}
+            aria-describedby={state.fieldErrors?.label ? "label-error" : undefined}
+            className={input}
+          />
+        </Field>
+      ) : (
+        <div className="flex items-end">
+          <p className="text-sm text-muted">
+            This link will be called <span className="font-bold text-ink">Link {nextNumber}</span>.
+          </p>
+        </div>
+      )}
 
       <div className="sm:col-span-2">
         <Field id="url" label="Web address" error={state.fieldErrors?.url} help="Must start with http:// or https://">
@@ -52,6 +76,7 @@ export function AddLinkForm({ listingId, disabled }: { listingId: number; disabl
             name="url"
             type="url"
             inputMode="url"
+            maxLength={1000}
             placeholder="https://"
             disabled={disabled}
             aria-invalid={state.fieldErrors?.url ? true : undefined}

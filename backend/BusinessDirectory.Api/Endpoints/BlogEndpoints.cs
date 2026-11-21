@@ -174,7 +174,9 @@ public static class BlogEndpoints
 
         var title = request.Title?.Trim() ?? string.Empty;
         var body = request.BodyMarkdown?.Trim() ?? string.Empty;
-        if (Validate(title, body) is { } errors)
+        var excerpt = Clean(request.Excerpt);
+        var cover = Clean(request.CoverImageUrl);
+        if (Validate(title, body, excerpt, cover) is { } errors)
         {
             return Results.ValidationProblem(errors);
         }
@@ -195,9 +197,9 @@ public static class BlogEndpoints
         {
             insert.Parameters.AddWithValue("slug", slug);
             insert.Parameters.AddWithValue("title", title);
-            insert.Parameters.AddWithValue("excerpt", (object?)Clean(request.Excerpt, MaxExcerptLength) ?? DBNull.Value);
+            insert.Parameters.AddWithValue("excerpt", (object?)excerpt ?? DBNull.Value);
             insert.Parameters.AddWithValue("body", body);
-            insert.Parameters.AddWithValue("cover", (object?)Clean(request.CoverImageUrl, 500) ?? DBNull.Value);
+            insert.Parameters.AddWithValue("cover", (object?)cover ?? DBNull.Value);
             insert.Parameters.AddWithValue("status", request.Publish ? "published" : "draft");
             insert.Parameters.AddWithValue(
                 "publishedAt", request.Publish ? DateTimeOffset.UtcNow : (object)DBNull.Value);
@@ -226,7 +228,9 @@ public static class BlogEndpoints
 
         var title = request.Title?.Trim() ?? string.Empty;
         var body = request.BodyMarkdown?.Trim() ?? string.Empty;
-        if (Validate(title, body) is { } errors)
+        var excerpt = Clean(request.Excerpt);
+        var cover = Clean(request.CoverImageUrl);
+        if (Validate(title, body, excerpt, cover) is { } errors)
         {
             return Results.ValidationProblem(errors);
         }
@@ -246,9 +250,9 @@ public static class BlogEndpoints
         {
             update.Parameters.AddWithValue("id", id);
             update.Parameters.AddWithValue("title", title);
-            update.Parameters.AddWithValue("excerpt", (object?)Clean(request.Excerpt, MaxExcerptLength) ?? DBNull.Value);
+            update.Parameters.AddWithValue("excerpt", (object?)excerpt ?? DBNull.Value);
             update.Parameters.AddWithValue("body", body);
-            update.Parameters.AddWithValue("cover", (object?)Clean(request.CoverImageUrl, 500) ?? DBNull.Value);
+            update.Parameters.AddWithValue("cover", (object?)cover ?? DBNull.Value);
             affected = await update.ExecuteNonQueryAsync(ct);
         }
 
@@ -318,7 +322,27 @@ public static class BlogEndpoints
     }
 
     // ------------------------------------------------------------------ shared
-    public static Dictionary<string, string[]>? Validate(string title, string body)
+
+    /// <summary>`blog_posts.cover_image_url` is `nvarchar(500)` in `S0023`.</summary>
+    public const int MaxCoverImageUrlLength = 500;
+
+    /// <summary>
+    /// What is wrong with a post, or null when it is fine.
+    ///
+    /// <para>
+    /// The excerpt and the cover address are checked here now. They used to be truncated to the
+    /// column width on the way to the database, which meant an excerpt a word or two over the limit
+    /// was stored cut off — and the excerpt is the sentence that represents the post on the blog
+    /// index and in a link preview, so a half-sentence there is worse than being told to shorten
+    /// it. A truncated image address is worse still: it is simply a broken picture.
+    /// </para>
+    ///
+    /// <para>
+    /// The body has a floor and no ceiling, because `body_markdown` is `nvarchar(max)`.
+    /// </para>
+    /// </summary>
+    public static Dictionary<string, string[]>? Validate(
+        string title, string body, string? excerpt, string? coverImageUrl)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -334,6 +358,18 @@ public static class BlogEndpoints
         if (body.Length == 0)
         {
             errors["bodyMarkdown"] = ["Write something."];
+        }
+
+        // Both are optional: a post with no excerpt and no cover picture is a perfectly good post.
+        if (excerpt is { } e && e.Length > MaxExcerptLength)
+        {
+            errors["excerpt"] = [$"Keep the excerpt under {MaxExcerptLength} characters."];
+        }
+
+        if (coverImageUrl is { } url && url.Length > MaxCoverImageUrlLength)
+        {
+            errors["coverImageUrl"] =
+                [$"Keep the image address under {MaxCoverImageUrlLength} characters."];
         }
 
         return errors.Count > 0 ? errors : null;
@@ -366,14 +402,14 @@ public static class BlogEndpoints
         return SlugGenerator.NextFree(baseSlug, taken);
     }
 
-    private static string? Clean(string? value, int max)
+    /// <summary>
+    /// Trims, and treats an empty field as "not set". It no longer truncates: too long is refused
+    /// by <see cref="Validate"/> with the limit named, rather than quietly stored short.
+    /// </summary>
+    private static string? Clean(string? value)
     {
         var trimmed = value?.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-        {
-            return null;
-        }
-        return trimmed.Length > max ? trimmed[..max] : trimmed;
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 
     private static async Task<(List<PostSummaryDto> Items, long Total)> ReadSummaries(

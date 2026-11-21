@@ -41,7 +41,22 @@ public static class OwnerSubscriptionEndpoints
         bool PaymentsAvailable);
 
     public sealed record PaidPlanDto(
-        string Slug, string Name, long PricePaise, int PhotoLimit, int VideoLimit, int LinkLimit, int PeriodMonths);
+        string Slug,
+        string Name,
+        long PricePaise,
+        int PhotoLimit,
+        int VideoLimit,
+        /// <summary>
+        /// <b>Legacy.</b> The link allowance a website built before S0029 renders as
+        /// "up to {n} website and social links". Links are unlimited now, so there is no allowance
+        /// to report — but the three websites deploy independently of this API, and an older build
+        /// reading `undefined` here would print "No website or social links" on a plan that has
+        /// them. It therefore keeps the number it always had. Remove once every deployed website
+        /// reads <paramref name="CanNameLinks"/>; nothing in this repository reads it.
+        /// </summary>
+        int LinkLimit,
+        bool CanNameLinks,
+        int PeriodMonths);
 
     /// <param name="KeyId">Razorpay's publishable key, which the checkout script needs in the browser.</param>
     public sealed record OrderDto(
@@ -387,8 +402,12 @@ public static class OwnerSubscriptionEndpoints
             reader.GetInt64(2),
             reader.GetInt32(3),
             reader.GetInt32(4),
-            // The link allowance is the view's own CASE, which is 5 for a plan that verifies.
+            /* Links stopped being an allowance in S0029: every plan may add as many as it likes,
+               and what a verifying plan buys is the right to name them. Both are true for any plan
+               that reaches this method, which already filters on grants_verified_badge — the first
+               only so that a website deployed before S0029 still renders something true. */
             LinkLimit: 5,
+            CanNameLinks: true,
             PeriodMonths: periodMonths);
     }
 }

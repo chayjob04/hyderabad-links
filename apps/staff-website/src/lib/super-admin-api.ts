@@ -518,6 +518,22 @@ export const setAccountStatus = (id: number, status: "active" | "suspended") =>
 /** A collection with the plan's allowance beside it, so a screen can say why a slot is refused. */
 export type Allowanced<T> = { items: T[]; limit: number; used: number; planName: string };
 
+/**
+ * The links collection, which is the one with no allowance.
+ *
+ * Links became unlimited on every plan in S0029, so the API sends `limit: null` here. It has a type
+ * of its own rather than widening `Allowanced` because FAQs and content sections still have real
+ * numeric limits, and making their screens handle a null that cannot happen would be the wrong
+ * trade.
+ */
+export type UnlimitedAllowanced<T> = {
+  items: T[];
+  /** Null means unlimited, which is every plan today. */
+  limit: number | null;
+  used: number;
+  planName: string;
+};
+
 export type ListingFaq = { id: number; question: string; answer: string; sortOrder: number };
 
 export type ListingContentSection = {
@@ -560,7 +576,7 @@ export const deleteListingContent = (id: number, sectionId: number) =>
   authed<void>(`/api/v1/super-admin/listings/${id}/content/${sectionId}`, { method: "DELETE" });
 
 export const getListingLinks = (id: number) =>
-  authed<Allowanced<ListingLink>>(`/api/v1/super-admin/listings/${id}/links`);
+  authed<UnlimitedAllowanced<ListingLink>>(`/api/v1/super-admin/listings/${id}/links`);
 
 export const addListingLink = (id: number, linkType: string, label: string, url: string) =>
   authed<ListingLink>(`/api/v1/super-admin/listings/${id}/links`, {

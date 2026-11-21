@@ -294,7 +294,21 @@ export async function getBlogPost(slug: string): Promise<BlogPost | null> {
  * render an empty placeholder because nobody has filled this in.
  */
 export async function getSearchPlaceholders(): Promise<string[]> {
-  return (await getJson<string[]>("/api/v1/public/search-placeholders", 600)) ?? [];
+  /*
+   * Swallowed on purpose, and only here because the empty answer is already the documented one.
+   * The endpoint's own contract is that an empty list means "use your own default wording", so a
+   * list we could not fetch and a list nobody has filled in lead to exactly the same search box.
+   *
+   * Without this the home page took the whole site's front door down over the hint text inside the
+   * search field: `getJson` throws on any 5xx, and the homepage awaits this before it renders
+   * anything. Logged rather than ignored, so a persistently failing endpoint is still visible.
+   */
+  try {
+    return (await getJson<string[]>("/api/v1/public/search-placeholders", 600)) ?? [];
+  } catch (error) {
+    console.error("Could not load the search box placeholders; using the built-in wording", error);
+    return [];
+  }
 }
 
 /**
@@ -307,7 +321,22 @@ export async function getSearchPlaceholders(): Promise<string[]> {
  * An empty list is normal and means every page keeps the metadata it works out for itself.
  */
 export async function getPageMetaOverrides(): Promise<PageMetaOverride[]> {
-  return (await getJson<PageMetaOverride[]>("/api/v1/public/page-meta", 300)) ?? [];
+  /*
+   * Swallowed on purpose, for the same reason as the placeholders above: an empty list is the
+   * normal state and means every page keeps the metadata it works out for itself. There is nothing
+   * a visitor can be told about a title override that failed to load.
+   *
+   * This one matters more than it looks. Ten pages call `getPageMeta` from `generateMetadata`,
+   * which Next.js runs *before* the page renders — so a throw here failed the request before any
+   * error boundary could show the visitor a page at all. An override layer must never be able to
+   * do that.
+   */
+  try {
+    return (await getJson<PageMetaOverride[]>("/api/v1/public/page-meta", 300)) ?? [];
+  } catch (error) {
+    console.error("Could not load staff page-meta overrides; using each page's own metadata", error);
+    return [];
+  }
 }
 
 /**

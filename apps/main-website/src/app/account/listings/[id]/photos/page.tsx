@@ -5,8 +5,15 @@ import { ListingNav } from "@/components/account/ListingNav";
 import { MediaUploader } from "@/components/account/MediaUploader";
 import { MoveMediaButton } from "@/components/account/MoveMediaButton";
 import { RemoveMediaButton } from "@/components/account/RemoveMediaButton";
+import { VerifiedFeatures } from "@/components/account/VerifiedFeatures";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getListingMedia, getMyListing, type ListingMediaItem } from "@/lib/owner-api";
+import { rupees } from "@/lib/format";
+import {
+  getListingMedia,
+  getListingSubscription,
+  getMyListing,
+  type ListingMediaItem,
+} from "@/lib/owner-api";
 
 export const metadata: Metadata = { title: "Photos and video" };
 
@@ -24,7 +31,14 @@ export default async function ListingPhotosPage({ params }: Props) {
   if (!/^\d{1,15}$/.test(rawId)) notFound();
   const id = Number(rawId);
 
-  const [listingResult, mediaResult] = await Promise.all([getMyListing(id), getListingMedia(id)]);
+  /* The plan comes along because a free listing is shown what Verified would unlock, at the price
+     the database holds. It is the same call the Plan and payment screen makes, so the figure on
+     this screen cannot disagree with the one on that one. */
+  const [listingResult, mediaResult, subscriptionResult] = await Promise.all([
+    getMyListing(id),
+    getListingMedia(id),
+    getListingSubscription(id),
+  ]);
   if (!listingResult.ok || !mediaResult.ok) {
     const failed = !listingResult.ok ? listingResult : mediaResult;
     if (failed.ok === false && failed.status === 404) notFound();   // also what another owner's listing looks like
@@ -39,6 +53,8 @@ export default async function ListingPhotosPage({ params }: Props) {
 
   const listing = listingResult.data;
   const { allowance, items } = mediaResult.data;
+  const plan = subscriptionResult.ok ? subscriptionResult.data : null;
+  const paidPlan = plan?.paidPlan ?? null;
   const of = (kind: ListingMediaItem["kind"]) => items.filter((item) => item.kind === kind);
 
   const sections = [
@@ -87,24 +103,58 @@ export default async function ListingPhotosPage({ params }: Props) {
       </div>
 
       {!listing.verified ? (
-        /* Every allowance is zero on the Free plan, so the upload boxes below could only
-           ever refuse. Saying what the plan includes, and where to get it, is more use
-           than three disabled fields. Anything uploaded under an earlier paid plan is
-           still stored and comes back on renewal (D10), which is why this says kept.
-           */
-        <div className="mt-8 rounded-xl border border-brand-200 bg-brand-50 p-6">
-          <h2 className="text-xl font-black text-brand-800">Photos and video come with Verified</h2>
-          <p className="mt-2 text-sm text-brand-900">
-            This listing is on <span className="font-bold">{allowance.planName}</span>, which includes no
-            photos, logo or video. Anything you added on an earlier plan is kept and comes back the
-            moment the listing is Verified again — nothing is deleted.
+        /* Every allowance is zero on the Free plan, so the upload boxes below could only ever
+           refuse. The screen is still reachable -- it is listed in the nav with a padlock rather
+           than hidden -- and what it shows is each locked feature, what it would be worth, and the
+           price. Anything uploaded under an earlier paid plan is still stored and comes back on
+           renewal (D10), which is why this says kept.
+
+           The numbers come from `paidPlan`, which is the `plans` row, so this cannot promise an
+           allowance the API would then refuse to grant. */
+        <div className="mt-8 rounded-2xl border border-line bg-white px-6 py-5">
+          <h2 className="text-lg font-black text-brand-800">
+            Photos, video and your logo come with Verified
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            This listing is on <span className="font-bold text-ink">{allowance.planName}</span>.
+            Anything you added on an earlier plan is kept and comes back the moment the listing is
+            Verified again &mdash; nothing is deleted.
           </p>
-          <Link
-            href={`/account/listings/${id}/subscription`}
-            className="mt-4 inline-block rounded-full bg-brand-700 px-5 py-2 text-sm font-black text-white hover:bg-brand-800"
-          >
-            See plans and prices
-          </Link>
+
+          {paidPlan ? (
+            <div className="mt-4 border-t border-line pt-2">
+              <VerifiedFeatures
+                listingId={id}
+                verified={false}
+                priceLabel={rupees(paidPlan.pricePaise)}
+                paymentsLive={plan?.paymentsAvailable ?? false}
+                features={[
+                  {
+                    title: "Photos",
+                    benefit: `Up to ${paidPlan.photoLimit} pictures of the place, the work or the products.`,
+                    usage: null,
+                  },
+                  {
+                    title: "Video",
+                    benefit: `${paidPlan.videoLimit === 1 ? "A short clip" : `Up to ${paidPlan.videoLimit} short clips`} on your listing page.`,
+                    usage: null,
+                  },
+                  {
+                    title: "Business logo",
+                    benefit: "Your shop or brand mark beside the business name, everywhere you appear.",
+                    usage: null,
+                  },
+                ]}
+              />
+            </div>
+          ) : (
+            <Link
+              href={`/account/listings/${id}/subscription`}
+              className="mt-4 inline-block rounded-full bg-brand-700 px-5 py-2 text-sm font-black text-white hover:bg-brand-800"
+            >
+              See plans and prices
+            </Link>
+          )}
         </div>
       ) : (
         <>
@@ -129,8 +179,20 @@ export default async function ListingPhotosPage({ params }: Props) {
           <section key={section.kind} className="mt-8">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-xl font-black text-brand-800">{section.title}</h2>
+              {/* `3 / 5` rather than "3 of 5 used": it is a figure an owner checks at a glance
+                  while adding files, and the shorter form reads as one. */}
               <p className="text-sm font-bold text-muted">
-                {section.limit === 0 ? "Not included in this plan" : `${section.used} of ${section.limit} used`}
+                {section.limit === 0 ? (
+                  "Not included in this plan"
+                ) : (
+                  <>
+                    <span className={section.used >= section.limit ? "text-ink" : "text-brand-700"}>
+                      {section.used}
+                    </span>
+                    {" / "}
+                    {section.limit}
+                  </>
+                )}
               </p>
             </div>
             <p className="mt-1 text-sm text-muted">{section.blurb}</p>

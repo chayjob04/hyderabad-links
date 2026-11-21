@@ -5,10 +5,12 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace BusinessDirectory.IntegrationTests;
 
 // A listing's website and social links belong to that business: nobody signed out may read them,
-// add one or remove one. These run with no database, so the authorization boundary and the request
-// validation that happens before any query are what is testable here. The allowance itself (5 on
-// Verified, 0 on Free, and 0 again once a subscription lapses) comes from the listing_entitlements
-// view and was exercised against the running API.
+// add one, rename one or remove one. These run with no database, so the authorization boundary and
+// the request validation that happens before any query are what is testable here.
+//
+// Since S0029 the entitlement question is no longer "how many links" — every plan has as many as it
+// likes — but "who may name them", and that still comes from the listing_entitlements view. Neither
+// can be asserted without rows, so both live in database/sqlserver/checks/listing_links_smoke.sql.
 public class OwnerLinkAccessTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly HttpClient _client = factory.CreateClient();
@@ -67,4 +69,48 @@ public class OwnerLinkAccessTests(WebApplicationFactory<Program> factory) : ICla
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    // ---- renaming (S0029) ----------------------------------------------------------------------
+    //
+    // Renaming an existing link is the Verified plan's "make your own field" applied to what is
+    // already there. Whether a given listing *may* rename depends on its subscription period and so
+    // needs a database; what is testable here is the boundary, which is the part that must never
+    // slip: the route exists, it is closed to anyone signed out, and it is not reachable from the
+    // staff surfaces by this address.
+
+    [Fact]
+    public async Task Renaming_a_link_requires_sign_in() =>
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.PutAsJsonAsync("/api/v1/me/listings/1/links/1", new { label = "Our menu" }))
+                .StatusCode);
+
+    [Fact]
+    public async Task A_made_up_token_cannot_rename_a_link()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/me/listings/1/links/1")
+        {
+            Content = JsonContent.Create(new { label = "Our menu" }),
+        };
+        request.Headers.Add("Authorization", "Bearer not-a-real-token");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.SendAsync(request)).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_blank_new_name_still_answers_unauthorized_when_signed_out() =>
+        /* The order matters: authentication comes before validation, so an unauthenticated caller
+           cannot use a malformed body to find out whether a link id exists. */
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.PutAsJsonAsync("/api/v1/me/listings/1/links/1", new { label = "" })).StatusCode);
+
+    [Fact]
+    public async Task There_is_no_rename_route_on_the_admin_surface() =>
+        // Same position as the GET above: absent from the moderation surface, not present and
+        // refused. A moderator edits a listing's links through /api/v1/super-admin.
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            (await _client.PutAsJsonAsync("/api/v1/admin/listings/1/links/1", new { label = "x" }))
+                .StatusCode);
 }

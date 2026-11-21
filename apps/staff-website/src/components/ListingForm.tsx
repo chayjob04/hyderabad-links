@@ -128,7 +128,9 @@ export function ListingForm({ action, categories, localities, lockedLocalityName
       </div>
 
       <Field id="websiteUrl" label="Website (optional)" error={e.websiteUrl}>
-        <input id="websiteUrl" name="websiteUrl" defaultValue={v.websiteUrl} inputMode="url" placeholder="example.com" className={control("websiteUrl")} {...aria("websiteUrl")} />
+        {/* 300 is ListingValidator's own cap, which it applies after prepending https:// when the
+            scheme is left off — so a longer value was never going to be accepted. */}
+        <input id="websiteUrl" name="websiteUrl" defaultValue={v.websiteUrl} inputMode="url" maxLength={300} placeholder="example.com" className={control("websiteUrl")} {...aria("websiteUrl")} />
       </Field>
 
       <Field id="description" label="About the business" hint="What they do, in a sentence or two." error={e.description}>

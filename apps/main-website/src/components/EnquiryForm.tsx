@@ -64,6 +64,7 @@ export function EnquiryForm({ city, locality, slug, businessName }: {
           name="name"
           defaultValue={state.values.name}
           autoComplete="name"
+          maxLength={100}
           required
           aria-invalid={error("name") ? true : undefined}
           aria-describedby={describedBy("enq-name", Boolean(error("name")), false)}
@@ -93,6 +94,7 @@ export function EnquiryForm({ city, locality, slug, businessName }: {
           name="email"
           type="email"
           defaultValue={state.values.email}
+          maxLength={254}
           autoComplete="email"
           aria-invalid={error("email") ? true : undefined}
           aria-describedby={describedBy("enq-email", Boolean(error("email")), false)}

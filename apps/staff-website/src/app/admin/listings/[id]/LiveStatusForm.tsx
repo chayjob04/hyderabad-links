@@ -33,6 +33,7 @@ export function LiveStatusForm({ listingId, suspended }: { listingId: number; su
             name="reason"
             rows={4}
             defaultValue={state.reason}
+            maxLength={1000}
             placeholder="Why is this listing being taken down? The owner will see this."
             className="form-control"
           />

@@ -38,9 +38,13 @@ export type ListingDetail = {
    */
   isVerified: boolean;
   /**
-   * The business's own website and social links, in the owner's order. Always empty on a free
-   * listing and on a lapsed one: the API does not send them at all rather than relying on the page
-   * to hide them.
+   * The business's own website and social links, in the owner's order.
+   *
+   * Sent for every listing since S0029 — free, paid or lapsed. It used to be empty on anything but
+   * a paid listing, because links were a Verified benefit; they are free and unlimited now, and
+   * what the paid plan buys is naming them. So `label` is the owner's own wording while the plan is
+   * in force and `Link 1`, `Link 2`, … while it is not. The API decides that, not this page: the
+   * saved name stays in the database either way, ready for a renewal.
    */
   links: ListingLink[];
   /**
@@ -264,7 +268,10 @@ export type PublicPlan = {
   photoLimit: number;
   videoLimit: number;
   logoLimit: number;
-  linkLimit: number;
+  /** Legacy: the old link allowance, for pages deployed before S0029. */
+  linkLimit?: number;
+  /** Whether this plan may name its own links. Absent on an API from before S0029. */
+  canNameLinks?: boolean;
   faqLimit: number;
   contentSectionLimit: number;
   grantsVerifiedBadge: boolean;

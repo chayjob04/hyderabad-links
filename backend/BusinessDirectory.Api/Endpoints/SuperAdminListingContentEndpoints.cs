@@ -55,7 +55,8 @@ public static class SuperAdminListingContentEndpoints
     }
 
     /// <summary>What the listing's current plan allows, and what it is called, for the refusals.</summary>
-    private sealed record Allowance(int FaqLimit, int ContentLimit, int LinkLimit, string PlanName);
+    /// <param name="LinkLimit">Null since S0029: links are unlimited on every plan.</param>
+    private sealed record Allowance(int FaqLimit, int ContentLimit, int? LinkLimit, string PlanName);
 
     private static async Task<(AdminIdentity? Admin, IResult? Refusal)> Gate(
         ClaimsPrincipal principal, SqlDatabase db, CancellationToken ct)
@@ -85,9 +86,17 @@ public static class SuperAdminListingContentEndpoints
         command.Parameters.AddWithValue("listing", listingId);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct)
-            ? new Allowance(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2), reader.GetString(3))
-            : null;
+        if (!await reader.ReadAsync(ct))
+        {
+            return null;
+        }
+
+        return new Allowance(
+            reader.GetInt32(0),
+            reader.GetInt32(1),
+            // NULL is "unlimited", which is what link_limit reads for every plan since S0029.
+            await reader.IsDBNullAsync(2, ct) ? null : reader.GetInt32(2),
+            reader.GetString(3));
     }
 
     private static async Task<int> CountAsync(
@@ -343,13 +352,18 @@ public static class SuperAdminListingContentEndpoints
         {
             while (await reader.ReadAsync(ct))
             {
+                /* Staff see the stored label in both fields, deliberately: this screen edits
+                   the record rather than reading the public page, and a moderator needs to see the
+                   name the owner actually saved -- including one saved under a plan that has since
+                   lapsed. The owner's own screen is the one that shows what a visitor sees. */
+                var stored = reader.GetString(2);
                 items.Add(new OwnerLinkEndpoints.LinkDto(
-                    reader.GetInt64(0), reader.GetString(1), reader.GetString(2),
+                    reader.GetInt64(0), reader.GetString(1), stored, stored,
                     reader.GetString(3), reader.GetInt32(4)));
             }
         }
 
-        return Results.Ok(new OwnerListingContentEndpoints.CollectionDto<OwnerLinkEndpoints.LinkDto>(
+        return Results.Ok(new OwnerLinkEndpoints.LinkCollectionDto(
             items, allowance.LinkLimit, items.Count, allowance.PlanName));
     }
 
@@ -383,13 +397,22 @@ public static class SuperAdminListingContentEndpoints
             return Results.NotFound();
         }
 
-        /* The lowest free slot, not the row count. `listing_links` has a unique index on
-           (listing_id, sort_order) up to the allowance, so a link removed from the middle leaves a
-           gap that a plain count would collide with. Same allocator the owner's screen uses. */
-        var slot = await OwnerLinkEndpoints.NextFreeSlot(conn, tx, id, allowance.LinkLimit, ct);
+        /* One past the highest in use -- the same allocator the owner's screen uses. It used to
+           hunt for the lowest free slot below the allowance, because the slot was unique and
+           capped; S0029 dropped both, so links are added at the end and there is no allowance left
+           to refuse against. The check below survives for the day one comes back. */
+        if (allowance.LinkLimit is { } linkLimit
+            && await CountAsync(conn, tx, "dbo.listing_links", id, ct) >= linkLimit)
+        {
+            return OverAllowance(allowance.PlanName, linkLimit, "website and social links");
+        }
+
+        /* The cap, when the database still has one: the same tolerance for both schemas the
+           owner's path has. Null once S0029 is applied, and then the slot is simply MAX + 1. */
+        var slot = await OwnerLinkEndpoints.NextSlot(conn, tx, id, allowance.LinkLimit, ct);
         if (slot is null)
         {
-            return OverAllowance(allowance.PlanName, allowance.LinkLimit, "website and social links");
+            return OverAllowance(allowance.PlanName, allowance.LinkLimit ?? 0, "website and social links");
         }
 
         await using var insert = new SqlCommand(
@@ -410,7 +433,8 @@ public static class SuperAdminListingContentEndpoints
         await tx.CommitAsync(ct);
         return Results.Created(
             $"/api/v1/super-admin/listings/{id}/links/{newId}",
-            new OwnerLinkEndpoints.LinkDto(newId, link.LinkType, link.Label, link.Url, slot.Value));
+            new OwnerLinkEndpoints.LinkDto(
+                newId, link.LinkType, link.Label, link.Label, link.Url, slot.Value));
     }
 
     private static async Task<IResult> DeleteLink(

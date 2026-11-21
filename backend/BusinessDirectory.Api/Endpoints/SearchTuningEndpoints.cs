@@ -22,6 +22,15 @@ namespace BusinessDirectory.Api.Endpoints;
 /// </summary>
 public static class SearchTuningEndpoints
 {
+    /// <summary>
+    /// Both halves of a synonym. `search_synonyms.term` and `maps_to` are `nvarchar(100)` in
+    /// `S0022`, and the number is here so the rule and the column cannot drift apart.
+    /// </summary>
+    public const int MaxTermLength = 100;
+
+    /// <summary>`search_placeholders.text` is `nvarchar(120)` in `S0022`.</summary>
+    public const int MaxPlaceholderLength = 120;
+
     public sealed record SynonymDto(int Id, string Term, string MapsTo, bool IsActive);
 
     public sealed record SynonymRequest(string? Term, string? MapsTo, bool IsActive);
@@ -163,20 +172,7 @@ public static class SearchTuningEndpoints
         var term = request.Term?.Trim().ToLowerInvariant() ?? string.Empty;
         var mapsTo = request.MapsTo?.Trim().ToLowerInvariant() ?? string.Empty;
 
-        var errors = new Dictionary<string, string[]>();
-        if (term.Length == 0)
-        {
-            errors["term"] = ["Enter the word people type."];
-        }
-        if (mapsTo.Length == 0)
-        {
-            errors["mapsTo"] = ["Enter what it should search for."];
-        }
-        if (errors.Count == 0 && term == mapsTo)
-        {
-            errors["mapsTo"] = ["That is the same word. A synonym has to point somewhere else."];
-        }
-        if (errors.Count > 0)
+        if (ValidateSynonym(term, mapsTo) is { } errors)
         {
             return Results.ValidationProblem(errors);
         }
@@ -232,12 +228,9 @@ public static class SearchTuningEndpoints
         }
 
         var text = request.Text?.Trim() ?? string.Empty;
-        if (text.Length == 0)
+        if (ValidatePlaceholder(text) is { } errors)
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
-            {
-                ["text"] = ["Enter the text to show in the search box."],
-            });
+            return Results.ValidationProblem(errors);
         }
 
         await using var conn = await db.OpenConnectionAsync(ct);
@@ -267,6 +260,75 @@ public static class SearchTuningEndpoints
         int id, ClaimsPrincipal principal, HttpContext http, SqlDatabase db, CancellationToken ct) =>
         Remove(id, "dbo.search_placeholders", "search.placeholder_removed", "search_placeholder",
             principal, http, db, ct);
+
+    // ---- shared validation ---------------------------------------------------------------------
+    //
+    // Both rules are here, named and public, so a test can assert them without a database — the
+    // same reason SuperAdminHomepageGroupEndpoints.Validate is public.
+    //
+    // The length halves of these rules were missing until now, and the column was the only thing
+    // enforcing them. A term of 101 characters reached SQL Server, which refused it with "string or
+    // binary data would be truncated"; the global handler turned that into a 500, so a staff member
+    // who pasted a sentence into the synonym box got "something went wrong" with nothing naming the
+    // field or the limit. The form has no maxlength either, so there was nothing stopping them.
+
+    /// <summary>
+    /// What is wrong with a synonym, or null when it is fine. Expects values already trimmed and
+    /// lower-cased: the lookup compares exactly, so the rules have to see what will be stored.
+    /// </summary>
+    public static Dictionary<string, string[]>? ValidateSynonym(string term, string mapsTo)
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        if (term.Length == 0)
+        {
+            errors["term"] = ["Enter the word people type."];
+        }
+        else if (term.Length > MaxTermLength)
+        {
+            errors["term"] = [$"Keep the word under {MaxTermLength} characters."];
+        }
+
+        if (mapsTo.Length == 0)
+        {
+            errors["mapsTo"] = ["Enter what it should search for."];
+        }
+        else if (mapsTo.Length > MaxTermLength)
+        {
+            errors["mapsTo"] = [$"Keep it under {MaxTermLength} characters."];
+        }
+
+        /* Still last, and still only when both halves are otherwise usable: "that is the same word"
+           is confusing advice to give about a field that is also empty or too long. */
+        if (errors.Count == 0 && term == mapsTo)
+        {
+            errors["mapsTo"] = ["That is the same word. A synonym has to point somewhere else."];
+        }
+
+        return errors.Count > 0 ? errors : null;
+    }
+
+    /// <summary>What is wrong with a placeholder, or null when it is fine. Expects a trimmed value.</summary>
+    public static Dictionary<string, string[]>? ValidatePlaceholder(string text)
+    {
+        if (text.Length == 0)
+        {
+            return new Dictionary<string, string[]>
+            {
+                ["text"] = ["Enter the text to show in the search box."],
+            };
+        }
+
+        if (text.Length > MaxPlaceholderLength)
+        {
+            return new Dictionary<string, string[]>
+            {
+                ["text"] = [$"Keep it under {MaxPlaceholderLength} characters."],
+            };
+        }
+
+        return null;
+    }
 
     /// <summary>Both lists delete the same way. The table name is a constant from this file.</summary>
     private static async Task<IResult> Remove(

@@ -1,7 +1,7 @@
 # Scripts run by hand, never by DbUp
 
 Everything in `database/sqlserver/migrations/` is applied automatically by `npm run db:migrate`.
-The two scripts here are **not**, and must never be moved into that folder, because the whole point
+The scripts here are **not**, and must never be moved into that folder, because the whole point
 of them is that a human decides when they run.
 
 ## `S0026_down.sql` — undo the customer identity split
@@ -48,4 +48,34 @@ Afterwards, journal it so a later `db:migrate` does not try to apply a copy of i
 ```sql
 INSERT INTO dbo.SchemaVersions (ScriptName, Applied)
 VALUES ('Manual.S0027__customer_identity_finalise.sql', SYSDATETIMEOFFSET());
+```
+
+## `S0029_down.sql` — undo the Verified limits and unlimited links
+
+Reverses what can be reversed of `S0029__verified_limits_and_unlimited_links.sql`, in three
+sections, and the split between them matters:
+
+- **Sections 1 and 2 are safe and reversible.** The Verified allowances go back to 10 photos and 2
+  videos, and `listing_entitlements` goes back to the S0020 definition with a numeric `link_limit`.
+  Media is hidden by allowance at read time rather than deleted (D10), so a photo S0029 hid becomes
+  visible again in the owner's own order.
+- **Section 3 restores the five-link cap and is expected to fail.** SQL Server will not create a
+  CHECK or a unique index that existing rows violate, and the only way to satisfy it is to delete
+  links owners added while links were unlimited. The script refuses to choose which, prints the
+  counts and the queries that show what is in the way, and stops.
+
+So once unlimited links have been used, the rollback is: run sections 1 and 2, leave links
+uncapped — a state the application works in, because the API treats a NULL `link_limit` as "no
+limit" and a numeric one as a cap. Or delete links yourself and then run section 3. Or restore from
+`npm run db:export`.
+
+Order with the application: run sections 1 and 2 **before** deploying an API build older than
+S0029. An older build reads `link_limit` with `GetInt32`, which throws on the NULL that S0029
+leaves. The build shipped with S0029 reads it as a nullable and works against either schema, so it
+is the one to leave running while deciding.
+
+The journal is not touched, as with `S0026_down.sql`. To make `db:migrate` apply S0029 again:
+
+```sql
+DELETE FROM dbo.SchemaVersions WHERE ScriptName LIKE '%S0029__verified_limits%';
 ```

@@ -32,10 +32,13 @@ const NEXT_STEPS: { label: string; detail: string; path: string; paid?: boolean 
     path: "about",
   },
   {
+    /* Not a paid step any more (S0029): every listing may add as many links as it likes, and what
+       Verified buys is naming them. This carried a VERIFIED badge and "Included with the Verified
+       plan", which told a brand-new owner that a free feature was locked — the worst place to be
+       wrong, since this is the first screen they see after creating a listing. */
     label: "Add your website and socials",
-    detail: "Included with the Verified plan.",
+    detail: "Free, and as many as you like. Verified lets you name them yourself.",
     path: "links",
-    paid: true,
   },
 ];
 

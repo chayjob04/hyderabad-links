@@ -65,7 +65,8 @@ export function AttributeForm({
       ) : (
         <>
           <div className="mt-3 flex flex-wrap gap-2">
-            <input name="label" placeholder={placeholder} aria-label={heading} className={`${INPUT} flex-1`} />
+            {/* 80 is ListingAttributes.MaxLabelLength, which matches the nvarchar(80) column. */}
+            <input name="label" maxLength={80} placeholder={placeholder} aria-label={heading} className={`${INPUT} flex-1`} />
             <button
               type="submit"
               disabled={pending}

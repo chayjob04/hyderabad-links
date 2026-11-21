@@ -130,10 +130,15 @@ public static class AdminSeoEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["entityType"] = [addressError!] });
         }
 
-        var title = Clean(request.MetaTitle, 200);
-        var description = Clean(request.MetaDescription, 400);
-        var keywords = Clean(request.MetaKeywords, 400);
-        var image = Clean(request.OgImageUrl, 500);
+        var title = Clean(request.MetaTitle);
+        var description = Clean(request.MetaDescription);
+        var keywords = Clean(request.MetaKeywords);
+        var image = Clean(request.OgImageUrl);
+
+        if (ValidateMeta(title, description, keywords, image) is { } tooLong)
+        {
+            return Results.ValidationProblem(tooLong);
+        }
 
         /* An override that sets nothing would shadow the derived value with emptiness. The table's
            own CHECK refuses it; this says so in words first. */
@@ -269,14 +274,71 @@ public static class AdminSeoEndpoints
         return true;
     }
 
-    private static string? Clean(string? value, int max)
+    /// <summary>
+    /// Trims, and treats an empty field as "not set" — which is what lets an admin clear one
+    /// override without clearing the rest.
+    ///
+    /// <para>
+    /// It used to truncate to the column width as well, and that is what changed. Silently storing
+    /// the first 200 characters of a 250-character title is the one outcome nobody asked for: the
+    /// admin sees their text accepted, the page renders a sentence cut off mid-word, and nothing
+    /// anywhere says so. These are the fields search engines read, so the text being exactly what
+    /// was written matters more here than almost anywhere else in the panel. Too long is now
+    /// refused by <see cref="ValidateMeta"/>, with the limit named.
+    /// </para>
+    /// </summary>
+    private static string? Clean(string? value)
     {
         var trimmed = value?.Trim();
-        if (string.IsNullOrEmpty(trimmed))
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+
+    // ---- shared validation ---------------------------------------------------------------------
+
+    /// <summary>`page_meta.meta_title` is `nvarchar(200)` in `S0021`.</summary>
+    public const int MaxTitleLength = 200;
+
+    /// <summary>`page_meta.meta_description` is `nvarchar(400)`.</summary>
+    public const int MaxDescriptionLength = 400;
+
+    /// <summary>`page_meta.meta_keywords` is `nvarchar(400)`.</summary>
+    public const int MaxKeywordsLength = 400;
+
+    /// <summary>`page_meta.og_image_url` is `nvarchar(500)`.</summary>
+    public const int MaxImageUrlLength = 500;
+
+    /// <summary>
+    /// Which overrides are too long for their columns, or null when all four fit. Every field is
+    /// reported at once rather than one at a time: this is one form with four boxes, and an admin
+    /// fixing a long description should not have to submit again to find out the keywords are long
+    /// too.
+    ///
+    /// A null or blank field is not an error here — that is "no override", and the separate
+    /// all-four-empty rule in the handler covers the case where nothing at all is set.
+    /// </summary>
+    public static Dictionary<string, string[]>? ValidateMeta(
+        string? title, string? description, string? keywords, string? imageUrl)
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        if (title is { } t && t.Length > MaxTitleLength)
         {
-            return null;
+            errors["metaTitle"] = [$"Keep the title to {MaxTitleLength} characters or fewer."];
         }
-        return trimmed.Length > max ? trimmed[..max] : trimmed;
+        if (description is { } d && d.Length > MaxDescriptionLength)
+        {
+            errors["metaDescription"] = [$"Keep the description to {MaxDescriptionLength} characters or fewer."];
+        }
+        if (keywords is { } k && k.Length > MaxKeywordsLength)
+        {
+            errors["metaKeywords"] = [$"Keep the keywords to {MaxKeywordsLength} characters or fewer."];
+        }
+        if (imageUrl is { } i && i.Length > MaxImageUrlLength)
+        {
+            errors["ogImageUrl"] = [$"Keep the image address to {MaxImageUrlLength} characters or fewer."];
+        }
+
+        return errors.Count > 0 ? errors : null;
     }
 
     private static async Task<MetaDto?> ReadOne(

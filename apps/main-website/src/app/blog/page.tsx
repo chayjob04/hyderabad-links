@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { PageHero } from "@/components/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -61,12 +60,17 @@ export default async function BlogIndexPage({ searchParams }: Props) {
                 <Link href={`/blog/${post.slug}`} className="group block">
                   {post.coverImageUrl ? (
                     <span className="relative block aspect-[16/10] overflow-hidden bg-brand-50">
-                      <Image
+                      {/* A plain `img` for the same reason as the listing shelves: a cover lives in
+                          the media bucket, and the optimizer answers 400 for any host that is not
+                          in `images.remotePatterns`. `absolute inset-0 size-full` is what `fill`
+                          expanded to against this `relative` parent, so the 16/10 box, the crop and
+                          the hover zoom are unchanged. A cover that fails to load leaves the tinted
+                          box, which is what a post with no cover shows today. */}
+                      <img
                         src={post.coverImageUrl}
                         alt=""
-                        fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        className="object-cover transition duration-300 group-hover:scale-105"
+                        loading="lazy"
+                        className="absolute inset-0 size-full object-cover transition duration-300 group-hover:scale-105"
                       />
                     </span>
                   ) : null}

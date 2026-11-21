@@ -103,13 +103,13 @@ public class BlogAndSeoValidationTests
     [Fact]
     public void A_post_needs_a_title_and_a_body()
     {
-        Assert.Null(BlogEndpoints.Validate("Best biryani in Madhapur", "Some words."));
+        Assert.Null(BlogEndpoints.Validate("Best biryani in Madhapur", "Some words.", null, null));
 
-        var noTitle = BlogEndpoints.Validate("", "Some words.");
+        var noTitle = BlogEndpoints.Validate("", "Some words.", null, null);
         Assert.NotNull(noTitle);
         Assert.True(noTitle.ContainsKey("title"));
 
-        var noBody = BlogEndpoints.Validate("A title", "");
+        var noBody = BlogEndpoints.Validate("A title", "", null, null);
         Assert.NotNull(noBody);
         Assert.True(noBody.ContainsKey("bodyMarkdown"));
     }
@@ -117,10 +117,73 @@ public class BlogAndSeoValidationTests
     [Fact]
     public void A_title_longer_than_the_column_is_refused()
     {
-        var errors = BlogEndpoints.Validate(new string('t', BlogEndpoints.MaxTitleLength + 1), "Body");
+        var errors = BlogEndpoints.Validate(
+            new string('t', BlogEndpoints.MaxTitleLength + 1), "Body", null, null);
 
         Assert.NotNull(errors);
         Assert.True(errors.ContainsKey("title"));
+    }
+
+    // ---- the excerpt and the cover address: refused now, truncated before -----------------------
+
+    [Fact]
+    public void An_excerpt_and_a_cover_address_are_optional()
+    {
+        Assert.Null(BlogEndpoints.Validate("A title", "Body", null, null));
+        Assert.Null(BlogEndpoints.Validate("A title", "Body", "A short summary.", "/images/cover.png"));
+    }
+
+    [Fact]
+    public void An_excerpt_exactly_at_the_limit_is_accepted()
+    {
+        Assert.Null(BlogEndpoints.Validate(
+            "A title", "Body", new string('e', BlogEndpoints.MaxExcerptLength), null));
+    }
+
+    [Fact]
+    public void An_excerpt_one_character_over_the_limit_is_refused_rather_than_truncated()
+    {
+        /* It used to be cut to 500 characters on the way to the database, which stored a sentence
+           ending mid-word as the post's own summary — the line the blog index and every link
+           preview shows. */
+        var errors = BlogEndpoints.Validate(
+            "A title", "Body", new string('e', BlogEndpoints.MaxExcerptLength + 1), null);
+
+        Assert.NotNull(errors);
+        Assert.True(errors.ContainsKey("excerpt"));
+    }
+
+    [Fact]
+    public void A_cover_address_exactly_at_the_limit_is_accepted()
+    {
+        Assert.Null(BlogEndpoints.Validate(
+            "A title", "Body", null, new string('u', BlogEndpoints.MaxCoverImageUrlLength)));
+    }
+
+    [Fact]
+    public void A_cover_address_over_the_limit_is_refused()
+    {
+        // A truncated URL is not a shorter URL, it is a broken picture.
+        var errors = BlogEndpoints.Validate(
+            "A title", "Body", null, new string('u', BlogEndpoints.MaxCoverImageUrlLength + 1));
+
+        Assert.NotNull(errors);
+        Assert.True(errors.ContainsKey("coverImageUrl"));
+    }
+
+    [Fact]
+    public void Every_field_that_is_wrong_is_reported_at_once()
+    {
+        var errors = BlogEndpoints.Validate(
+            "",
+            "",
+            new string('e', BlogEndpoints.MaxExcerptLength + 1),
+            new string('u', BlogEndpoints.MaxCoverImageUrlLength + 1));
+
+        Assert.NotNull(errors);
+        Assert.Equal(
+            ["bodyMarkdown", "coverImageUrl", "excerpt", "title"],
+            errors.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
     }
 
     // ------------------------------------------------------------------ SEO addressing

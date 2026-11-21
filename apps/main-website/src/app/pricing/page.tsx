@@ -27,7 +27,7 @@ function features(plan: {
   photoLimit: number;
   videoLimit: number;
   logoLimit: number;
-  linkLimit: number;
+  canNameLinks?: boolean;
   faqLimit: number;
   contentSectionLimit: number;
 }): { text: string; included: boolean }[] {
@@ -49,9 +49,16 @@ function features(plan: {
       text: plan.videoLimit > 0 ? `Up to ${plan.videoLimit} videos` : "No videos",
       included: plan.videoLimit > 0,
     },
+    // Unlimited on both plans since S0029, so it is listed as included either way; what the
+    // paid plan adds is naming them.
+    { text: "Unlimited website and social links", included: true },
     {
-      text: plan.linkLimit > 0 ? `Website and social links (${plan.linkLimit})` : "No website or social links",
-      included: plan.linkLimit > 0,
+      // `?? grantsVerifiedBadge` so this page is correct against an API from before S0029, which
+      // does not send canNameLinks and decided the same thing from the badge.
+      text: (plan.canNameLinks ?? plan.grantsVerifiedBadge)
+        ? "Name your own link fields"
+        : "Links named Link 1, Link 2, …",
+      included: plan.canNameLinks ?? plan.grantsVerifiedBadge,
     },
     {
       text: plan.faqLimit > 0 ? `Up to ${plan.faqLimit} questions and answers` : "No questions and answers",

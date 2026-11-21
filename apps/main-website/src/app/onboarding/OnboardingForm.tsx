@@ -46,6 +46,7 @@ export function OnboardingForm({ phone, categories, localities }: Props) {
           name="name"
           defaultValue={state.values.name ?? ""}
           autoComplete="name"
+          maxLength={100}
           required
           aria-invalid={error("name") ? true : undefined}
           aria-describedby={describedBy("name", !!error("name"), false)}
@@ -59,6 +60,7 @@ export function OnboardingForm({ phone, categories, localities }: Props) {
           name="businessName"
           defaultValue={state.values.businessName ?? ""}
           autoComplete="organization"
+          maxLength={120}
           required
           aria-invalid={error("businessName") ? true : undefined}
           aria-describedby={describedBy("businessName", !!error("businessName"), false)}
@@ -78,6 +80,7 @@ export function OnboardingForm({ phone, categories, localities }: Props) {
           type="email"
           defaultValue={state.values.email ?? ""}
           autoComplete="email"
+          maxLength={254}
           required
           aria-invalid={error("email") ? true : undefined}
           aria-describedby={describedBy("email", !!error("email"), true)}

@@ -35,6 +35,7 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
           name="name"
           defaultValue={state.values.name}
           autoComplete="name"
+          maxLength={100}
           required
           aria-invalid={error("name") ? true : undefined}
           aria-describedby={describedBy("name", Boolean(error("name")), true)}
@@ -54,6 +55,7 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
           type="email"
           defaultValue={state.values.email}
           autoComplete="email"
+          maxLength={254}
           required
           aria-invalid={error("email") ? true : undefined}
           aria-describedby={describedBy("email", Boolean(error("email")), true)}

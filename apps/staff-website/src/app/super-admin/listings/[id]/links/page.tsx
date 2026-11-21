@@ -45,7 +45,9 @@ export default async function StaffLinksPage({ params, searchParams }: Props) {
   }
   if (!listing.ok && listing.status === 404) notFound();
 
-  const full = links.ok && links.data.used >= links.data.limit;
+  /* `limit` is null when links are unlimited, which is every plan since S0029 — so "full" is
+     only reachable if an allowance is ever reintroduced. */
+  const full = links.ok && links.data.limit !== null && links.data.used >= links.data.limit;
   const name = listing.ok ? listing.data.name : `Listing ${id}`;
 
   return (
@@ -84,13 +86,12 @@ export default async function StaffLinksPage({ params, searchParams }: Props) {
               <div className="card-body">
                 <h4 className="card-title mb-1">Add a link</h4>
                 <p className="card-title-desc mb-3">
-                  {links.data.used} of {links.data.limit} used on the {links.data.planName} plan.
-                  {links.data.limit === 0
-                    ? " This plan does not include links — the Verified plan does."
-                    : ""}
+                  {links.data.limit === null
+                    ? `${links.data.used} saved. Links are unlimited on every plan.`
+                    : `${links.data.used} of ${links.data.limit} used on the ${links.data.planName} plan.`}
                 </p>
 
-                {mayEdit && !full && links.data.limit > 0 ? (
+                {mayEdit && !full ? (
                   <form action={addLinkAction.bind(null, id)}>
                     <div className="row g-2 mb-3">
                       <div className="col-sm-5">
@@ -148,7 +149,9 @@ export default async function StaffLinksPage({ params, searchParams }: Props) {
                     another.
                   </div>
                 ) : (
-                  <p className="text-muted font-size-13 mb-0">Nothing can be added on this plan.</p>
+                  <p className="text-muted font-size-13 mb-0">
+                    You do not have permission to edit this listing&rsquo;s links.
+                  </p>
                 )}
               </div>
             </div>
