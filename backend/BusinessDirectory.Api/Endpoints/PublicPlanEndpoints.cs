@@ -23,7 +23,17 @@ public static class PublicPlanEndpoints
         int PhotoLimit,
         int VideoLimit,
         int LogoLimit,
+        /// <summary>
+        /// <b>Legacy.</b> The old link allowance, kept only so a pricing page deployed before S0029
+        /// still renders a true line. Remove once every deployed website reads
+        /// <paramref name="CanNameLinks"/>.
+        /// </summary>
         int LinkLimit,
+        /// <summary>
+        /// Whether this plan may name its own links. Links themselves are unlimited on every plan
+        /// since S0029, so there is no allowance left to quote -- only who may label them.
+        /// </summary>
+        bool CanNameLinks,
         int FaqLimit,
         int ContentSectionLimit,
         bool GrantsVerifiedBadge);
@@ -39,11 +49,13 @@ public static class PublicPlanEndpoints
         /* Active plans only. A deactivated tier is one nobody may buy any more, so showing it on a
            pricing page would be advertising something that cannot be sold.
 
-           link_limit is not a column on `plans` -- it is derived from the badge, the same way
-           listing_entitlements derives it -- so it is computed here rather than invented. */
+           Links are unlimited on every plan (S0029), so what distinguishes the tiers is whether
+           an owner may name them. Derived from the badge, the same way listing_entitlements derives
+           it, rather than invented here. */
         await using var command = db.CreateCommand(
             @"SELECT slug, name, price_paise, photo_limit, video_limit, logo_limit,
                      CASE WHEN grants_verified_badge = 1 THEN 5 ELSE 0 END AS link_limit,
+                     grants_verified_badge AS can_name_links,
                      faq_limit, content_section_limit, grants_verified_badge
               FROM dbo.plans
               WHERE is_active = 1
@@ -61,9 +73,11 @@ public static class PublicPlanEndpoints
                 reader.GetInt32(4),
                 reader.GetInt32(5),
                 reader.GetInt32(6),
-                reader.GetInt32(7),
+                // can_name_links: the badge column itself, read as the bit it is.
+                reader.GetBoolean(7),
                 reader.GetInt32(8),
-                reader.GetBoolean(9)));
+                reader.GetInt32(9),
+                reader.GetBoolean(10)));
         }
 
         return Results.Ok(plans);

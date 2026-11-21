@@ -34,6 +34,7 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
           name="name"
           defaultValue={state.values.name}
           autoComplete="name"
+          maxLength={100}
           className={fieldClass}
         />
       </Field>
@@ -45,6 +46,7 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
           type="email"
           defaultValue={state.values.email}
           autoComplete="email"
+          maxLength={254}
           className={fieldClass}
         />
       </Field>

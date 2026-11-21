@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Markdown } from "@/components/Markdown";
@@ -90,13 +89,19 @@ export default async function BlogPostPage({ params }: Props) {
       <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
       {post.coverImageUrl ? (
         <div className="relative aspect-video overflow-hidden rounded-xl bg-brand-50">
-          <Image
+          {/* A plain `img`, as on the blog index and the listing shelves: the optimizer refuses any
+              media host not named in `images.remotePatterns`, and the bucket's address is a deploy
+              setting rather than something this build knows.
+
+              `priority` carried two meanings — fetch eagerly and fetch first — so both are stated:
+              `loading="eager"` opts out of lazy loading, `fetchPriority="high"` keeps it ahead of
+              the rest. It is the article's lead image, above the fold. */}
+          <img
             src={post.coverImageUrl}
             alt=""
-            fill
-            sizes="(max-width: 768px) 100vw, 768px"
-            className="object-cover"
-            priority
+            loading="eager"
+            fetchPriority="high"
+            className="absolute inset-0 size-full object-cover"
           />
         </div>
       ) : null}

@@ -172,6 +172,7 @@ export function ListingForm({
           name="websiteUrl"
           defaultValue={v.websiteUrl}
           inputMode="url"
+          maxLength={300}
           placeholder="example.com"
           className={fieldClass}
           {...aria("websiteUrl")}

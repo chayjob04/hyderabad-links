@@ -28,6 +28,7 @@ export function ReviewDecision({ reviewId }: { reviewId: number }) {
         name="note"
         rows={3}
         defaultValue={state.note}
+        maxLength={1000}
         placeholder="Why can this review not be published? The reviewer sees this."
         className="form-control"
       />

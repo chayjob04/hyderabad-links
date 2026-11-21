@@ -104,7 +104,8 @@ public static class SuperAdminHomepageGroupEndpoints
         }
 
         var title = request.Title?.Trim() ?? string.Empty;
-        if (Validate(title) is { } errors)
+        var subtitle = Clean(request.Subtitle);
+        if (Validate(title, subtitle) is { } errors)
         {
             return Results.ValidationProblem(errors);
         }
@@ -129,7 +130,7 @@ public static class SuperAdminHomepageGroupEndpoints
         {
             insert.Parameters.AddWithValue("slug", slug);
             insert.Parameters.AddWithValue("title", title);
-            insert.Parameters.AddWithValue("subtitle", (object?)Clean(request.Subtitle) ?? DBNull.Value);
+            insert.Parameters.AddWithValue("subtitle", (object?)subtitle ?? DBNull.Value);
             insert.Parameters.AddWithValue("sort", request.SortOrder ?? 0);
             insert.Parameters.AddWithValue("active", request.IsActive);
             newId = (int)(await insert.ExecuteScalarAsync(ct))!;
@@ -141,7 +142,7 @@ public static class SuperAdminHomepageGroupEndpoints
 
         await tx.CommitAsync(ct);
         return Results.Created($"/api/v1/super-admin/homepage-groups/{newId}",
-            new GroupDto(newId, slug, title, Clean(request.Subtitle), request.SortOrder ?? 0, request.IsActive, 0));
+            new GroupDto(newId, slug, title, subtitle, request.SortOrder ?? 0, request.IsActive, 0));
     }
 
     /// <summary>
@@ -159,7 +160,8 @@ public static class SuperAdminHomepageGroupEndpoints
         }
 
         var title = request.Title?.Trim() ?? string.Empty;
-        if (Validate(title) is { } errors)
+        var subtitle = Clean(request.Subtitle);
+        if (Validate(title, subtitle) is { } errors)
         {
             return Results.ValidationProblem(errors);
         }
@@ -186,7 +188,7 @@ public static class SuperAdminHomepageGroupEndpoints
         {
             update.Parameters.AddWithValue("id", id);
             update.Parameters.AddWithValue("title", title);
-            update.Parameters.AddWithValue("subtitle", (object?)Clean(request.Subtitle) ?? DBNull.Value);
+            update.Parameters.AddWithValue("subtitle", (object?)subtitle ?? DBNull.Value);
             update.Parameters.AddWithValue("sort", request.SortOrder ?? 0);
             update.Parameters.AddWithValue("active", request.IsActive);
             affected = await update.ExecuteNonQueryAsync(ct);
@@ -247,15 +249,41 @@ public static class SuperAdminHomepageGroupEndpoints
         return Results.NoContent();
     }
 
-    public static Dictionary<string, string[]>? Validate(string title)
+    /// <summary>`homepage_groups.title` is `nvarchar(160)` in `S0022`.</summary>
+    public const int MaxTitleLength = 160;
+
+    /// <summary>
+    /// `homepage_groups.subtitle` is `nvarchar(300)`. It had no rule at all until now: the column
+    /// was the only thing enforcing it, so a long subtitle reached SQL Server and came back as a
+    /// truncation error, which the global handler served to the super admin as a 500.
+    /// </summary>
+    public const int MaxSubtitleLength = 300;
+
+    /// <summary>
+    /// What is wrong with a shelf, or null when it is fine. Both fields are passed because the
+    /// caller has already trimmed them, and because a signature that cannot be called without the
+    /// subtitle is a signature that cannot forget to check it.
+    /// </summary>
+    public static Dictionary<string, string[]>? Validate(string title, string? subtitle)
     {
         if (title.Length == 0)
         {
             return new Dictionary<string, string[]> { ["title"] = ["Give the shelf a heading."] };
         }
-        if (title.Length > 160)
+        if (title.Length > MaxTitleLength)
         {
-            return new Dictionary<string, string[]> { ["title"] = ["Keep the heading under 160 characters."] };
+            return new Dictionary<string, string[]>
+            {
+                ["title"] = [$"Keep the heading under {MaxTitleLength} characters."],
+            };
+        }
+        // Null and empty are both fine: a shelf does not need a subtitle.
+        if (subtitle is { Length: > MaxSubtitleLength })
+        {
+            return new Dictionary<string, string[]>
+            {
+                ["subtitle"] = [$"Keep the subtitle under {MaxSubtitleLength} characters."],
+            };
         }
         return null;
     }

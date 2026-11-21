@@ -35,6 +35,11 @@
   migration stops the deployment. `migrate --what-if` lists what would be applied and changes
   nothing, which is also the safe way to check this by hand.
 
+  **That rule holds only while a migration is additive, and `S0029` is not.** It changes
+  `listing_entitlements.link_limit` from a number to NULL, and the API build before it reads that
+  column with `GetInt32`, which throws on a NULL — so applying `S0029` under the old API breaks the
+  owner's links screen. See "Deploying S0029" below for the one case where the order is reversed.
+
   **Untested.** The database is on shared hosting rather than Azure SQL and may only accept
   allow-listed addresses, which a GitHub-hosted runner does not have. If that is how it is
   configured, this needs a self-hosted runner or an allow-list entry, and `npm run db:migrate` from
@@ -109,3 +114,41 @@
   - Nothing in this repository has taken a real payment. The first one to go through should be
     checked against `subscriptions` and `subscription_payments` before the plan is advertised.
 - No paid resource is created without an itemised cost estimate and explicit approval.
+
+## Deploying S0029 (Verified limits and unlimited links)
+
+`S0029__verified_limits_and_unlimited_links.sql` is the first migration in this project that is not
+additive, and the API, the migration and the three Vercel websites all deploy independently. So the
+order matters — but **ordering alone is not the plan**, because there is no order in which all four
+are consistent at once. Each side is built to tolerate the other's previous version, and the order
+below only shortens the window:
+
+| Step | What it is | Why it is safe |
+|---|---|---|
+| 1 | **Deploy the API** | It reads `link_limit` as a nullable: a number is a cap it still enforces (old schema), NULL is no limit (new). It also still *sends* the old `linkLimit` and `limit` fields, so the three live websites keep rendering what they always did. |
+| 2 | **Run the migration** | `npm run db:migrate -- --what-if` first. The API from step 1 already handles the NULL this introduces. Its own post-conditions refuse to leave the database half-changed. |
+| 3 | **Deploy the websites** | They read `unlimited` and `canNameLinks`, and fall back when those are absent — `canNameLinks ?? verified` on the owner screens, `canNameLinks ?? grantsVerifiedBadge` on the pricing pages — so a website deployed *before* step 1 is also correct. |
+
+What each window actually looks like, which is the part worth knowing before starting:
+
+- **Between 1 and 2** (new API, old schema): links are still capped at five and a free listing still
+  cannot add one, because the database still says so and the API honours it. The refusal is the
+  old 402 wording. Nothing is broken; the feature is simply not on yet.
+- **Between 2 and 3** (new API and schema, old websites): links are unlimited and free in the API,
+  but the old owner screen still hides its form at five and the old pricing page still prints
+  "Website and social links (5)". Both are stale rather than wrong, because the API keeps sending
+  the legacy numbers for exactly this window.
+- **A website deployed early**, before step 1: `unlimited` and `canNameLinks` are absent, which the
+  fallbacks read as "there is a cap" and "naming follows the badge" — the old API's own rules. A
+  paying owner keeps the naming field.
+
+**Rolling back.** Deploy the previous API build *after* running
+`database/sqlserver/manual/S0029_down.sql` sections 1 and 2, never before: the older build cannot
+read a NULL `link_limit`. Section 3 of that script restores the five-link cap and is expected to
+fail once owners have added a sixth link — read the file's header, and the note in
+`database/sqlserver/manual/README.md`, before deciding.
+
+**Deleting the legacy fields.** `linkLimit` (owner subscription and public plans) and `limit`
+(owner links) exist only for this rollout. They can go once every deployed website reads `unlimited`
+and `canNameLinks`; nothing in this repository reads them. Each is marked `Legacy` in the DTO it
+lives on.

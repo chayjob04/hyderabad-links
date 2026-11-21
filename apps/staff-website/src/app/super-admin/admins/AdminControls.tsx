@@ -140,6 +140,7 @@ export function CreateAdminButton({ roleSlugs }: { roleSlugs: string[] }) {
                             id="displayName"
                             name="displayName"
                             defaultValue={state.values.displayName}
+                            maxLength={200}
                             required
                             className={`form-control${state.fieldErrors.displayName ? " is-invalid" : ""}`}
                           />
@@ -155,6 +156,7 @@ export function CreateAdminButton({ roleSlugs }: { roleSlugs: string[] }) {
                             name="email"
                             type="email"
                             defaultValue={state.values.email}
+                            maxLength={254}
                             required
                             className={`form-control${state.fieldErrors.email ? " is-invalid" : ""}`}
                           />
@@ -268,6 +270,7 @@ export function EditAdminForm({ account }: { account: AdminRow }) {
           id={`name-${account.id}`}
           name="displayName"
           defaultValue={state.values.displayName}
+          maxLength={200}
           required
           className={`form-control${state.fieldErrors.displayName ? " is-invalid" : ""}`}
         />
@@ -282,6 +285,7 @@ export function EditAdminForm({ account }: { account: AdminRow }) {
           name="email"
           type="email"
           defaultValue={state.values.email}
+          maxLength={254}
           required
           className={`form-control${state.fieldErrors.email ? " is-invalid" : ""}`}
         />

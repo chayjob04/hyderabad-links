@@ -3,9 +3,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { UpgradeButton } from "@/components/account/UpgradeButton";
+import { VerifiedFeatures } from "@/components/account/VerifiedFeatures";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { rupees } from "@/lib/format";
-import { getListingSubscription, getMyListing } from "@/lib/owner-api";
+import { getListingMedia, getListingSubscription, getMyListing } from "@/lib/owner-api";
 
 export const metadata: Metadata = { title: "Plan and payment" };
 
@@ -28,9 +29,13 @@ export default async function ListingSubscriptionPage({ params }: Props) {
   if (!/^\d{1,15}$/.test(rawId)) notFound();
   const id = Number(rawId);
 
-  const [listingResult, subscriptionResult] = await Promise.all([
+  /* Media comes along for the usage figures on the feature list below -- "3 / 5" rather than
+     "up to 5", which is the difference between a price list and a dashboard. A failure here is not
+     fatal: the list falls back to the allowance alone. */
+  const [listingResult, subscriptionResult, mediaResult] = await Promise.all([
     getMyListing(id),
     getListingSubscription(id),
+    getListingMedia(id),
   ]);
 
   if (!listingResult.ok || !subscriptionResult.ok) {
@@ -48,6 +53,12 @@ export default async function ListingSubscriptionPage({ params }: Props) {
   const listing = listingResult.data;
   const plan = subscriptionResult.data;
   const paidPlan = plan.paidPlan;
+  const media = mediaResult.ok ? mediaResult.data.allowance : null;
+
+  /* `x / limit` when the usage is known, the allowance alone when it is not. The limits come from
+     the API either way, so nothing here can promise a number the database would refuse to grant. */
+  const usage = (used: number | undefined, limit: number) =>
+    used === undefined ? `up to ${limit}` : `${used} / ${limit}`;
 
   // Lapsed: nothing is in force, but this listing did buy the paid plan at some point. The date is
   // what makes that readable rather than a silent downgrade.
@@ -108,12 +119,64 @@ export default async function ListingSubscriptionPage({ params }: Props) {
             </p>
           </div>
 
-          <ul className="mt-4 grid gap-2 text-sm font-medium text-ink sm:grid-cols-2">
-            <li>The Verified badge on your public page</li>
-            <li>Up to {paidPlan.photoLimit} photos and a logo</li>
-            <li>Up to {paidPlan.videoLimit} videos</li>
-            <li>Up to {paidPlan.linkLimit} website and social links</li>
-          </ul>
+          {/* One list, both states: a free listing sees padlocks and an Unlock on every row, a
+              paid one sees what it is using. This is the screen that answers "what am I paying
+              for", so it is the full set rather than a summary -- including the two that are built
+              but not finished, which say so rather than being left out. */}
+          <div className="mt-4">
+            <VerifiedFeatures
+              listingId={id}
+              verified={plan.verified}
+              priceLabel={rupees(paidPlan.pricePaise)}
+              paymentsLive={plan.paymentsAvailable && publishable}
+              features={[
+                {
+                  title: "Verified badge",
+                  benefit: "Shown on your listing and on every card it appears in.",
+                  usage: "Active",
+                },
+                {
+                  title: "Photos",
+                  benefit: `Up to ${paidPlan.photoLimit} pictures of the place, the work or the products.`,
+                  usage: usage(media?.photosUsed, paidPlan.photoLimit),
+                  href: `/account/listings/${id}/photos`,
+                },
+                {
+                  title: "Video",
+                  benefit: `${paidPlan.videoLimit === 1 ? "A short clip" : `Up to ${paidPlan.videoLimit} short clips`} on your listing page.`,
+                  usage: usage(media?.videosUsed, paidPlan.videoLimit),
+                  href: `/account/listings/${id}/photos`,
+                },
+                {
+                  title: "Business logo",
+                  benefit: "Your shop or brand mark beside the business name, everywhere you appear.",
+                  usage: usage(media?.logosUsed, media?.logoLimit ?? 1),
+                  href: `/account/listings/${id}/photos`,
+                },
+                {
+                  title: "Make your own field",
+                  benefit:
+                    "Name each link yourself — “Our menu”, “Book a table” — instead of Link 1, Link 2. Links themselves are unlimited on every plan.",
+                  usage: "Enabled",
+                  href: `/account/listings/${id}/links`,
+                },
+                {
+                  title: "Promote",
+                  benefit: "Put this listing in front of people searching your category and area.",
+                  usage: null,
+                  href: `/account/listings/${id}/promote`,
+                  comingSoon: true,
+                },
+                {
+                  title: "Ads",
+                  benefit: "Explore advertising for this listing across HYDERABAD LINKS.",
+                  usage: null,
+                  href: `/account/listings/${id}/ads`,
+                  comingSoon: true,
+                },
+              ]}
+            />
+          </div>
 
           <div className="mt-5">
             {!publishable ? (

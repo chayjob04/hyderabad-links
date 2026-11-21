@@ -119,14 +119,16 @@ BEGIN
         WHERE e.listing_id = @listing
           AND e.is_verified = 1
           AND e.effective_plan_slug = 'verified'
-          AND e.photo_limit = 10
-          AND e.video_limit = 2
-          AND e.link_limit = 5)
+          AND e.photo_limit = 5
+          AND e.video_limit = 1
+          -- NULL since S0029: links are unlimited on every plan, and what the payment buys is the
+          -- right to name them rather than to have them.
+          AND e.link_limit IS NULL)
     BEGIN
         SET @failed = @failed + 1;
-        PRINT 'FAIL: the listing is not Verified with 10 photos, 2 videos and 5 links';
+        PRINT 'FAIL: the listing is not Verified with 5 photos, 1 video and unlimited links';
     END
-    ELSE PRINT 'ok: the listing is Verified with 10 photos, 2 videos and 5 links';
+    ELSE PRINT 'ok: the listing is Verified with 5 photos, 1 video and unlimited links';
 
     /* 9. Whether the webhook arrived. Not a failure if it has not: the browser return already
        applied the payment, and the webhook is the backstop for a customer who closes the tab. It is

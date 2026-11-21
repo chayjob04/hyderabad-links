@@ -434,9 +434,12 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
         // connection from the pool, so the two queries do not get in each other's way.
         var media = await ReadPublicMedia(db, listingId, storage, ct);
 
-        // Only a listing that is paid up shows its links. Gating the read rather than filtering
-        // afterwards means a lapsed listing's links never leave the database at all.
-        var links = isVerified ? await ReadPublicLinks(db, listingId, ct) : [];
+        /* Every listing shows its links now, paid up or not (S0029). They used to be gated on
+           `isVerified`, because they were a paid feature and a lapsed listing's links were not
+           supposed to leave the database at all. Links are free and unlimited now, and what the
+           paid plan buys is naming them — so the gate moves from the rows to the labels, which the
+           read below handles. */
+        var links = await ReadPublicLinks(db, listingId, isVerified, ct);
         var (hours, openStatus) = await ReadOpeningHours(db, listingId, ct);
         var faqs = await ReadPublicFaqs(db, listingId, ct);
         var contentSections = await ReadPublicContent(db, listingId, ct);
@@ -561,17 +564,35 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
     }
 
     /// <summary>
-    /// The listing's website and social links, in the owner's chosen order. Only ever called for a
-    /// listing the entitlement view reports as paid up.
+    /// The listing's website and social links, in the owner's chosen order.
+    ///
+    /// <para>
+    /// <b>The label depends on the plan, the rows do not.</b> A paid listing publishes the names its
+    /// owner chose; an unpaid one publishes `Link 1`, `Link 2`, ... because naming is the part of
+    /// this that was bought. The stored name is left exactly where it is, so renewing brings it
+    /// back — the same bargain `listing_visible_media` strikes with over-allowance photos (D10):
+    /// hidden, never deleted.
+    /// </para>
+    /// <para>
+    /// The number comes from `ROW_NUMBER()` over the display order rather than from `sort_order`,
+    /// which has gaps once a link has been deleted. A visitor must read `Link 1, Link 2, Link 3`
+    /// with nothing missing, whatever slots the rows happen to occupy.
+    /// </para>
     /// </summary>
-    private static async Task<List<PublicLinkDto>> ReadPublicLinks(SqlDatabase db, long listingId, CancellationToken ct)
+    private static async Task<List<PublicLinkDto>> ReadPublicLinks(
+        SqlDatabase db, long listingId, bool isVerified, CancellationToken ct)
     {
         await using var command = db.CreateCommand(
-            @"SELECT link_type, label, url
+            @"SELECT link_type,
+                     CASE WHEN @verified = 1 THEN label
+                          ELSE 'Link ' + CAST(ROW_NUMBER() OVER (ORDER BY sort_order, id) AS varchar(11))
+                     END AS label,
+                     url
               FROM dbo.listing_links
               WHERE listing_id = @listing
-              ORDER BY sort_order");
+              ORDER BY sort_order, id");
         command.Parameters.AddWithValue("listing", listingId);
+        command.Parameters.AddWithValue("verified", isVerified);
 
         var links = new List<PublicLinkDto>();
         await using var reader = await command.ExecuteReaderAsync(ct);

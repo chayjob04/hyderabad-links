@@ -279,7 +279,14 @@ export const deleteListingMedia = (id: number, mediaId: number) =>
 export type ListingLinkItem = {
   id: number;
   linkType: ListingLinkType;
+  /** As stored: the owner's own name on a paid listing, the position on a free one. */
   label: string;
+  /**
+   * What a visitor sees — the stored name while the plan is in force, `Link 1`, `Link 2`, … while
+   * it is not. Optional because an API deployed before S0029 does not send it; fall back to
+   * `label`, which is what that API was publishing anyway.
+   */
+  displayLabel?: string;
   url: string;
   sortOrder: number;
 };
@@ -296,16 +303,38 @@ export type ListingLinkType =
 /**
  * What this listing may do with links right now.
  *
- * `limit` is 5 on a paid listing and 0 otherwise, and the API works it out from the subscription
- * period against the clock — so a lapsed listing reports 0 here without anything on this side
- * having to reason about expiry. `paidUntil` is what lets the screen say when it runs out.
+ * Since S0029 every plan may add as many links as it likes, so `limit` is `null` — "no limit" is a
+ * state this side has to handle rather than a number it can print. What the paid plan buys is
+ * `canNameLinks`: a free listing's links are named after their position by the API, and a Verified
+ * one's are the owner's own words.
+ *
+ * Both come from the API, which works them out from the subscription period against the clock — so
+ * a lapsed listing reports `canNameLinks: false` without anything on this side having to reason
+ * about expiry. `paidUntil` is what lets the screen say when it runs out.
  */
 export type ListingLinkAllowance = {
   planSlug: string;
   planName: string;
+  /**
+   * Legacy, and still a number. Before S0029 this was the allowance; it is kept so that a website
+   * build from before this change keeps rendering what it always did during a rollout. Read
+   * `unlimited` instead.
+   */
   limit: number;
+  /**
+   * Whether there is no cap at all. Optional because an API deployed before S0029 does not send it,
+   * and in that case there genuinely is a cap — so `undefined` must read as `false`, not as
+   * "probably unlimited".
+   */
+  unlimited?: boolean;
   used: number;
   verified: boolean;
+  /**
+   * Whether this listing may choose its own link names — the "Make your own field" feature.
+   * Optional for the same reason: against an older API it is absent, and the honest fallback is
+   * `verified`, which is what that API used to decide the same thing.
+   */
+  canNameLinks?: boolean;
   paidUntil: string | null;
 };
 
@@ -314,13 +343,28 @@ export type ListingLinks = { allowance: ListingLinkAllowance; items: ListingLink
 export const getListingLinks = (id: number) =>
   authed<ListingLinks>(`/api/v1/me/listings/${id}/links`);
 
+/**
+ * `label` is optional because a free listing has no label field to fill in: the API names the link
+ * after its position instead. Sending one from a free listing is not an error, it is simply
+ * ignored, so the form can leave it out rather than inventing a value.
+ */
 export const addListingLink = (
   id: number,
-  link: { linkType: string; label: string; url: string },
+  link: { linkType: string; label?: string; url: string },
 ) =>
   authed<ListingLinkItem>(`/api/v1/me/listings/${id}/links`, {
     method: "POST",
     body: json(link),
+  });
+
+/**
+ * Renames a link the listing already has. Only the label changes — the API will not let this move,
+ * repoint or retype a link — and it refuses with 402 unless the listing may name its own links.
+ */
+export const renameListingLink = (id: number, linkId: number, label: string) =>
+  authed<ListingLinkItem>(`/api/v1/me/listings/${id}/links/${linkId}`, {
+    method: "PUT",
+    body: json({ label }),
   });
 
 export const deleteListingLink = (id: number, linkId: number) =>
@@ -333,7 +377,13 @@ export type PaidPlan = {
   pricePaise: number;
   photoLimit: number;
   videoLimit: number;
-  linkLimit: number;
+  /** Legacy: the old link allowance. Kept for websites deployed before S0029; read `canNameLinks`. */
+  linkLimit?: number;
+  /**
+   * Whether the plan lets an owner name their own links. Links themselves are unlimited. Optional
+   * because an API from before S0029 does not send it; the fallback is the plan being a paid one.
+   */
+  canNameLinks?: boolean;
   periodMonths: number;
 };
 

@@ -76,10 +76,12 @@ export function MetaForm({ entityType, entityKey, label, existing }: Props) {
           <label htmlFor={`og-${entityKey}`} className="form-label">
             Link preview image URL
           </label>
+          {/* 500 matches AdminSeoEndpoints.MaxImageUrlLength and the og_image_url column. */}
           <input
             id={`og-${entityKey}`}
             name="ogImageUrl"
             defaultValue={existing?.ogImageUrl ?? ""}
+            maxLength={500}
             placeholder="https://…"
             className="form-control"
           />
@@ -93,6 +95,7 @@ export function MetaForm({ entityType, entityKey, label, existing }: Props) {
             id={`kw-${entityKey}`}
             name="metaKeywords"
             defaultValue={existing?.metaKeywords ?? ""}
+            maxLength={400}
             className="form-control"
           />
           <div className="form-text">Google ignores these; the old site had them.</div>

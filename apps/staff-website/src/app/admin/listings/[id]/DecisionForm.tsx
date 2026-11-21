@@ -23,6 +23,7 @@ export function DecisionForm({ listingId }: { listingId: number }) {
         name="reason"
         rows={6}
         defaultValue={state.reason}
+        maxLength={1000}
         placeholder="What should the owner fix? They will see this message."
         className="form-control"
       />

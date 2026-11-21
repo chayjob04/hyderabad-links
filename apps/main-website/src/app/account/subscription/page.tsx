@@ -55,11 +55,22 @@ export default async function SubscriptionsPage() {
               </span>
             </p>
           </div>
+          {/* The same six things the per-listing Plan and payment screen lists, in the same order.
+              They had drifted: this screen offered four and left out Promote and Ads entirely, so
+              an owner who reached it from the dashboard nav saw a smaller plan than the one the
+              listing's own screen was selling for the same ₹399. The two not finished yet say so
+              rather than being quietly dropped. */}
           <ul className="mt-4 grid gap-2 text-sm font-medium text-ink sm:grid-cols-2">
             <li>The Verified badge on the public page</li>
             <li>Up to {paidPlan.photoLimit} photos and a logo</li>
             <li>Up to {paidPlan.videoLimit} videos</li>
-            <li>Up to {paidPlan.linkLimit} website and social links</li>
+            <li>Your own names for your links, instead of Link 1, Link 2</li>
+            <li>
+              Promote <span className="text-muted">&middot; coming soon</span>
+            </li>
+            <li>
+              Ads <span className="text-muted">&middot; coming soon</span>
+            </li>
           </ul>
           {!paymentsAvailable ? (
             <p className="mt-4 text-sm font-bold text-muted">

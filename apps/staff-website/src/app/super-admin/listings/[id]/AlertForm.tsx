@@ -57,6 +57,7 @@ export function AlertForm({ listingId, reasons }: Props) {
           name="message"
           rows={4}
           defaultValue={state.message}
+          maxLength={2000}
           placeholder="Be specific. This is the only message they get, and nobody reads replies."
           className="form-control"
         />

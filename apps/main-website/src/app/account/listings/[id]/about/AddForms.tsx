@@ -50,12 +50,14 @@ export function AddFaqForm({ listingId, limit, used, planName }: Props) {
       <label htmlFor="question" className="block text-sm font-bold text-ink">
         Question
       </label>
-      <input id="question" name="question" placeholder="Do you deliver?" className={INPUT} />
+      {/* 300 and 2000 are OwnerListingContentEndpoints.MaxQuestionLength and MaxAnswerLength,
+          the same numbers the staff version of this screen already uses. */}
+      <input id="question" name="question" maxLength={300} placeholder="Do you deliver?" className={INPUT} />
 
       <label htmlFor="answer" className="mt-3 block text-sm font-bold text-ink">
         Answer
       </label>
-      <textarea id="answer" name="answer" rows={3} className={INPUT} />
+      <textarea id="answer" name="answer" rows={3} maxLength={2000} className={INPUT} />
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button type="submit" disabled={pending} className={BUTTON}>
@@ -91,7 +93,8 @@ export function AddContentForm({ listingId, limit, used, planName }: Props) {
       <label htmlFor="heading" className="block text-sm font-bold text-ink">
         Heading
       </label>
-      <input id="heading" name="heading" placeholder="About us" className={INPUT} />
+      {/* 200 and 4000: MaxHeadingLength and MaxBodyLength. */}
+      <input id="heading" name="heading" maxLength={200} placeholder="About us" className={INPUT} />
 
       <label htmlFor="body" className="mt-3 block text-sm font-bold text-ink">
         Text
@@ -99,7 +102,7 @@ export function AddContentForm({ listingId, limit, used, planName }: Props) {
       {/* Plain text, not HTML. Enforced in the API and the database, because this is published to
           a public page and owners are the least-trusted authors on the platform. */}
       <p className="text-xs text-muted">Plain text. Your line breaks are kept.</p>
-      <textarea id="body" name="body" rows={5} className={INPUT} />
+      <textarea id="body" name="body" rows={5} maxLength={4000} className={INPUT} />
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button type="submit" disabled={pending} className={BUTTON}>

@@ -79,7 +79,24 @@ export default async function SearchPage({ searchParams }: Props) {
   const raw = await searchParams;
   const criteria = toCriteria(raw);
 
-  const [tree, localities] = await Promise.all([getCategories(), getLocalities(DEFAULT_CITY)]);
+  /*
+   * The area list is caught for the same reason the category tree is: this page is built to stay
+   * usable through an API outage, and until now an outage defeated that before it started. The
+   * failure handling below catches `searchListings`, but `getLocalities` ran first and in the same
+   * `Promise.all` — so the one failure both calls share threw past the message explaining it, and
+   * the visitor got an error page rather than "the directory is temporarily unreachable".
+   *
+   * An empty list is a state this page already handles: the area filter renders with nothing to
+   * pick, and searching by keyword, category and sort still works. `null` is what the fetcher
+   * already returns for a missing city, so nothing downstream needs to know the difference.
+   */
+  const [tree, localities] = await Promise.all([
+    getCategories(),
+    getLocalities(DEFAULT_CITY).catch((error) => {
+      console.error("Could not load the area list for the search filters", error);
+      return null;
+    }),
+  ]);
   const areas = localities ?? [];
 
   /*

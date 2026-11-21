@@ -1,9 +1,16 @@
--- Manual smoke test for the Verified plan's entitlements and the website/social links (S0009).
+-- Manual smoke test for the Verified plan's entitlements and the website/social links
+-- (S0009, as changed by S0029).
 --
--- The point that matters is that expiry is a comparison against the clock, not a stored flag:
--- listing_entitlements must report a listing as Verified while its subscription period covers now,
--- and as Free the moment it does not, with no job having run in between. The link allowance and the
--- five-link cap hang off that same view.
+-- The point that matters is that expiry is a comparison against the clock and the subscription's
+-- status, not a stored flag: listing_entitlements must report a listing as Verified while an active
+-- period covers now, and as Free the moment either of those stops being true -- a run-out period or
+-- a cancelled one -- with no job having run in between. All four states are covered: never paid,
+-- paid and current, lapsed, and cancelled with months still on the clock.
+--
+-- **S0029 changed what the plan sells here.** Links are unlimited on every plan, so `link_limit` is
+-- NULL for everybody and the old five-slot CHECK is gone; what the paid plan buys is *naming* them.
+-- Several assertions below are therefore the inverse of what they were: a sixth link must now be
+-- accepted, and two links may share a position. If they start failing, the cap has come back.
 --
 -- It creates its own owner, business and listings, asserts, then rolls back, so it leaves no data
 -- and is safe to re-run. Every slug is prefixed `smoke-lk-` so it does not collide with another
@@ -25,7 +32,8 @@ BEGIN TRANSACTION;
 GO
 
 DECLARE @failed int = 0;
-DECLARE @owner bigint, @business bigint, @free bigint, @paid bigint, @lapsed bigint;
+DECLARE @owner bigint, @business bigint, @free bigint, @paid bigint, @lapsed bigint, @cancelled bigint;
+DECLARE @renamed nvarchar(80), @slotBefore int, @slotAfter int;
 DECLARE @locality int, @centre geography, @category int;
 DECLARE @n int, @limit int, @verified bit, @plan varchar(60);
 
@@ -67,49 +75,67 @@ INSERT INTO dbo.subscriptions (listing_id, plan_slug, status, starts_at, expires
 VALUES (@lapsed, 'verified', 'active', DATEADD(day, -366, SYSDATETIMEOFFSET()), DATEADD(day, -1, SYSDATETIMEOFFSET()));
 UPDATE dbo.listings SET plan_slug = 'verified' WHERE id = @lapsed;
 
--- 1. A listing that never paid is Free, unverified, and gets no links.
+/* A fourth listing, for the state the other three do not cover: a subscription that was
+   cancelled rather than left to run out. Its period is still in the future, so only `status` tells
+   the view it is over -- which is the half of the rule that a clock comparison alone would miss. */
+INSERT INTO dbo.listings (business_id, locality_id, slug, name, location, phone_primary, status, created_by_user_id)
+VALUES (@business, @locality, 'smoke-lk-cancelled', 'Smoke Lk Cancelled', @centre, '+919999900081', 'active', @owner);
+SET @cancelled = SCOPE_IDENTITY();
+
+INSERT INTO dbo.listing_categories (listing_id, category_id, category_level, is_primary)
+VALUES (@cancelled, @category, 2, 1);
+
+INSERT INTO dbo.subscriptions (listing_id, plan_slug, status, starts_at, expires_at)
+VALUES (@cancelled, 'verified', 'cancelled', DATEADD(day, -30, SYSDATETIMEOFFSET()), DATEADD(day, 335, SYSDATETIMEOFFSET()));
+UPDATE dbo.listings SET plan_slug = 'verified' WHERE id = @cancelled;
+
+-- 1. A listing that never paid is Free and unverified -- and since S0029 it has no *limit* on
+--    links, because no plan does. NULL is how the view says "no limit"; a number here would mean
+--    the allowance had been reintroduced.
 SELECT @plan = effective_plan_slug, @limit = link_limit, @verified = is_verified
 FROM dbo.listing_entitlements WHERE listing_id = @free;
-IF @plan <> 'free' OR @limit <> 0 OR @verified <> 0
+IF @plan <> 'free' OR @limit IS NOT NULL OR @verified <> 0
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: free listing read as ' + @plan + ', link_limit ' + CAST(@limit AS varchar(10));
+    PRINT 'FAIL: free listing read as ' + @plan + ', link_limit ' + ISNULL(CAST(@limit AS varchar(10)), 'NULL');
 END
-ELSE PRINT 'ok: a listing with no subscription is free, unverified, and allowed no links';
+ELSE PRINT 'ok: a listing with no subscription is free and unverified, with links unlimited';
 
--- 2. A current period makes it Verified with five links.
+-- 2. A current period makes it Verified. Links are unlimited here too: what the paid plan buys is
+--    naming them, which is the API's rule rather than this view's.
 SELECT @plan = effective_plan_slug, @limit = link_limit, @verified = is_verified
 FROM dbo.listing_entitlements WHERE listing_id = @paid;
-IF @plan <> 'verified' OR @limit <> 5 OR @verified <> 1
+IF @plan <> 'verified' OR @limit IS NOT NULL OR @verified <> 1
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: paid listing read as ' + @plan + ', link_limit ' + CAST(@limit AS varchar(10));
+    PRINT 'FAIL: paid listing read as ' + @plan + ', link_limit ' + ISNULL(CAST(@limit AS varchar(10)), 'NULL');
 END
-ELSE PRINT 'ok: a current subscription grants the badge and five links';
+ELSE PRINT 'ok: a current subscription grants the badge, with links unlimited on both plans';
 
--- 3. The paid listing also gets the Verified media allowance (10 photos, 2 videos, 1 logo).
+-- 3. The paid listing also gets the Verified media allowance, which S0029 made 5 photos, 1 video
+--    and 1 logo.
 SELECT @n = photo_limit FROM dbo.listing_entitlements WHERE listing_id = @paid;
-IF @n <> 10
+IF @n <> 5
 BEGIN
-    SET @failed = @failed + 1; PRINT 'FAIL: paid photo_limit was ' + CAST(@n AS varchar(10)) + ', expected 10';
+    SET @failed = @failed + 1; PRINT 'FAIL: paid photo_limit was ' + CAST(@n AS varchar(10)) + ', expected 5';
 END
-ELSE PRINT 'ok: the paid listing gets ten photo slots';
+ELSE PRINT 'ok: the paid listing gets five photo slots';
 
 SELECT @n = video_limit FROM dbo.listing_entitlements WHERE listing_id = @paid;
-IF @n <> 2
+IF @n <> 1
 BEGIN
-    SET @failed = @failed + 1; PRINT 'FAIL: paid video_limit was ' + CAST(@n AS varchar(10)) + ', expected 2';
+    SET @failed = @failed + 1; PRINT 'FAIL: paid video_limit was ' + CAST(@n AS varchar(10)) + ', expected 1';
 END
-ELSE PRINT 'ok: the paid listing gets two video slots';
+ELSE PRINT 'ok: the paid listing gets one video slot';
 
 -- 4. The expired period reads as Free again, with no job having run. This is the assertion the
 --    whole design exists for: a missed background task cannot leave a badge up for free.
 SELECT @plan = effective_plan_slug, @limit = link_limit, @verified = is_verified
 FROM dbo.listing_entitlements WHERE listing_id = @lapsed;
-IF @plan <> 'free' OR @limit <> 0 OR @verified <> 0
+IF @plan <> 'free' OR @limit IS NOT NULL OR @verified <> 0
 BEGIN
     SET @failed = @failed + 1;
-    PRINT 'FAIL: lapsed listing read as ' + @plan + ', link_limit ' + CAST(@limit AS varchar(10));
+    PRINT 'FAIL: lapsed listing read as ' + @plan + ', link_limit ' + ISNULL(CAST(@limit AS varchar(10)), 'NULL');
 END
 ELSE PRINT 'ok: an expired period reads as free immediately, with no job run';
 
@@ -135,28 +161,46 @@ IF @n <> 5
 BEGIN
     SET @failed = @failed + 1; PRINT 'FAIL: stored ' + CAST(@n AS varchar(10)) + ' links, expected 5';
 END
-ELSE PRINT 'ok: five links are accepted';
+ELSE PRINT 'ok: the first five links are accepted';
 
--- 7. A sixth is refused by the range on sort_order, so the cap is the database's and not only the API's.
+-- 7. A sixth, seventh and eighth are accepted. This assertion is the inverse of what it was
+--    before S0029: the range on sort_order was what capped links at five, and dropping it is what
+--    makes them unlimited. If this starts failing, the constraint has come back.
+INSERT INTO dbo.listing_links (listing_id, link_type, label, url, sort_order)
+VALUES (@paid, 'other', 'Sixth',   'https://example.com/sixth',   5),
+       (@paid, 'other', 'Seventh', 'https://example.com/seventh', 6),
+       (@paid, 'other', 'Eighth',  'https://example.com/eighth',  7);
+
+SET @n = (SELECT COUNT(*) FROM dbo.listing_links WHERE listing_id = @paid);
+IF @n <> 8
+BEGIN
+    SET @failed = @failed + 1; PRINT 'FAIL: stored ' + CAST(@n AS varchar(10)) + ' links, expected 8';
+END
+ELSE PRINT 'ok: links past the old five-slot cap are accepted';
+
+-- 8. The slot is no longer unique either: the unique index went with the range, because an
+--    unbounded list cannot be keyed on a fixed set of positions. The API assigns MAX + 1, so a
+--    duplicate should not arise in practice; this only proves the database no longer refuses one,
+--    which is what replacing the unique index with a plain ordering index means.
 BEGIN TRY
     INSERT INTO dbo.listing_links (listing_id, link_type, label, url, sort_order)
-    VALUES (@paid, 'other', 'Sixth', 'https://example.com/sixth', 5);
-    SET @failed = @failed + 1;
-    PRINT 'FAIL: a sixth link was accepted';
+    VALUES (@paid, 'other', 'Same slot as the first', 'https://example.com/dup', 0);
+    PRINT 'ok: the slot is an ordering position now, not a unique key';
 END TRY
 BEGIN CATCH
-    PRINT 'ok: a sixth link is refused by the database';
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: a second link at an occupied slot was refused; the unique slot index is still there';
 END CATCH
 
--- 8. Two links cannot share a slot, which is what stops five rows all sitting at position 0.
+-- 8b. Still bounded below, by the constraint S0029 put in place of the range.
 BEGIN TRY
     INSERT INTO dbo.listing_links (listing_id, link_type, label, url, sort_order)
-    VALUES (@paid, 'other', 'Duplicate slot', 'https://example.com/dup', 0);
+    VALUES (@paid, 'other', 'Negative slot', 'https://example.com/neg', -1);
     SET @failed = @failed + 1;
-    PRINT 'FAIL: two links shared one slot';
+    PRINT 'FAIL: a negative sort_order was accepted';
 END TRY
 BEGIN CATCH
-    PRINT 'ok: a second link in an occupied slot is refused';
+    PRINT 'ok: a negative sort_order is still refused';
 END CATCH
 
 -- 9. A non-http address is refused, so a stored link cannot become a javascript: payload.
@@ -227,7 +271,92 @@ BEGIN CATCH
     PRINT 'ok: an unknown plan slug is refused';
 END CATCH
 
--- 15. Deleting the listing takes its links with it, so a deleted business leaves no orphan links.
+-- 15. A cancelled subscription is over even though its period has not run out. The view reads
+--     `status = 'active'` as well as the clock, and this is the only check that proves the first
+--     half: a listing whose expires_at is still months away but whose row was cancelled must be
+--     free, unverified, and unable to name its links.
+SELECT @plan = effective_plan_slug, @verified = is_verified, @limit = link_limit
+FROM dbo.listing_entitlements WHERE listing_id = @cancelled;
+IF @plan <> 'free' OR @verified <> 0 OR @limit IS NOT NULL
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: a cancelled subscription still read as ' + @plan
+        + ', verified ' + CAST(@verified AS varchar(1));
+END
+ELSE PRINT 'ok: a cancelled subscription reads as free at once, whatever its expiry says';
+
+-- 15b. And it still remembers what it bought, so the owner can be told rather than just demoted.
+SELECT @plan = subscribed_plan_slug FROM dbo.listing_entitlements WHERE listing_id = @cancelled;
+IF @plan <> 'verified'
+BEGIN
+    SET @failed = @failed + 1; PRINT 'FAIL: cancelled subscribed_plan_slug was ' + @plan;
+END
+ELSE PRINT 'ok: a cancelled listing still records the plan it had bought';
+
+-- 16. Renaming a link changes its name and nothing else. This is the UPDATE the API's rename route
+--     runs, and the assertion is about what it must NOT touch: a rename that moved a link would
+--     reorder somebody's public page.
+SELECT TOP (1) @slotBefore = sort_order FROM dbo.listing_links
+WHERE listing_id = @free ORDER BY sort_order, id;
+
+UPDATE l SET l.label = 'Our menu', l.updated_at = SYSDATETIMEOFFSET()
+FROM dbo.listing_links l
+WHERE l.id = (SELECT TOP (1) id FROM dbo.listing_links WHERE listing_id = @free ORDER BY sort_order, id);
+
+SELECT TOP (1) @renamed = label, @slotAfter = sort_order FROM dbo.listing_links
+WHERE listing_id = @free ORDER BY sort_order, id;
+
+IF @renamed <> 'Our menu' OR @slotAfter <> @slotBefore
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: renaming changed the slot (' + CAST(@slotBefore AS varchar(10))
+        + ' -> ' + CAST(@slotAfter AS varchar(10)) + ') or did not change the name';
+END
+ELSE PRINT 'ok: renaming a link changes its name and leaves its position alone';
+
+/* 17. A name saved under Verified survives a lapse. The API stops *publishing* it -- an unpaid
+       listing's links read as their position, which is asserted in the unit tests because it is a
+       projection rather than a stored value -- but the row keeps what the owner wrote, so renewing
+       brings it back. Deleting it would be destroying their work. */
+UPDATE dbo.listing_links SET label = 'Book a table'
+WHERE listing_id = @lapsed;
+
+IF EXISTS (SELECT 1 FROM dbo.listing_links WHERE listing_id = @lapsed AND label <> 'Book a table')
+   OR NOT EXISTS (SELECT 1 FROM dbo.listing_links WHERE listing_id = @lapsed)
+BEGIN
+    SET @failed = @failed + 1; PRINT 'FAIL: a lapsed listing did not keep its saved link names';
+END
+ELSE PRINT 'ok: a lapsed listing keeps the names it chose, ready for renewal';
+
+/* 18. The two columns S0020 added are still on the view. S0029 replaces it wholesale, and the
+       first draft of that script re-stated it from S0009 and so dropped both -- which would have
+       broken the owner's About & FAQs screen and both staff content screens from a migration about
+       plans and links. This is the assertion that would have caught it. */
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID('dbo.listing_entitlements') AND name = 'faq_limit')
+   OR NOT EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = OBJECT_ID('dbo.listing_entitlements') AND name = 'content_section_limit')
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: listing_entitlements has lost faq_limit or content_section_limit';
+END
+ELSE PRINT 'ok: the entitlement view still reports the FAQ and content allowances';
+
+-- 18b. And they still answer, which is what the FAQ and content screens actually select.
+IF NOT EXISTS (
+    SELECT 1 FROM dbo.listing_entitlements e
+    JOIN dbo.plans p ON p.slug = e.effective_plan_slug
+    WHERE e.listing_id = @paid AND e.faq_limit = p.faq_limit
+      AND e.content_section_limit = p.content_section_limit)
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: the FAQ or content allowance does not match the plan row';
+END
+ELSE PRINT 'ok: the FAQ and content allowances match the plan they come from';
+
+-- 19. Deleting the listing takes its links with it, so a deleted business leaves no orphan links.
 DELETE FROM dbo.listings WHERE id = @paid;
 SET @n = (SELECT COUNT(*) FROM dbo.listing_links WHERE listing_id = @paid);
 IF @n <> 0
@@ -242,7 +371,7 @@ BEGIN
     RAISERROR('%d check(s) failed', 16, 1, @failed);
 END
 ELSE PRINT '';
-PRINT 'entitlements follow the clock and the five-link cap is enforced by the database';
+PRINT 'entitlements follow the clock and the status, links are unlimited, and renaming moves nothing';
 GO
 
 ROLLBACK TRANSACTION;

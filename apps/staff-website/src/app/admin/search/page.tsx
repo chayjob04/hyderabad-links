@@ -63,13 +63,26 @@ export default async function SearchTuningPage({ searchParams }: Props) {
                       <label htmlFor="term" className="form-label">
                         What people type
                       </label>
-                      <input id="term" name="term" placeholder="medical shop" className="form-control" />
+                      {/* 100 matches SearchTuningEndpoints.MaxTermLength and the nvarchar(100) column. */}
+                      <input
+                        id="term"
+                        name="term"
+                        maxLength={100}
+                        placeholder="medical shop"
+                        className="form-control"
+                      />
                     </div>
                     <div className="col-sm-5">
                       <label htmlFor="mapsTo" className="form-label">
                         What to search for
                       </label>
-                      <input id="mapsTo" name="mapsTo" placeholder="pharmacies" className="form-control" />
+                      <input
+                        id="mapsTo"
+                        name="mapsTo"
+                        maxLength={100}
+                        placeholder="pharmacies"
+                        className="form-control"
+                      />
                     </div>
                     <div className="col-sm-2">
                       <button type="submit" className="btn btn-primary w-100">
@@ -136,12 +149,18 @@ export default async function SearchTuningPage({ searchParams }: Props) {
                       <label htmlFor="text" className="form-label">
                         Placeholder text
                       </label>
+                      {/* 120 matches SearchTuningEndpoints.MaxPlaceholderLength. */}
                       <input
                         id="text"
                         name="text"
+                        maxLength={120}
                         placeholder="Plumbers, dentists, biryani"
                         className="form-control"
                       />
+                      <div className="form-text">
+                        Up to 120 characters. It sits inside the search box, so a short phrase reads
+                        best.
+                      </div>
                     </div>
                     <div className="col-sm-3">
                       <label htmlFor="sortOrder" className="form-label">

@@ -52,10 +52,13 @@ export function HomepageGroups({ groups, mayEdit }: { groups: HomepageGroupList;
                           <label className="visually-hidden" htmlFor={`title-${group.id}`}>
                             Heading
                           </label>
+                          {/* 160 and 300 below match SuperAdminHomepageGroupEndpoints'
+                              MaxTitleLength and MaxSubtitleLength, and their columns. */}
                           <input
                             id={`title-${group.id}`}
                             name="title"
                             defaultValue={group.title}
+                            maxLength={160}
                             className="form-control form-control-sm fw-semibold"
                           />
                         </div>
@@ -67,6 +70,7 @@ export function HomepageGroups({ groups, mayEdit }: { groups: HomepageGroupList;
                             id={`subtitle-${group.id}`}
                             name="subtitle"
                             defaultValue={group.subtitle ?? ""}
+                            maxLength={300}
                             placeholder="Optional line under the heading"
                             className="form-control form-control-sm"
                           />
@@ -144,6 +148,7 @@ export function HomepageGroups({ groups, mayEdit }: { groups: HomepageGroupList;
                     <input
                       id="new-title"
                       name="title"
+                      maxLength={160}
                       placeholder="Best cafes in Madhapur"
                       className="form-control"
                     />
@@ -155,6 +160,7 @@ export function HomepageGroups({ groups, mayEdit }: { groups: HomepageGroupList;
                     <input
                       id="new-subtitle"
                       name="subtitle"
+                      maxLength={300}
                       placeholder="Optional subtitle"
                       className="form-control"
                     />

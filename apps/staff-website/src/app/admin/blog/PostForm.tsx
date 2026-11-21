@@ -41,7 +41,16 @@ export function PostForm({ postId, initial, isPublished = false }: Props) {
             <label htmlFor="title" className="form-label">
               Title
             </label>
-            <input id="title" name="title" defaultValue={values?.title ?? ""} className="form-control" />
+            {/* Each limit here matches a constant in BlogEndpoints and the column behind it:
+                title 300, excerpt 500, cover address 500. The post body is nvarchar(max) and has
+                no ceiling, so it is left uncapped. */}
+            <input
+              id="title"
+              name="title"
+              defaultValue={values?.title ?? ""}
+              maxLength={300}
+              className="form-control"
+            />
           </div>
 
           <div className="mb-3">
@@ -53,10 +62,12 @@ export function PostForm({ postId, initial, isPublished = false }: Props) {
               name="excerpt"
               rows={2}
               defaultValue={values?.excerpt ?? ""}
+              maxLength={500}
               className="form-control"
             />
             <div className="form-text">
-              One sentence. It is the card on the blog page and the description search engines show.
+              One sentence, up to 500 characters. It is the card on the blog page and the
+              description search engines show.
             </div>
           </div>
 
@@ -68,6 +79,7 @@ export function PostForm({ postId, initial, isPublished = false }: Props) {
               id="coverImageUrl"
               name="coverImageUrl"
               defaultValue={values?.coverImageUrl ?? ""}
+              maxLength={500}
               placeholder="https://…"
               className="form-control"
             />

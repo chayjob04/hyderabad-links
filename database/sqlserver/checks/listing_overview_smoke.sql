@@ -136,12 +136,12 @@ BEGIN
 END
 ELSE PRINT 'ok: a paid listing reads as verified, at read time';
 
-IF (SELECT photo_limit FROM dbo.listing_overview WHERE listing_id = @crowded) <> 10
-   OR (SELECT video_limit FROM dbo.listing_overview WHERE listing_id = @crowded) <> 2
+IF (SELECT photo_limit FROM dbo.listing_overview WHERE listing_id = @crowded) <> 5
+   OR (SELECT video_limit FROM dbo.listing_overview WHERE listing_id = @crowded) <> 1
 BEGIN
-    SET @failed = @failed + 1; PRINT 'FAIL: the paid allowances are not 10 photos and 2 videos';
+    SET @failed = @failed + 1; PRINT 'FAIL: the paid allowances are not 5 photos and 1 video';
 END
-ELSE PRINT 'ok: the paid allowances come through as 10 photos and 2 videos';
+ELSE PRINT 'ok: the paid allowances come through as 5 photos and 1 video';
 
 -- 8. And still exactly one row, now that it has a subscription as well as three members.
 SET @n = (SELECT COUNT(*) FROM dbo.listing_overview WHERE listing_id = @crowded);

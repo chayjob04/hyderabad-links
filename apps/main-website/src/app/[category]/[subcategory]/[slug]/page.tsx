@@ -285,10 +285,14 @@ export default async function ListingPage({ params }: Props) {
           ))}
         </dl>
 
-        {/* Website and social links, part of the Verified plan. The API sends an empty list for a
-            free or lapsed listing rather than leaving it to this page to hide them, so there is no
-            condition here beyond "are there any". rel="nofollow" because these are owner-supplied
-            addresses and this directory does not vouch for them to a crawler. */}
+        {/* Website and social links. Free and unlimited on every plan since S0029 — this block
+            used to be reachable only on a paid listing, because the API sent an empty list for
+            anything else. It now sends them for everybody, with the *label* carrying the paid
+            part: the owner's own wording while the plan is in force, `Link 1`, `Link 2`, … while it
+            is not. Either way the only condition here is "are there any".
+
+            rel="nofollow" because these are owner-supplied addresses and this directory does not
+            vouch for them to a crawler. */}
         {listing.links.length > 0 ? (
           <section className="mt-8">
             <h2 className="text-[11px] font-black tracking-[0.12em] text-muted uppercase">

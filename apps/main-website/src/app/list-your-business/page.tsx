@@ -298,7 +298,7 @@ function planLines(plan: {
   grantsVerifiedBadge: boolean;
   photoLimit: number;
   videoLimit: number;
-  linkLimit: number;
+  canNameLinks?: boolean;
 }): { text: string; included: boolean }[] {
   return [
     { text: "Found by name, category and area", included: true },
@@ -315,8 +315,10 @@ function planLines(plan: {
       included: plan.videoLimit > 0,
     },
     {
-      text: plan.linkLimit > 0 ? `Website and social links (${plan.linkLimit})` : "No website or social links",
-      included: plan.linkLimit > 0,
+      text: (plan.canNameLinks ?? plan.grantsVerifiedBadge)
+        ? "Name your own link fields"
+        : "Links named Link 1, Link 2, …",
+      included: plan.canNameLinks ?? plan.grantsVerifiedBadge,
     },
   ];
 }
