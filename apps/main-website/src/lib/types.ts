@@ -268,8 +268,8 @@ export type PublicPlan = {
   photoLimit: number;
   videoLimit: number;
   logoLimit: number;
-  /** Legacy: the old link allowance, for pages deployed before S0029. */
-  linkLimit?: number;
+  /** The link allowance, and `null` since S0029: links are unlimited on every plan. */
+  linkLimit?: number | null;
   /** Whether this plan may name its own links. Absent on an API from before S0029. */
   canNameLinks?: boolean;
   faqLimit: number;

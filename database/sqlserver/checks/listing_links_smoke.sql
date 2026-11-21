@@ -75,6 +75,15 @@ INSERT INTO dbo.subscriptions (listing_id, plan_slug, status, starts_at, expires
 VALUES (@lapsed, 'verified', 'active', DATEADD(day, -366, SYSDATETIMEOFFSET()), DATEADD(day, -1, SYSDATETIMEOFFSET()));
 UPDATE dbo.listings SET plan_slug = 'verified' WHERE id = @lapsed;
 
+/* And a link it named while that period was still running. The database cannot tell when a label
+   was written -- nothing stores that, and no constraint refers to the subscription -- so this row
+   simply *is* a name saved under Verified. Who may write one is the API's rule, enforced in
+   OwnerLinkEndpoints and asserted in the unit tests; what this fixture exists for is assertion 17,
+   which checks that lapsing does not take the name away. Without it that assertion was checking an
+   empty set and failing on its own missing fixture. */
+INSERT INTO dbo.listing_links (listing_id, link_type, label, url, sort_order)
+VALUES (@lapsed, 'website', 'Book a table', 'https://example.com/lapsed-booking', 0);
+
 /* A fourth listing, for the state the other three do not cover: a subscription that was
    cancelled rather than left to run out. Its period is still in the future, so only `status` tells
    the view it is over -- which is the half of the rule that a clock comparison alone would miss. */
@@ -317,14 +326,20 @@ ELSE PRINT 'ok: renaming a link changes its name and leaves its position alone';
 /* 17. A name saved under Verified survives a lapse. The API stops *publishing* it -- an unpaid
        listing's links read as their position, which is asserted in the unit tests because it is a
        projection rather than a stored value -- but the row keeps what the owner wrote, so renewing
-       brings it back. Deleting it would be destroying their work. */
-UPDATE dbo.listing_links SET label = 'Book a table'
-WHERE listing_id = @lapsed;
+       brings it back. Deleting it would be destroying their work.
 
-IF EXISTS (SELECT 1 FROM dbo.listing_links WHERE listing_id = @lapsed AND label <> 'Book a table')
-   OR NOT EXISTS (SELECT 1 FROM dbo.listing_links WHERE listing_id = @lapsed)
+       Read-only on purpose. This used to overwrite every label and then check the overwrite had
+       worked, which proved only that UPDATE works: it wrote the name *after* the lapse rather than
+       reading one written before it, so it could not have detected the row losing its name. The
+       label below is the one the fixture saved while the period was still running, and nothing
+       between there and here has touched it. */
+IF NOT EXISTS (
+    SELECT 1 FROM dbo.listing_links
+    WHERE listing_id = @lapsed AND label = 'Book a table')
 BEGIN
-    SET @failed = @failed + 1; PRINT 'FAIL: a lapsed listing did not keep its saved link names';
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: a lapsed listing did not keep its saved link names; found '
+        + ISNULL((SELECT TOP (1) label FROM dbo.listing_links WHERE listing_id = @lapsed), 'no links at all');
 END
 ELSE PRINT 'ok: a lapsed listing keeps the names it chose, ready for renewal';
 

@@ -24,11 +24,18 @@ public static class PublicPlanEndpoints
         int VideoLimit,
         int LogoLimit,
         /// <summary>
-        /// <b>Legacy.</b> The old link allowance, kept only so a pricing page deployed before S0029
-        /// still renders a true line. Remove once every deployed website reads
-        /// <paramref name="CanNameLinks"/>.
+        /// The link allowance, and <c>null</c> since S0029 because there is no longer one: links are
+        /// unlimited on every plan. Null rather than a number is deliberate -- it is the same
+        /// convention <c>dbo.listing_entitlements.link_limit</c> uses, so the two cannot drift into
+        /// disagreeing about what "no limit" looks like.
+        ///
+        /// It used to be computed here as <c>badge ? 5 : 0</c>, which went on advertising the old
+        /// five-link cap after the cap itself was dropped. Kept as a field, rather than removed,
+        /// because removing it is a breaking change to a public response and nothing needs it gone;
+        /// what matters is that it stops claiming a limit that is not enforced. Read
+        /// <paramref name="CanNameLinks"/> for what the paid plan actually buys.
         /// </summary>
-        int LinkLimit,
+        int? LinkLimit,
         /// <summary>
         /// Whether this plan may name its own links. Links themselves are unlimited on every plan
         /// since S0029, so there is no allowance left to quote -- only who may label them.
@@ -51,10 +58,14 @@ public static class PublicPlanEndpoints
 
            Links are unlimited on every plan (S0029), so what distinguishes the tiers is whether
            an owner may name them. Derived from the badge, the same way listing_entitlements derives
-           it, rather than invented here. */
+           it, rather than invented here.
+
+           link_limit is NULL for the same reason it is NULL in that view: there is no allowance to
+           quote. It is selected as a typed NULL rather than left out so the column list, the reader
+           indices below and the DTO stay in step. */
         await using var command = db.CreateCommand(
             @"SELECT slug, name, price_paise, photo_limit, video_limit, logo_limit,
-                     CASE WHEN grants_verified_badge = 1 THEN 5 ELSE 0 END AS link_limit,
+                     CAST(NULL AS int) AS link_limit,
                      grants_verified_badge AS can_name_links,
                      faq_limit, content_section_limit, grants_verified_badge
               FROM dbo.plans
@@ -72,7 +83,8 @@ public static class PublicPlanEndpoints
                 reader.GetInt32(3),
                 reader.GetInt32(4),
                 reader.GetInt32(5),
-                reader.GetInt32(6),
+                // link_limit: always NULL now. Read as nullable so this does not throw the day it is.
+                reader.IsDBNull(6) ? null : reader.GetInt32(6),
                 // can_name_links: the badge column itself, read as the bit it is.
                 reader.GetBoolean(7),
                 reader.GetInt32(8),
