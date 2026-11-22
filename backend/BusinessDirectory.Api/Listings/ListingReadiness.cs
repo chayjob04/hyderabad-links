@@ -40,4 +40,31 @@ public static class ListingReadiness
     /// <summary>True when nothing is missing, for the common "which status does this get?" question.</summary>
     public static bool IsReadyForReview(string? addressLine, string? description) =>
         MissingForReview(addressLine, description).Count == 0;
+
+    /// <summary>
+    /// The status a listing is left in when its owner saves or submits it.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in the handler so the three cases can be asserted without a database, the
+    /// same reason <see cref="MissingForReview"/> lives here.
+    ///
+    /// <list type="bullet">
+    /// <item>Submit always queues it, whatever it was.</item>
+    /// <item>Save leaves a listing no reviewer has passed yet exactly where it is -- a draft stays
+    /// a draft, a rejection stays a rejection -- which is what lets an owner build a listing over
+    /// several sittings.</item>
+    /// <item>Save on a listing that is already public queues it anyway. The alternative is an
+    /// approved listing whose text can be rewritten afterwards without a reviewer seeing it, which
+    /// is the one thing the queue exists to prevent.</item>
+    /// </list>
+    /// </remarks>
+    public static string StatusAfterOwnerSave(string currentStatus, bool submitForReview) =>
+        submitForReview || !NeverPublic(currentStatus) ? "pending_review" : currentStatus;
+
+    /// <summary>
+    /// True for a listing no reviewer has passed: a draft, or one that came back rejected. Both are
+    /// invisible to the public, so saving one in any state costs nothing.
+    /// </summary>
+    public static bool NeverPublic(string currentStatus) =>
+        currentStatus is "draft" or "rejected";
 }

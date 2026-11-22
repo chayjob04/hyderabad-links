@@ -5,7 +5,6 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { describeStatus, getSubscriptions, listMyListings } from "@/lib/owner-api";
-import type { OwnerListing } from "@/lib/owner-api";
 
 export const metadata: Metadata = { title: "My listings" };
 
@@ -13,22 +12,9 @@ const MAX_LISTINGS = 5; // same limit the API enforces
 
 type Props = { searchParams: Promise<{ submitted?: string; welcome?: string }> };
 
-/**
- * The counts across the top.
- *
- * Every one is worked out from the listings the API just returned - there is no view count, no
- * rating and no blog here, because none of those exist in the database. The prototype's dashboard
- * shows three such tiles permanently reading zero; showing a number nobody can ever change would
- * be worse than showing nothing.
- */
-function statusCounts(listings: OwnerListing[]) {
-  return [
-    { label: "Live", count: listings.filter((l) => l.status === "active").length },
-    { label: "In review", count: listings.filter((l) => l.status === "pending_review").length },
-    { label: "Drafts", count: listings.filter((l) => l.status === "draft").length },
-    { label: "Needs changes", count: listings.filter((l) => l.status === "rejected").length },
-  ];
-}
+/* The four counters that used to sit across the top -- Live, In review, Drafts, Needs changes --
+   are gone. Each card already carries its own status badge, so with five listings at most the
+   counters were restating what was visible a few pixels below. */
 
 export default async function MyListingsPage({ searchParams }: Props) {
   const { submitted, welcome } = await searchParams;
@@ -72,8 +58,8 @@ export default async function MyListingsPage({ searchParams }: Props) {
             <span aria-hidden="true">&#10003;</span> Your account is ready.
           </p>
           <p className="mt-1 text-sm text-muted">
-            We saved your business below. Add the address and a description, and saving will send
-            it to us for review — there is no separate button to press.
+            We saved your business below as a draft. Open it, fill in the address and a description,
+            and press Submit when you are ready for us to review it.
           </p>
         </div>
       ) : null}
@@ -100,16 +86,7 @@ export default async function MyListingsPage({ searchParams }: Props) {
         </div>
       ) : (
         <>
-          <dl className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {statusCounts(listings).map((stat) => (
-              <div key={stat.label} className="rounded-xl border border-line bg-white p-5 shadow-[0_8px_22px_#002a340b]">
-                <dt className="text-xs font-black tracking-[0.12em] text-muted uppercase">{stat.label}</dt>
-                <dd className="mt-1 text-3xl font-black text-brand-700">{stat.count}</dd>
-              </div>
-            ))}
-          </dl>
-
-          <ul className="mt-6 grid gap-5 lg:grid-cols-2">
+          <ul className="mt-8 grid gap-5 lg:grid-cols-2">
             {listings.map((listing) => (
               <li
                 key={listing.id}
@@ -125,7 +102,17 @@ export default async function MyListingsPage({ searchParams }: Props) {
 
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="text-lg leading-snug font-black text-ink">{listing.name}</h2>
+                    {/* The name is the way in. It was plain text, so the only route to a listing was
+                        the button at the bottom of the card -- and a business name is the thing
+                        anybody looks at first. */}
+                    <h2 className="text-lg leading-snug font-black">
+                      <Link
+                        href={`/account/listings/${listing.id}/edit`}
+                        className="text-ink hover:text-brand-700 hover:underline"
+                      >
+                        {listing.name}
+                      </Link>
+                    </h2>
                     <p className="mt-1 text-xs font-black tracking-[0.1em] text-muted uppercase">
                       {listing.categoryName} &middot; {listing.localityName}
                     </p>
@@ -166,18 +153,8 @@ export default async function MyListingsPage({ searchParams }: Props) {
                   >
                     {listing.status === "draft" || listing.status === "rejected" ? "Finish and send for review" : "Edit"}
                   </Link>
-                  <Link
-                    href={`/account/listings/${listing.id}/hours`}
-                    className="text-sm font-black text-brand-700 hover:underline"
-                  >
-                    Opening hours
-                  </Link>
-                  <Link
-                    href={`/account/listings/${listing.id}/about`}
-                    className="text-sm font-black text-brand-700 hover:underline"
-                  >
-                    About &amp; FAQs
-                  </Link>
+                  {/* Opening hours and About & FAQs were separate links from here. They are
+                      sections of the listing editor now, so the card has one way in. */}
                   {listing.status === "active" ? (
                     <Link href={listing.url} className="text-sm font-black text-brand-700 hover:underline">
                       View public page <span aria-hidden="true">&rarr;</span>

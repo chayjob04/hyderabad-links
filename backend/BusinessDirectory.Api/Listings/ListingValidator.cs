@@ -16,7 +16,22 @@ public sealed record ListingInput(
     string? PhoneWhatsapp,
     string? WebsiteUrl,
     double? Latitude,
-    double? Longitude);
+    double? Longitude)
+{
+    /// <summary>
+    /// Whether the owner pressed Submit rather than Save Changes.
+    /// </summary>
+    /// <remarks>
+    /// An extra init-only property rather than a constructor parameter, so the admin and
+    /// super-admin paths that build a <see cref="ListingInput"/> positionally are untouched -- they
+    /// pass a status to <c>ListingWriter</c> explicitly and never consult this.
+    ///
+    /// Absent means Save Changes: the listing is stored and stays where it is. Saving used to carry
+    /// the submission with it, so an owner could not put half-finished work aside without either
+    /// losing it or queueing it for a reviewer.
+    /// </remarks>
+    public bool SubmitForReview { get; init; }
+}
 
 /// <summary>The cleaned, normalised version of <see cref="ListingInput"/>.</summary>
 public sealed record ValidListing(

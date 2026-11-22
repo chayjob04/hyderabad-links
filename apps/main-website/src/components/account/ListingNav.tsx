@@ -20,7 +20,6 @@ import { LockIcon } from "@/components/account/VerifiedFeatures";
 export function ListingNav({ listingId, current, verified }: Props) {
   const items: { key: ListingScreen; href: string; label: string; locked?: boolean }[] = [
     { key: "edit", href: `/account/listings/${listingId}/edit`, label: "Edit details" },
-    { key: "preview", href: `/account/listings/${listingId}/preview`, label: "Preview" },
     {
       key: "photos",
       href: `/account/listings/${listingId}/photos`,
@@ -85,7 +84,6 @@ type Props = {
 
 export type ListingScreen =
   | "edit"
-  | "preview"
   | "photos"
   | "hours"
   | "about"

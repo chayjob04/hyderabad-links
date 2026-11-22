@@ -10,10 +10,14 @@ namespace BusinessDirectory.Api.Endpoints;
 /// <summary>
 /// A signed-in owner's own listings, under /api/v1/me/listings. Raw parameterised SQL, no ORM.
 /// Every query is scoped to the caller through business_members, so another owner's listing looks like "not found".
-/// A listing goes to review when the owner saves it, not when they press a separate button: a
-/// complete one is created as "pending_review", and every later edit puts it back there. That means
-/// a live listing leaves the public site until a moderator approves the change -- deliberate, so
-/// nothing reaches the public that a reviewer has not seen. Only an incomplete draft stays put.
+/// Save Changes and Submit are different acts. Saving stores the work and leaves the listing
+/// where it is -- a draft stays a draft, a rejection stays a rejection -- so an owner can build a
+/// listing across several sittings. Submit is what puts it in front of a reviewer, and it refuses
+/// an incomplete listing with the missing fields named.
+///
+/// Editing a listing that is already public is the exception: that goes back through review on
+/// save, because the alternative is an approved listing being rewritten afterwards without a
+/// reviewer seeing it.
 /// </summary>
 public static class OwnerListingEndpoints
 {
@@ -181,9 +185,22 @@ public static class OwnerListingEndpoints
         }
 
         var slug = await ListingWriter.ChooseSlug(conn, tx, value.Name, ct);
-        var initialStatus = ListingReadiness.IsReadyForReview(value.AddressLine, value.Description)
-            ? "pending_review"
-            : "draft";
+
+        /* Save Changes keeps a new listing out of the queue however complete it looks: the owner
+           is still building it, and deciding for them that it was finished is what made putting
+           work aside impossible. Submit is the only way in, and it has to be ready -- the owner
+           is told which field is missing rather than the listing being created half-queued. */
+        if (input.SubmitForReview)
+        {
+            var notReady = ListingReadiness.MissingForReview(value.AddressLine, value.Description);
+            if (notReady.Count > 0)
+            {
+                return Results.ValidationProblem(notReady);
+            }
+        }
+
+        // A new listing is a draft until the owner submits it, which is the same rule an edit follows.
+        var initialStatus = ListingReadiness.StatusAfterOwnerSave("draft", input.SubmitForReview);
 
         long listingId;
         try
@@ -198,10 +215,8 @@ public static class OwnerListingEndpoints
                 await member.ExecuteNonQueryAsync(ct);
             }
 
-            /* A listing goes to review the moment it is complete, without the owner having to find
-               a "submit" button. The full form asks for an address and a description, so this is
-               normally "pending_review" straight away; it stays a draft only when something the
-               reviewer needs is still missing, and the owner is told which. */
+            /* Draft unless the owner pressed Submit, so nothing reaches a reviewer by accident
+               and nothing an owner is still working on is taken out of their hands. */
             listingId = await ListingWriter.InsertListing(
                 conn, tx, businessId, locality, slug, value, status: initialStatus, source: "owner", createdByUserId: userId, ct);
 
@@ -263,15 +278,27 @@ public static class OwnerListingEndpoints
             return Results.ValidationProblem(validation.Errors);
         }
 
-        /* Every edit goes back through review, so what an owner changes is seen before the public
-           sees it. A draft that is still incomplete simply stays a draft -- saving progress must
-           keep working -- but a listing that has already been reviewed may not be saved into an
-           incomplete state: that would drop a live business off the site over a cleared
-           description, which is a worse answer than refusing the save and saying what is missing. */
+        var currentStatus = lockResult.Value.Status;
         var missing = ListingReadiness.MissingForReview(value.AddressLine, value.Description);
-        var wasDraft = lockResult.Value.Status == "draft";
-        if (missing.Count > 0 && !wasDraft)
+
+        /* A listing no reviewer has passed yet -- a draft, or one that came back rejected -- may
+           be saved in any state, because that is what saving progress means. It stays where it
+           is until the owner submits it. */
+        var neverPublic = ListingReadiness.NeverPublic(currentStatus);
+
+        if (input.SubmitForReview)
         {
+            // Submit has to be ready, whatever the listing status is now.
+            if (missing.Count > 0)
+            {
+                return Results.ValidationProblem(missing);
+            }
+        }
+        else if (missing.Count > 0 && !neverPublic)
+        {
+            /* A listing a reviewer has already seen may not be saved into an incomplete state:
+               that would drop a live business off the site over a cleared description, which is
+               a worse answer than refusing the save and saying what is missing. */
             return Results.ValidationProblem(missing);
         }
 
@@ -284,18 +311,32 @@ public static class OwnerListingEndpoints
         await ListingWriter.UpdateListing(conn, tx, id, value, lockResult.Value.Latitude, lockResult.Value.Longitude, ct);
         await ListingWriter.SetPrimaryCategory(conn, tx, id, categoryId.Value, ct);
 
-        /* Back into the queue. A live listing leaves the public site until a moderator approves it
-           again -- that is the point of re-reviewing an edit, not a side effect -- and the old
-           rejection note goes with the old version, exactly as the submit path has always done.
-           An incomplete draft is the one case that stays put, with nothing queued. */
-        var newStatus = missing.Count > 0 ? "draft" : "pending_review";
+        /* What a save does to the status.
+
+           Submit queues it. Save leaves a draft a draft and a rejection a rejection, so an owner
+           can build a listing across several sittings without it being reviewed in between.
+
+           Save on a listing that is already public still goes back through review, and that is
+           deliberate rather than an oversight: the alternative is an approved listing whose text
+           can be rewritten afterwards without a reviewer seeing it, which is the one thing this
+           queue exists to prevent. Holding the edit aside instead -- a live version and a
+           pending one -- needs somewhere to keep it, which is a schema change.
+
+           The rejection note is cleared only when the listing actually enters the queue: a save
+           that leaves it rejected keeps the note, because the owner is still reading it. */
+        var newStatus = ListingReadiness.StatusAfterOwnerSave(currentStatus, input.SubmitForReview);
+        var entersQueue = newStatus == "pending_review";
+
         await using (var requeue = new SqlCommand(
             @"UPDATE dbo.listings
-              SET status = @status, review_note = NULL, updated_at = SYSDATETIMEOFFSET()
+              SET status = @status,
+                  review_note = CASE WHEN @entersQueue = 1 THEN NULL ELSE review_note END,
+                  updated_at = SYSDATETIMEOFFSET()
               WHERE id = @id", conn, tx))
         {
             requeue.Parameters.AddWithValue("id", id);
             requeue.Parameters.Add(new SqlParameter("status", SqlDbType.VarChar) { Value = newStatus });
+            requeue.Parameters.AddWithValue("entersQueue", entersQueue);
             await requeue.ExecuteNonQueryAsync(ct);
         }
 
