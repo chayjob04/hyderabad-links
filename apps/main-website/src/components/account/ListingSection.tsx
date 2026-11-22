@@ -15,6 +15,11 @@ import type { SectionCompletion } from "@/lib/listing-completion";
  * than a column of closed headings.
  */
 type Props = {
+  /**
+   * The `<details>` element's id. The action area at the foot of the editor uses it to open the
+   * section a missing field is in, which is the one thing the native element cannot do for itself.
+   */
+  id?: string;
   title: string;
   /** One line on what this section is for, shown under the title when open. */
   blurb?: string;
@@ -32,6 +37,7 @@ type Props = {
 };
 
 export function ListingSection({
+  id,
   title,
   blurb,
   completion,
@@ -44,6 +50,7 @@ export function ListingSection({
 
   return (
     <details
+      id={id}
       open={defaultOpen}
       className="group rounded-xl border border-line bg-white shadow-[0_8px_22px_#002a340b] open:shadow-[0_10px_28px_#002a3414]"
     >

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { OTHER_VALUE } from "@/components/account/SearchableSelect";
+import { OTHER_VALUE } from "@/lib/searchable-other";
 import { onboard } from "@/lib/owner-api";
 import type { OnboardingState } from "./state";
 

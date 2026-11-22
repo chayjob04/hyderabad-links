@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Field, describedBy, fieldClass } from "@/components/ui/Field";
-import { OTHER_VALUE, SearchableSelect } from "@/components/account/SearchableSelect";
+import { SearchableSelect } from "@/components/account/SearchableSelect";
 import { SUPPORT_EMAIL } from "@/lib/brand";
 import type { Category, Locality } from "@/lib/types";
 import { onboardAction } from "./actions";

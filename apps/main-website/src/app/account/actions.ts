@@ -37,15 +37,18 @@ export async function saveListingAction(listingId: number | null, previous: List
       ? "Changes saved and sent for review, because this listing is already on the site."
       : "Changes saved. It is still a draft until you press Submit.";
 
-  /* A new business does not go back into the form it was just filled in from.
-     Saved: the confirmation page, which explains that the draft is private and that review is a
-     step they have to ask for -- a banner above the same form never managed to say it.
+  /* A new business does not go back into the blank form it was just filled in from.
+     Saved: straight on to the editor for the listing that now exists, where the four sections that
+     need a listing to attach to are live and the same two buttons are at the foot of the page.
+     `created=1` is what makes it say so. This replaced a "Saved -- what to do next" page listing
+     links to the five screens that are sections of the editor now; it was a stop between the owner
+     and the work, and the work is one click further on either way.
      Submitted: the listings page, which already has the "we will show it once approved" banner. */
   if (listingId === null) {
     redirect(
       submitted
         ? "/account/listings?submitted=1"
-        : `/account/listings/${result.data.id}/created`,
+        : `/account/listings/${result.data.id}/edit?created=1`,
     );
   }
   return { rev, values, success: true, message, fieldErrors: {} };

@@ -1,38 +1,28 @@
 "use client";
 
-import { useActionState } from "react";
-import { emptyListingFormState, type ListingFormState } from "@/app/account/form-state";
+import { useListingEditor } from "@/components/account/ListingEditor";
 import { Field, fieldClass } from "@/components/ui/Field";
 import type { Category } from "@/lib/types";
 
 type Props = {
-  action: (previous: ListingFormState, formData: FormData) => Promise<ListingFormState>;
   categories: Category[];
   localities?: { slug: string; name: string }[]; // only when creating
   lockedLocalityName?: string; // only when editing
-  initialValues: Record<string, string>;
-  /** The outlined button: saves and leaves the listing where it is. */
-  submitLabel: string;
-  /**
-   * The filled button's label, when sending for review is one of the choices here. Omitted on a
-   * screen where submitting is not offered, and the form then has the one button it always had.
-   */
-  submitAction?: string;
 };
 
-export function ListingForm({
-  action,
-  categories,
-  localities,
-  lockedLocalityName,
-  initialValues,
-  submitLabel,
-  submitAction,
-}: Props) {
-  const [state, formAction, pending] = useActionState(action, {
-    ...emptyListingFormState,
-    values: initialValues,
-  });
+/**
+ * The business details fields.
+ *
+ * The form element and the inputs live here, inside their accordion section; the buttons that
+ * submit them live at the foot of the editor, in `ListingEditor`, which also owns the action state
+ * and reports what the save answered. The two are joined by the form's id -- see the note there.
+ *
+ * Values and field errors come from the editor rather than from props, so the one server action
+ * feeds both the fields and the action area, and there is no second copy of the state to keep in
+ * step.
+ */
+export function ListingForm({ categories, localities, lockedLocalityName }: Props) {
+  const { formId, state, formAction, markDirty, beginSubmit } = useListingEditor();
   const v = state.values;
   const e = state.fieldErrors;
   const aria = (field: string) => ({
@@ -44,19 +34,15 @@ export function ListingForm({
     // key: after each save the form re-mounts with exactly what the server returned, so typed text is never lost
     <form
       key={state.rev}
+      id={formId}
       action={formAction}
+      onSubmit={beginSubmit}
+      onChange={markDirty}
       className="grid gap-5 rounded-2xl border border-line bg-white p-6 shadow-[0_8px_28px_#002a3410]"
     >
-      {state.message ? (
-        <p
-          role={state.success ? "status" : "alert"}
-          className={`rounded-lg border px-4 py-3 text-sm font-medium ${
-            state.success ? "border-brand-200 bg-brand-50 text-brand-800" : "border-red-200 bg-red-50 text-red-800"
-          }`}
-        >
-          {state.message}
-        </p>
-      ) : null}
+      {/* Save or Submit, set by whichever button was pressed. Read by the server action; "save" is
+          the answer that cannot surprise anybody, so it is the one that is here by default. */}
+      <input type="hidden" name="intent" defaultValue="save" />
 
       <Field id="name" label="Business name" error={e.name}>
         <input id="name" name="name" defaultValue={v.name} required maxLength={120} className={fieldClass} {...aria("name")} />
@@ -202,39 +188,6 @@ export function ListingForm({
           {...aria("description")}
         />
       </Field>
-
-      {/* Two buttons, one form. Which was pressed travels in its own value, so the server action
-          needs no second entry point and the browser does the work. Save is the outlined one: it is
-          the action an owner takes most often and the one that cannot surprise them. */}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="submit"
-          name="intent"
-          value="save"
-          disabled={pending}
-          className="cursor-pointer rounded-full border border-brand-300 px-7 py-3 text-base font-extrabold text-brand-700 hover:border-brand-700 hover:bg-brand-50 disabled:cursor-default disabled:opacity-60"
-        >
-          {pending ? "Saving..." : submitLabel}
-        </button>
-
-        {submitAction ? (
-          <button
-            type="submit"
-            name="intent"
-            value="submit"
-            disabled={pending}
-            className="cursor-pointer rounded-full bg-brand-700 px-7 py-3 text-base font-extrabold text-white hover:bg-brand-800 disabled:cursor-default disabled:opacity-60"
-          >
-            {pending ? "Sending..." : submitAction}
-          </button>
-        ) : null}
-      </div>
-
-      {submitAction ? (
-        <p className="text-sm text-muted">
-          Save keeps your work without sending it to us. Submit asks us to review it.
-        </p>
-      ) : null}
     </form>
   );
 }

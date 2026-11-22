@@ -2,6 +2,8 @@
 
 import { useId, useMemo, useRef, useState } from "react";
 
+import { OTHER_VALUE } from "@/lib/searchable-other";
+
 /**
  * A select you can type into.
  *
@@ -48,8 +50,11 @@ type Props = {
   describedBy?: string;
 };
 
-/** The sentinel the hidden input carries when Other is chosen. Never a real slug. */
-export const OTHER_VALUE = "__other__";
+/* The sentinel the hidden input carries when Other is chosen, re-exported so the components that
+   render a selector can keep importing it from here. It is defined in lib/, because the server
+   action that reads this form needs the same string and cannot import it from a client module --
+   see the note there. */
+export { OTHER_VALUE };
 
 export function SearchableSelect({
   name,

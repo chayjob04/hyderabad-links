@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ListingEditor, type SectionOutstanding } from "@/components/account/ListingEditor";
 import { ListingNav } from "@/components/account/ListingNav";
 import { ListingSection } from "@/components/account/ListingSection";
 import { MediaUploader } from "@/components/account/MediaUploader";
@@ -32,7 +33,35 @@ import { AttributeForm } from "../about/AttributeForm";
 
 export const metadata: Metadata = { title: "Edit listing" };
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  /** `created=1` after the listing was saved for the first time, from the add-a-business form. */
+  searchParams: Promise<{ created?: string }>;
+};
+
+/** The `<details>` ids, so the action area can open the section a missing field is in. */
+const SECTION = {
+  details: "section-details",
+  photos: "section-photos",
+  hours: "section-hours",
+  about: "section-about",
+  links: "section-links",
+} as const;
+
+/* Every field on the business-details form lives in that one section, so a refused submission
+   always has somewhere to send the owner. Written out rather than defaulted, so adding a field to
+   another section cannot quietly point at the wrong heading. */
+const FIELD_SECTIONS: Record<string, string> = {
+  name: SECTION.details,
+  categorySlug: SECTION.details,
+  localitySlug: SECTION.details,
+  addressLine: SECTION.details,
+  pincode: SECTION.details,
+  phonePrimary: SECTION.details,
+  phoneWhatsapp: SECTION.details,
+  websiteUrl: SECTION.details,
+  description: SECTION.details,
+};
 
 /** The three kinds of media, exactly as the photos screen described them. */
 const MEDIA_KINDS = [
@@ -83,8 +112,8 @@ const ATTRIBUTE_KINDS = [
  * The old section screens redirect here, so a bookmark still works and there is one place to edit
  * each thing rather than two that could drift apart.
  */
-export default async function EditListingPage({ params }: Props) {
-  const { id: rawId } = await params;
+export default async function EditListingPage({ params, searchParams }: Props) {
+  const [{ id: rawId }, { created }] = await Promise.all([params, searchParams]);
   if (!/^\d{1,15}$/.test(rawId)) notFound();
   const id = Number(rawId);
 
@@ -184,6 +213,18 @@ export default async function EditListingPage({ params }: Props) {
     linksCompletion.percent < 100 ? "links" : null,
   ].find(Boolean);
 
+  /* What the action area lists above the two buttons, from the same counts the headings show. Only
+     business details blocks a submission: the API asks for an address and a description and nothing
+     else, so the other four are named as worth adding rather than as errors. Claiming otherwise
+     here would be a rule enforced in the browser and nowhere else. */
+  const outstanding: SectionOutstanding[] = [
+    { id: SECTION.details, title: "Business details", missing: detailsCompletion.missing, blocksReview: true },
+    { id: SECTION.photos, title: "Photos and video", missing: photosCompletion.missing },
+    { id: SECTION.hours, title: "Opening hours", missing: hoursCompletion.missing },
+    { id: SECTION.about, title: "About, questions and amenities", missing: aboutCompletion.missing },
+    { id: SECTION.links, title: "Website and social links", missing: linksCompletion.missing },
+  ];
+
   const canNameLinks = links.ok ? (links.data.allowance.canNameLinks ?? links.data.allowance.verified) : false;
   const linksUsed = links.ok ? links.data.allowance.used : 0;
 
@@ -233,35 +274,44 @@ export default async function EditListingPage({ params }: Props) {
         </p>
       ) : null}
 
-      <div className="mt-6 space-y-4">
+      {created ? (
+        <p role="status" className="mt-5 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+          <span className="font-black">Saved as a draft.</span> Nobody else can see it yet. The other
+          sections are open now &mdash; add what you like, then press Submit for review at the
+          bottom.
+        </p>
+      ) : null}
+
+      <ListingEditor
+        action={saveListingAction.bind(null, listing.id)}
+        initialValues={{
+          name: listing.name,
+          categorySlug: listing.categorySlug,
+          addressLine: listing.addressLine ?? "",
+          pincode: listing.pincode ?? "",
+          phonePrimary: listing.phonePrimary,
+          phoneWhatsapp: listing.phoneWhatsapp ?? "",
+          websiteUrl: listing.websiteUrl ?? "",
+          description: listing.description ?? "",
+        }}
+        fieldSections={FIELD_SECTIONS}
+        outstanding={outstanding}
+      >
+        <div className="mt-6 space-y-4">
         {/* ---------------------------------------------------------------- business details */}
         <ListingSection
+          id={SECTION.details}
           title="Business details"
           blurb="The name, where you are, how to reach you, and what you do. An address and a description are what we need before we can review it."
           completion={detailsCompletion}
           defaultOpen={firstIncomplete === "details" || firstIncomplete === undefined}
         >
-          <ListingForm
-            action={saveListingAction.bind(null, listing.id)}
-            categories={categories}
-            lockedLocalityName={listing.localityName}
-            initialValues={{
-              name: listing.name,
-              categorySlug: listing.categorySlug,
-              addressLine: listing.addressLine ?? "",
-              pincode: listing.pincode ?? "",
-              phonePrimary: listing.phonePrimary,
-              phoneWhatsapp: listing.phoneWhatsapp ?? "",
-              websiteUrl: listing.websiteUrl ?? "",
-              description: listing.description ?? "",
-            }}
-            submitLabel="Save changes"
-            submitAction="Submit for review"
-          />
+          <ListingForm categories={categories} lockedLocalityName={listing.localityName} />
         </ListingSection>
 
         {/* ---------------------------------------------------------------- photos and video */}
         <ListingSection
+          id={SECTION.photos}
           title="Photos and video"
           blurb={
             verified
@@ -384,6 +434,7 @@ export default async function EditListingPage({ params }: Props) {
 
         {/* ---------------------------------------------------------------- opening hours */}
         <ListingSection
+          id={SECTION.hours}
           title="Opening hours"
           blurb="Your listing shows Open now or Closed from these, in Hyderabad time. Available on every plan."
           completion={hoursCompletion}
@@ -400,6 +451,7 @@ export default async function EditListingPage({ params }: Props) {
 
         {/* ---------------------------------------------------------------- about, FAQs, amenities */}
         <ListingSection
+          id={SECTION.about}
           title="About, questions and amenities"
           blurb="What you offer, the questions people ask, and a paragraph or two in your own words."
           completion={aboutCompletion}
@@ -473,6 +525,7 @@ export default async function EditListingPage({ params }: Props) {
 
         {/* ---------------------------------------------------------------- links */}
         <ListingSection
+          id={SECTION.links}
           title="Website and social links"
           blurb="Add as many as you like, on any plan. Naming them is part of the Verified plan; otherwise they are Link 1, Link 2 and so on."
           completion={linksCompletion}
@@ -520,7 +573,8 @@ export default async function EditListingPage({ params }: Props) {
             </>
           )}
         </ListingSection>
-      </div>
+        </div>
+      </ListingEditor>
     </main>
   );
 }
