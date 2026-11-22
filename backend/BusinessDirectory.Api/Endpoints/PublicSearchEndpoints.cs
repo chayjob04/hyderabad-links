@@ -228,10 +228,25 @@ public static class PublicSearchEndpoints
 
         await using var command = db.CreateCommand(
             string.Format(SearchSqlFormat, pageOrder, resultOrder, textJoins, relevance, textFilter));
-        AddText(command, "text", query.Text);
+        /* An admin's synonym is applied here, before either text parameter is built, so the
+           full-text match and the similarity match both see the mapped word. "biriyani" maps to
+           "biryani" and a visitor typing the first finds the second.
+
+           This is the call `SearchTuningEndpoints.ExpandAsync` was written for and never had: its
+           own comment said "called by the search endpoint before it queries", and nothing in the
+           project called it. So every synonym an admin added was stored, listed back to them on
+           the search tuning screen, and ignored by every search.
+
+           `CreateCommand` opens its connection as it builds the command, so the lookup rides on
+           the connection the search is about to use rather than taking one of its own. */
+        var text = hasText
+            ? await SearchTuningEndpoints.ExpandAsync(command.Connection!, query.Text!, ct)
+            : query.Text;
+
+        AddText(command, "text", text);
         if (hasText)
         {
-            AddText(command, "ftText", FullTextQuery(query.Text!));
+            AddText(command, "ftText", FullTextQuery(text!));
         }
         AddText(command, "city", query.CitySlug);
         AddText(command, "locality", query.LocalitySlug);
