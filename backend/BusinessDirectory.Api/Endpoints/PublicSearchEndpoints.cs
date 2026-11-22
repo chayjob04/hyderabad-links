@@ -103,21 +103,21 @@ public static class PublicSearchEndpoints
                      e.is_verified,
                      {3} AS relevance
               FROM qry
-              JOIN listings li ON li.status = 'active'
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
-              JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-              JOIN categories pc ON pc.id = lc.category_id
+              JOIN dbo.listings li ON li.status = 'active'
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
+              JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+              JOIN dbo.categories pc ON pc.id = lc.category_id
               -- The parent of the primary category: a public path is /parent/category/slug, so a
               -- result with no parent has nowhere to link to. Inner, not left: writes only ever
               -- file a listing under a level-2 category (ListingWriter.FindCategoryId), so this
               -- excludes nothing that can exist, and a left join would hand the reader a null it
               -- would have to invent a URL for.
-              JOIN categories pcparent ON pcparent.id = pc.parent_id
+              JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
               -- Exactly one row per listing, so this cannot multiply the result set. Inner rather
               -- than left for the same reason the highlights shelves join it: a listing with no
               -- entitlement row does not exist.
-              JOIN listing_entitlements e ON e.listing_id = li.id
+              JOIN dbo.listing_entitlements e ON e.listing_id = li.id
               {2}
               WHERE (@city IS NULL OR ci.slug = @city)
                 -- Proximity window, used by locality landing pages so a thinly covered area
@@ -127,15 +127,15 @@ public static class PublicSearchEndpoints
                 AND (@locality IS NULL
                      OR lo.slug = @locality
                      OR EXISTS (SELECT 1
-                                FROM listing_service_areas sa
-                                JOIN localities sl ON sl.id = sa.locality_id
+                                FROM dbo.listing_service_areas sa
+                                JOIN dbo.localities sl ON sl.id = sa.locality_id
                                 WHERE sa.listing_id = li.id AND sl.slug = @locality))
                 -- A parent category slug also matches listings filed under its sub-categories.
                 AND (@category IS NULL
                      OR EXISTS (SELECT 1
-                                FROM listing_categories fc
-                                JOIN categories fcat ON fcat.id = fc.category_id
-                                LEFT JOIN categories fparent ON fparent.id = fcat.parent_id
+                                FROM dbo.listing_categories fc
+                                JOIN dbo.categories fcat ON fcat.id = fc.category_id
+                                LEFT JOIN dbo.categories fparent ON fparent.id = fcat.parent_id
                                 WHERE fc.listing_id = li.id
                                   AND (fcat.slug = @category OR fparent.slug = @category)))
                 -- Verified only. listing_entitlements works the paid period out against the clock
@@ -201,9 +201,9 @@ public static class PublicSearchEndpoints
            relevance, and no extra filter. With something typed, all three appear together. */
         var hasText = query.Text is not null;
         var textJoins = hasText
-            ? @"LEFT JOIN CONTAINSTABLE(listings, name, @ftText) ftn ON ftn.[KEY] = li.id
-              LEFT JOIN CONTAINSTABLE(listings, description, @ftText) ftd ON ftd.[KEY] = li.id
-              CROSS APPLY hl_similarity('listing', li.id, @text) sim"
+            ? @"LEFT JOIN CONTAINSTABLE(dbo.listings, name, @ftText) ftn ON ftn.[KEY] = li.id
+              LEFT JOIN CONTAINSTABLE(dbo.listings, description, @ftText) ftd ON ftd.[KEY] = li.id
+              CROSS APPLY dbo.hl_similarity('listing', li.id, @text) sim"
             : string.Empty;
 
         /* Preserve the previous search weighting: the name counts double the description.
@@ -218,10 +218,10 @@ public static class PublicSearchEndpoints
                      OR ftd.[KEY] IS NOT NULL
                      OR sim.similarity >= 0.3
                      OR EXISTS (SELECT 1
-                                FROM listing_categories kc
-                                JOIN categories kcat ON kcat.id = kc.category_id
-                                LEFT JOIN category_search_terms kt ON kt.category_id = kcat.id
-                                CROSS APPLY hl_similarity('category', kcat.id, @text) csim
+                                FROM dbo.listing_categories kc
+                                JOIN dbo.categories kcat ON kcat.id = kc.category_id
+                                LEFT JOIN dbo.category_search_terms kt ON kt.category_id = kcat.id
+                                CROSS APPLY dbo.hl_similarity('category', kcat.id, @text) csim
                                 WHERE kc.listing_id = li.id
                                   AND (csim.similarity >= 0.3 OR kt.term = @text)))"
             : string.Empty;
