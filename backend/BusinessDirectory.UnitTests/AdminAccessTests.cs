@@ -12,11 +12,28 @@ public class AdminPermissionsTests
         Assert.Empty(AdminPermissions.AdminSurface.Intersect(AdminPermissions.SuperAdminOnly));
     }
 
+    /// <summary>
+    /// Permissions that exist in the database but belong to no surface, each with a reason.
+    ///
+    /// Being on neither list means both gates refuse the permission and
+    /// <c>/api/v1/admin/me</c> does not report it, so nothing advertises a capability that cannot
+    /// act. The row stays in production either way: removing one would be a database change for no
+    /// functional gain, and the decision was explicitly to leave the records alone.
+    /// </summary>
+    private static readonly string[] Retired =
+    [
+        // Obsolete. Verification comes from an active subscription via dbo.listing_entitlements,
+        // not from anyone marking a listing, so there is nothing left for this to guard.
+        "listings.verify",
+    ];
+
     [Fact]
-    public void Every_seeded_permission_belongs_to_exactly_one_surface()
+    public void Every_seeded_permission_belongs_to_exactly_one_surface_or_is_retired()
     {
-        // Mirrors database/sqlserver/seeds/reference/R003_roles_permissions.sql. A new permission added to the seed
-        // without being placed on a surface should fail here rather than be silently unreachable.
+        // Mirrors database/sqlserver/seeds/reference/R003_roles_permissions.sql and the permissions
+        // added by S0021, S0023 and S0025. A new permission added to the seed without being placed
+        // on a surface should fail here rather than be silently unreachable -- and retiring one
+        // should require naming it above rather than quietly shrinking a list.
         string[] seeded =
         [
             "listings.view", "listings.create", "listings.edit", "listings.delete", "listings.review",
@@ -27,8 +44,12 @@ public class AdminPermissionsTests
         ];
 
         Assert.Equal(
-            seeded.OrderBy(p => p, StringComparer.Ordinal),
+            seeded.Except(Retired).OrderBy(p => p, StringComparer.Ordinal),
             AdminPermissions.AdminSurface.Concat(AdminPermissions.SuperAdminOnly).OrderBy(p => p, StringComparer.Ordinal));
+
+        // Every retired permission is one the seed really does create, so the list cannot drift
+        // into naming something that never existed.
+        Assert.All(Retired, permission => Assert.Contains(permission, seeded));
     }
 
     [Fact]

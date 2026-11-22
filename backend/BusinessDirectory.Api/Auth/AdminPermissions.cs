@@ -14,8 +14,23 @@ public static class AdminPermissions
     // ---- ordinary admin work
     public const string ListingsView = "listings.view";
     public const string ListingsReview = "listings.review";
-    public const string ListingsVerify = "listings.verify";
     public const string ReportsHandle = "reports.handle";
+
+    /// <summary>
+    /// <b>Obsolete.</b> "Mark listings verified" from before the paid plan existed.
+    ///
+    /// A listing is Verified because an active subscription grants the badge, which
+    /// <c>dbo.listing_entitlements</c> computes against the clock -- not because somebody marked it.
+    /// There is nothing left for this permission to guard, and an endpoint that started guarding
+    /// something with it would be guarding a flag nothing can set.
+    ///
+    /// It is kept as a constant, and on neither surface list, for two reasons: the permission row
+    /// still exists in production and removing it would be a database change for no functional
+    /// gain, and <c>AdminPermissionBindingTests</c> names it to assert no endpoint ever gates on it.
+    /// Being off <see cref="AdminSurface"/> is what stops <c>/api/v1/admin/me</c> advertising it to
+    /// the admin site as a capability, which was the last place it was still visible.
+    /// </summary>
+    public const string ListingsVerify = "listings.verify";
 
     /// <summary>
     /// Categories, subcategories and localities: the lists every listing and every public URL is
@@ -90,7 +105,7 @@ public static class AdminPermissions
     /// <summary>Permissions an /api/v1/admin endpoint is allowed to require.</summary>
     public static readonly string[] AdminSurface =
     [
-        ListingsView, ListingsReview, ListingsVerify, ListingsAlert,
+        ListingsView, ListingsReview, ListingsAlert,
         ReportsHandle, TaxonomyManage, SeoManage, BlogManage, HomepageManage,
     ];
 

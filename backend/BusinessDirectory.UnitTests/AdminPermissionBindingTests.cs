@@ -212,6 +212,19 @@ public class AdminPermissionBindingTests
     }
 
     [Fact]
+    public void The_obsolete_verify_permission_is_on_neither_surface()
+    {
+        /* Retired rather than deleted. Its row still exists in production and the `admin` role is
+           still granted it, but being on neither surface list means both gates refuse it and
+           /api/v1/admin/me no longer reports it to the admin site -- so nothing advertises a
+           capability that cannot do anything. Verification comes from an active subscription via
+           dbo.listing_entitlements, not from anyone marking a listing. */
+        Assert.DoesNotContain(AdminPermissions.ListingsVerify, AdminPermissions.AdminSurface);
+        Assert.DoesNotContain(AdminPermissions.ListingsVerify, AdminPermissions.SuperAdminOnly);
+        Assert.False(AdminPermissions.IsAdminSurface(AdminPermissions.ListingsVerify));
+    }
+
+    [Fact]
     public void Obsolete_and_dormant_permissions_are_not_gated_by_any_endpoint()
     {
         /* listings.verify is obsolete: a listing is Verified because an active subscription grants
