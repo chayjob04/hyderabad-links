@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createLocality, deleteLocality, updateLocality } from "@/lib/admin-api";
-import { revalidatePublicPages } from "@/lib/revalidate";
+import { localityListPages, localityPages, revalidatePublicPages } from "@/lib/revalidate";
 
 /**
  * Server actions for the locations screen. Like the categories ones: no permission check here, the
@@ -13,8 +13,17 @@ import { revalidatePublicPages } from "@/lib/revalidate";
 const DONE = "/locations?done=";
 const FAILED = "/locations?error=";
 
+/* `/areas` is the index of every area and was missing. A newly added area needs only these: its
+   own page cannot be stale, because nothing has rendered it yet. */
 async function refreshPublicLists(): Promise<void> {
-  await revalidatePublicPages(["/", "/search"]);
+  await revalidatePublicPages(localityListPages());
+}
+
+/* An edit, a switch-off or a delete does change the area's own page, and `/areas/[locality]` is
+   buildable from the slug alone -- no parent to thread, unlike a category. The slug is bound at the
+   form, where the row already has it. */
+async function refreshArea(slug: string): Promise<void> {
+  await revalidatePublicPages(localityPages(slug));
 }
 
 function back(result: { ok: boolean; message?: string }, done: string): never {
@@ -55,7 +64,7 @@ export async function addLocalityAction(formData: FormData): Promise<void> {
   back(result, `Added "${name}".`);
 }
 
-export async function editLocalityAction(id: number, formData: FormData): Promise<void> {
+export async function editLocalityAction(id: number, slug: string, formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
   const pincode = String(formData.get("pincode") ?? "").trim();
   const point = readPoint(formData);
@@ -72,20 +81,20 @@ export async function editLocalityAction(id: number, formData: FormData): Promis
     longitude: point.longitude,
     pincode,
   });
-  if (result.ok) await refreshPublicLists();
+  if (result.ok) await refreshArea(slug);
   back(result, "Saved.");
 }
 
 /** Off takes the area off the public site and leaves the listings in it alone. */
-export async function toggleLocalityAction(id: number, isActive: boolean): Promise<void> {
+export async function toggleLocalityAction(id: number, slug: string, isActive: boolean): Promise<void> {
   const result = await updateLocality(id, { isActive });
-  if (result.ok) await refreshPublicLists();
+  if (result.ok) await refreshArea(slug);
   back(result, isActive ? "Switched on." : "Switched off.");
 }
 
 /** Only an area no listing sits in. The API refuses the rest and says how many are in the way. */
-export async function deleteLocalityAction(id: number): Promise<void> {
+export async function deleteLocalityAction(id: number, slug: string): Promise<void> {
   const result = await deleteLocality(id);
-  if (result.ok) await refreshPublicLists();
+  if (result.ok) await refreshArea(slug);
   back(result, "Deleted.");
 }

@@ -169,7 +169,7 @@ function LocalityRow({ locality }: { locality: AdminLocality }) {
   return (
     <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
       <form
-        action={editLocalityAction.bind(null, locality.id)}
+        action={editLocalityAction.bind(null, locality.id, locality.slug)}
         className="d-flex flex-wrap align-items-center gap-2"
       >
         <label className="visually-hidden" htmlFor={`name-${locality.id}`}>
@@ -244,14 +244,14 @@ function LocalityRow({ locality }: { locality: AdminLocality }) {
           {locality.isActive ? "On the site" : "Switched off"}
         </span>
 
-        <form action={toggleLocalityAction.bind(null, locality.id, !locality.isActive)}>
+        <form action={toggleLocalityAction.bind(null, locality.id, locality.slug, !locality.isActive)}>
           <button type="submit" className="btn btn-sm btn-outline-secondary">
             {locality.isActive ? "Switch off" : "Switch on"}
           </button>
         </form>
 
         {locality.listingCount === 0 ? (
-          <form action={deleteLocalityAction.bind(null, locality.id)}>
+          <form action={deleteLocalityAction.bind(null, locality.id, locality.slug)}>
             <button type="submit" className="btn btn-sm btn-outline-danger">
               Delete
             </button>

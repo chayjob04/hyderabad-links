@@ -3,9 +3,28 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { clearPageMeta, savePageMeta } from "@/lib/admin-api";
-import { revalidatePublicPages } from "@/lib/revalidate";
+import { revalidatePublicPages, staticPagePages } from "@/lib/revalidate";
 
 export type MetaState = { error?: string; saved?: boolean };
+
+/**
+ * The public page an override is about.
+ *
+ * This screen only ever *writes* static overrides -- `MetaForm` is rendered with
+ * `entityType="static"` -- and each of the eight static keys is exactly one route, so the page whose
+ * title changed is the page that gets refreshed. The homepage was refreshed before regardless,
+ * which was wrong twice over: it missed the page actually edited, and it refreshed one that had not
+ * changed.
+ *
+ * Existing overrides on a listing, category or locality can be *cleared* from the list below, and
+ * those are addressed by numeric entity id rather than by slug. A path cannot be built from an id,
+ * so those fall back to the homepage: the nav and footer are the only places such a page's title
+ * surfaces sitewide, and the page itself catches up within the cache window.
+ */
+function affectedBy(entityType: string, key: string): string[] {
+  const pages = entityType === "static" ? staticPagePages(key) : [];
+  return pages.length > 0 ? pages : ["/"];
+}
 
 /**
  * Saves a page override.
@@ -32,7 +51,7 @@ export async function saveMetaAction(
     return { error: Object.values(result.fieldErrors)[0] ?? result.message };
   }
 
-  await revalidatePublicPages(["/"]);
+  await revalidatePublicPages(affectedBy(entityType, key));
   revalidatePath("/admin/seo");
   return { saved: true };
 }
@@ -44,7 +63,7 @@ export async function clearMetaAction(entityType: string, key: string): Promise<
     redirect(`/admin/seo?error=${encodeURIComponent(result.message)}`);
   }
 
-  await revalidatePublicPages(["/"]);
+  await revalidatePublicPages(affectedBy(entityType, key));
   revalidatePath("/admin/seo");
   redirect(`/admin/seo?done=${encodeURIComponent("Back to the default.")}`);
 }

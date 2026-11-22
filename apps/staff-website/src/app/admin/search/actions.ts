@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { addPlaceholder, addSynonym, deletePlaceholder, deleteSynonym } from "@/lib/admin-api";
 import { revalidatePublicPages } from "@/lib/revalidate";
 
+/* The placeholder is rendered into the homepage search box; a synonym changes what the results
+   page matches. Both pages, for both kinds of change -- they share one screen and one permission. */
+const SEARCH_PAGES = ["/", "/search"];
+
 /**
  * Adds a synonym: what people type, mapped to what the catalogue calls it.
  *
@@ -49,7 +53,7 @@ export async function addPlaceholderAction(formData: FormData): Promise<void> {
     redirect(`/admin/search?error=${encodeURIComponent(Object.values(result.fieldErrors)[0] ?? result.message)}`);
   }
 
-  await revalidatePublicPages(["/"]);
+  await revalidatePublicPages(SEARCH_PAGES);
   revalidatePath("/admin/search");
   redirect(`/admin/search?done=${encodeURIComponent("Added.")}`);
 }
@@ -60,7 +64,7 @@ export async function deletePlaceholderAction(id: number): Promise<void> {
     redirect(`/admin/search?error=${encodeURIComponent(result.message)}`);
   }
 
-  await revalidatePublicPages(["/"]);
+  await revalidatePublicPages(SEARCH_PAGES);
   revalidatePath("/admin/search");
   redirect(`/admin/search?done=${encodeURIComponent("Removed.")}`);
 }

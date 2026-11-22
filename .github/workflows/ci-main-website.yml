@@ -35,6 +35,11 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Script self-tests
+        # Includes check-revalidate-paths, which asserts the staff site only ever asks the public
+        # site to refresh routes the public site actually has. It needs running when either side
+        # changes, so it is a step in both website workflows rather than only in the database one.
+        run: npm run test:scripts
       - name: Type check
         run: npm run typecheck -w apps/main-website
       - name: Build

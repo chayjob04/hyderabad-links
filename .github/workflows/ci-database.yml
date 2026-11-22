@@ -4,13 +4,13 @@ on:
   pull_request:
     paths:
       - "database/**"
-      - "scripts/check-migrations*.mjs"
+      - "scripts/**"
       - ".github/workflows/ci-database.yml"
   push:
     branches: [main]
     paths:
       - "database/**"
-      - "scripts/check-migrations*.mjs"
+      - "scripts/**"
       - ".github/workflows/ci-database.yml"
 
 permissions:

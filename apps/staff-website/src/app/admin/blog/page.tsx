@@ -108,7 +108,7 @@ export default async function BlogListPage({ searchParams }: Props) {
                           </td>
                           {mayWrite ? (
                             <td className="text-end">
-                              <form action={setPublishedAction.bind(null, post.id)}>
+                              <form action={setPublishedAction.bind(null, post.id, post.slug)}>
                                 <button
                                   type="submit"
                                   name="intent"

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createCategory, deleteCategory, updateCategory } from "@/lib/admin-api";
-import { revalidatePublicPages } from "@/lib/revalidate";
+import { categoryListPages, revalidatePublicPages } from "@/lib/revalidate";
 
 /**
  * Server actions for the categories screen. None of them checks a permission: the API checks
@@ -22,7 +22,9 @@ const FAILED = "/categories?error=";
  * site sees it. Never throws; a skipped refresh only costs that minute.
  */
 async function refreshPublicLists(): Promise<void> {
-  await revalidatePublicPages(["/", "/search"]);
+  // `/categories` is the index of every category and was missing, so adding or switching one off
+  // left that page a minute behind while home and search were already right.
+  await revalidatePublicPages(categoryListPages());
 }
 
 function back(result: { ok: boolean; message?: string }, done: string): never {

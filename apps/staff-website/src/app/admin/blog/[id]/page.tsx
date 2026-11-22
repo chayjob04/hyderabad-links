@@ -62,6 +62,7 @@ export default async function EditPostPage({ params, searchParams }: Props) {
           </p>
           <PostForm
             postId={post.id}
+            slug={post.slug}
             isPublished={post.status === "published"}
             initial={{
               title: post.title,

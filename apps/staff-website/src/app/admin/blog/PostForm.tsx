@@ -6,6 +6,8 @@ import { savePostAction, type PostState } from "./actions";
 type Props = {
   /** Null when writing a new post. */
   postId: number | null;
+  /** Null for a new post, whose slug the API chooses. Used only to refresh the public post page. */
+  slug?: string | null;
   initial?: { title: string; excerpt: string; bodyMarkdown: string; coverImageUrl: string };
   /** Published posts lose the "Save and publish" button; they are already published. */
   isPublished?: boolean;
@@ -25,9 +27,9 @@ type Props = {
  * On the theme's form classes. The body keeps a monospace face, because Markdown is easier to
  * line up in one.
  */
-export function PostForm({ postId, initial, isPublished = false }: Props) {
+export function PostForm({ postId, slug = null, initial, isPublished = false }: Props) {
   const [state, formAction, pending] = useActionState<PostState, FormData>(
-    savePostAction.bind(null, postId),
+    savePostAction.bind(null, postId, slug),
     {},
   );
 
