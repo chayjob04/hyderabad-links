@@ -1,4 +1,5 @@
 import type { ListingContentSection, ListingFaq } from "@/lib/types";
+import { JsonLd } from "./JsonLd";
 
 /**
  * The business's own FAQs, as an accordion.
@@ -51,12 +52,11 @@ export function ListingFaqs({ faqs, businessName }: { faqs: ListingFaq[]; busine
         ))}
       </div>
 
-      <script
-        type="application/ld+json"
-        // The content is plain text from the database and is serialised by JSON.stringify, so
-        // there is no markup here to escape.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
+      {/* Through JsonLd, which escapes "<". JSON.stringify does not: it leaves "</script>" intact,
+          and the HTML parser ends the script element there whatever the JSON means. These answers
+          are written by business owners, so that string is reachable by anyone who can sign in as
+          one. */}
+      <JsonLd data={structuredData} />
     </section>
   );
 }

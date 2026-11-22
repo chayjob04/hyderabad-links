@@ -6,6 +6,7 @@ import { PageHero } from "@/components/PageHero";
 import { BRAND_NAME } from "@/lib/brand";
 import { getBlogPost } from "@/lib/api";
 import { absoluteUrl } from "@/lib/format";
+import { JsonLd } from "@/components/JsonLd";
 
 export const revalidate = 3600;
 
@@ -116,10 +117,8 @@ export default async function BlogPostPage({ params }: Props) {
         </Link>
       </p>
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
+      {/* Through JsonLd, which escapes "<", rather than a hand-rolled script tag. */}
+      <JsonLd data={structuredData} />
       </main>
     </>
   );
