@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const mainSrc = join(here, "..", "apps", "main-website", "src");
+const staffSrc = join(here, "..", "apps", "staff-website", "src");
 const read = (...parts) => readFileSync(join(mainSrc, ...parts), "utf8");
 
 /** Source with comments stripped, so prose about a thing is not read as the thing. */
@@ -114,26 +115,33 @@ test("the editor names a section for every field a submission can be refused ove
 
 test("no server action imports a value from a client module", () => {
   /* Both sides compile and the build passes; the server simply does not get the value. The one
-     import this caught was a shared constant, so the fix was a plain module both sides can read. */
-  const files = walk(mainSrc);
-  const serverFiles = files.filter((file) => /^\s*(["'])use server\1/.test(readFileSync(file, "utf8")));
-  assert.ok(serverFiles.length >= 3, "expected to find the owner's server actions");
+     import this caught was a shared constant, so the fix was a plain module both sides can read.
 
+     Both websites, because the mistake is not specific to either: the staff site has as many
+     server actions as the public one, and the same `@/` alias to resolve them through. */
   const offenders = [];
-  for (const file of serverFiles) {
-    const text = readFileSync(file, "utf8");
-    for (const match of text.matchAll(/^import\s+(?!type\b)([\s\S]*?)from\s+"([^"]+)"/gm)) {
-      const [, clause, from] = match;
-      if (!from.startsWith("@/") && !from.startsWith(".")) continue;
-      if (/^\{\s*type\s/.test(clause.trim())) continue; // import { type X } from ...
-      const base = from.startsWith("@/") ? join(mainSrc, from.slice(2)) : resolve(dirname(file), from);
-      const target = [".ts", ".tsx", "/index.ts", "/index.tsx"].map((ext) => base + ext).find(existsSync);
-      if (!target) continue;
-      if (/^\s*(["'])use client\1/.test(readFileSync(target, "utf8"))) {
-        offenders.push(`${relative(mainSrc, file)} imports ${clause.trim()} from ${from}`);
+  let serverFiles = 0;
+
+  for (const src of [mainSrc, staffSrc]) {
+    for (const file of walk(src)) {
+      const text = readFileSync(file, "utf8");
+      if (!/^\s*(["'])use server\1/.test(text)) continue;
+      serverFiles += 1;
+
+      for (const match of text.matchAll(/^import\s+(?!type\b)([\s\S]*?)from\s+"([^"]+)"/gm)) {
+        const [, clause, from] = match;
+        if (!from.startsWith("@/") && !from.startsWith(".")) continue;
+        if (/^\{\s*type\s/.test(clause.trim())) continue; // import { type X } from ...
+        const base = from.startsWith("@/") ? join(src, from.slice(2)) : resolve(dirname(file), from);
+        const target = [".ts", ".tsx", "/index.ts", "/index.tsx"].map((ext) => base + ext).find(existsSync);
+        if (!target) continue;
+        if (/^\s*(["'])use client\1/.test(readFileSync(target, "utf8"))) {
+          offenders.push(`${relative(src, file)} imports ${clause.trim()} from ${from}`);
+        }
       }
     }
   }
 
+  assert.ok(serverFiles >= 10, `expected to find both sites' server actions, found ${serverFiles}`);
   assert.deepEqual(offenders, [], "a server action cannot read a value out of a client module");
 });
