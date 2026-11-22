@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Field, describedBy, fieldClass } from "@/components/ui/Field";
+import { OTHER_VALUE, SearchableSelect } from "@/components/account/SearchableSelect";
+import { SUPPORT_EMAIL } from "@/lib/brand";
 import type { Category, Locality } from "@/lib/types";
 import { onboardAction } from "./actions";
 import { emptyOnboardingState } from "./state";
@@ -94,46 +96,69 @@ export function OnboardingForm({ phone, categories, localities }: Props) {
         error={error("localitySlug")}
         help="This decides your listing's web address, so it cannot be changed later."
       >
-        <select
+        <SearchableSelect
           id="localitySlug"
           name="localitySlug"
+          options={localities.map((locality) => ({ value: locality.slug, label: locality.name }))}
           defaultValue={state.values.localitySlug ?? ""}
-          required
-          aria-invalid={error("localitySlug") ? true : undefined}
-          aria-describedby={describedBy("localitySlug", !!error("localitySlug"), true)}
-          className={fieldClass}
-        >
-          <option value="">Choose your area</option>
-          {localities.map((locality) => (
-            <option key={locality.slug} value={locality.slug}>
-              {locality.name}
-            </option>
-          ))}
-        </select>
+          placeholder="Start typing your area"
+          otherLabel="My area is not listed"
+          otherName="localityOther"
+          otherPlaceholder="The name of your area"
+          otherDefaultValue={state.values.localityOther ?? ""}
+          invalid={!!error("localitySlug")}
+          describedBy={describedBy("localitySlug", !!error("localitySlug"), true)}
+        />
       </Field>
 
       <Field id="categorySlug" label="What your business does" error={error("categorySlug")}>
-        <select
+        <SearchableSelect
           id="categorySlug"
           name="categorySlug"
+          /* Flattened, with the parent as the hint: the groups a `<select>` showed cannot be typed
+             into, and carrying the parent along means typing "food" still finds the trades under
+             it. */
+          options={categories.flatMap((parent) =>
+            parent.children.map((child) => ({
+              value: child.slug,
+              label: child.name,
+              hint: `in ${parent.name}`,
+            })),
+          )}
           defaultValue={state.values.categorySlug ?? ""}
-          required
-          aria-invalid={error("categorySlug") ? true : undefined}
-          aria-describedby={describedBy("categorySlug", !!error("categorySlug"), false)}
-          className={fieldClass}
-        >
-          <option value="">Choose a category</option>
-          {categories.map((parent) => (
-            <optgroup key={parent.slug} label={parent.name}>
-              {parent.children.map((child) => (
-                <option key={child.slug} value={child.slug}>
-                  {child.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          placeholder="Start typing what you do"
+          otherLabel="My category is not listed"
+          otherName="categoryOther"
+          otherPlaceholder="What your business does"
+          otherDefaultValue={state.values.categoryOther ?? ""}
+          invalid={!!error("categorySlug")}
+          describedBy={describedBy("categorySlug", !!error("categorySlug"), false)}
+        />
       </Field>
+
+      {/* Nothing was created from "not in the list", so the request has to leave by a door that
+          exists. One click, with the name already in the message. */}
+      {state.values.localityOther || state.values.categoryOther ? (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <a
+            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Please add an area or category")}&body=${encodeURIComponent(
+              [
+                state.values.localityOther ? `Area: ${state.values.localityOther}` : null,
+                state.values.categoryOther ? `Category: ${state.values.categoryOther}` : null,
+                state.values.businessName ? `Business: ${state.values.businessName}` : null,
+                phone ? `Mobile: ${phone}` : null,
+              ]
+                .filter(Boolean)
+                .join("\n"),
+            )}`}
+            className="font-black underline"
+          >
+            Send us the name
+          </a>{" "}
+          and we will add it, usually within a working day. Pick the nearest option above so you can
+          finish signing up now.
+        </p>
+      ) : null}
 
       <p className="text-sm text-muted">
         Your listing will be saved as a draft on {phone}. You can add the address, photos and
