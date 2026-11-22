@@ -54,7 +54,7 @@ public static class OwnerProfileEndpoints
         await using (var update = new SqlCommand(
             /* OUTPUT is SQL Server's RETURNING, and it goes before the WHERE rather than after it.
                "inserted" is the row as it now stands, which is what the old RETURNING gave back. */
-            @"UPDATE users SET name = @name, email = @email, updated_at = SYSDATETIMEOFFSET()
+            @"UPDATE dbo.users SET name = @name, email = @email, updated_at = SYSDATETIMEOFFSET()
               OUTPUT inserted.phone_e164
               WHERE id = @id AND status = 'active'", conn, tx))
         {
@@ -72,7 +72,7 @@ public static class OwnerProfileEndpoints
         // What changed is not recorded, only that it did: the name and email are personal data and
         // the audit log is read by administrators.
         await using (var audit = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
               VALUES ('owner', @user, 'owner.profile_updated', 'user', @entity, @ip)", conn, tx))
         {
             IPAddress? ip = http.Connection.RemoteIpAddress;

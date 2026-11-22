@@ -66,15 +66,15 @@ public static class OwnerListingEndpoints
                  e.effective_plan_slug, e.effective_plan_name, e.is_verified, e.paid_until,
                  (SELECT COUNT_BIG(*) FROM dbo.listing_alerts a
                   WHERE a.listing_id = li.id AND a.acknowledged_at IS NULL) AS open_alerts
-          FROM listings li
-          JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+          FROM dbo.listings li
+          JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
           JOIN dbo.listing_entitlements e ON e.listing_id = li.id
-          JOIN localities lo ON lo.id = li.locality_id
-          JOIN cities ci ON ci.id = lo.city_id
-          JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-          JOIN categories pc ON pc.id = lc.category_id
+          JOIN dbo.localities lo ON lo.id = li.locality_id
+          JOIN dbo.cities ci ON ci.id = lo.city_id
+          JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+          JOIN dbo.categories pc ON pc.id = lc.category_id
           -- A public path is /parent/category/slug, so the parent travels with every listing.
-          JOIN categories pcparent ON pcparent.id = pc.parent_id
+          JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
           WHERE li.status <> 'archived'";
 
     public static RouteGroupBuilder MapOwnerListingEndpoints(this RouteGroupBuilder me)
@@ -156,8 +156,8 @@ public static class OwnerListingEndpoints
 
         long existing;
         await using (var count = new SqlCommand(
-            @"SELECT COUNT_BIG(*) FROM listings li
-              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+            @"SELECT COUNT_BIG(*) FROM dbo.listings li
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
               WHERE li.status <> 'archived'", conn, tx))
         {
             count.Parameters.AddWithValue("user", userId);
@@ -191,7 +191,7 @@ public static class OwnerListingEndpoints
             var businessId = await ListingWriter.InsertBusiness(conn, tx, value.Name, ct);
 
             await using (var member = new SqlCommand(
-                "INSERT INTO business_members (business_id, user_id, role) VALUES (@business, @user, 'owner')", conn, tx))
+                "INSERT INTO dbo.business_members (business_id, user_id, role) VALUES (@business, @user, 'owner')", conn, tx))
             {
                 member.Parameters.AddWithValue("business", businessId);
                 member.Parameters.AddWithValue("user", userId);
@@ -290,7 +290,7 @@ public static class OwnerListingEndpoints
            An incomplete draft is the one case that stays put, with nothing queued. */
         var newStatus = missing.Count > 0 ? "draft" : "pending_review";
         await using (var requeue = new SqlCommand(
-            @"UPDATE listings
+            @"UPDATE dbo.listings
               SET status = @status, review_note = NULL, updated_at = SYSDATETIMEOFFSET()
               WHERE id = @id", conn, tx))
         {
@@ -347,7 +347,7 @@ public static class OwnerListingEndpoints
 
         // The old rejection reason goes with the old version: the owner has just changed the listing.
         await using (var submit = new SqlCommand(
-            "UPDATE listings SET status = 'pending_review', review_note = NULL, updated_at = SYSDATETIMEOFFSET() WHERE id = @id", conn, tx))
+            "UPDATE dbo.listings SET status = 'pending_review', review_note = NULL, updated_at = SYSDATETIMEOFFSET() WHERE id = @id", conn, tx))
         {
             submit.Parameters.AddWithValue("id", id);
             await submit.ExecuteNonQueryAsync(ct);
@@ -414,8 +414,8 @@ public static class OwnerListingEndpoints
                SQL Server puts it on the table as a hint. HOLDLOCK keeps it to the end of the
                transaction, which is what FOR UPDATE did. */
             @"SELECT li.status, li.location.Lat, li.location.Long
-              FROM listings li WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
-              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              FROM dbo.listings li WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
               WHERE li.id = @id AND li.status <> 'archived'", conn, tx);
         command.Parameters.AddWithValue("user", userId);
         command.Parameters.AddWithValue("id", listingId);
@@ -425,7 +425,7 @@ public static class OwnerListingEndpoints
 
     private static async Task<string?> GetOwnerPhone(SqlConnection conn, SqlTransaction tx, long userId, CancellationToken ct)
     {
-        await using var command = new SqlCommand("SELECT phone_e164 FROM users WHERE id = @id AND status = 'active'", conn, tx);
+        await using var command = new SqlCommand("SELECT phone_e164 FROM dbo.users WHERE id = @id AND status = 'active'", conn, tx);
         command.Parameters.AddWithValue("id", userId);
         return (string?)await command.ExecuteScalarAsync(ct);
     }
@@ -434,7 +434,7 @@ public static class OwnerListingEndpoints
     {
         IPAddress? ip = http.Connection.RemoteIpAddress;
         await using var command = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
               VALUES ('owner', @user, @action, 'listing', @entity, @ip)", conn, tx);
         command.Parameters.AddWithValue("user", userId);
         command.Parameters.AddWithValue("action", action);

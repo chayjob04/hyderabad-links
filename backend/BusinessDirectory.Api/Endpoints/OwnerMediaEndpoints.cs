@@ -190,10 +190,10 @@ public static class OwnerMediaEndpoints
 
         long mediaId;
         await using (var insert = new SqlCommand(
-            @"INSERT INTO listing_media (listing_id, kind, storage_key, content_type, byte_size, width, height, sort_order, created_by_user_id)
+            @"INSERT INTO dbo.listing_media (listing_id, kind, storage_key, content_type, byte_size, width, height, sort_order, created_by_user_id)
               OUTPUT inserted.id
               VALUES (@listing, @kind, @key, @type, @size, @width, @height,
-                      COALESCE((SELECT max(sort_order) + 1 FROM listing_media WHERE listing_id = @listing AND kind = @kind), 0),
+                      COALESCE((SELECT max(sort_order) + 1 FROM dbo.listing_media WHERE listing_id = @listing AND kind = @kind), 0),
                       @user)", conn, tx))
         {
             insert.Parameters.AddWithValue("listing", id);
@@ -273,9 +273,9 @@ public static class OwnerMediaEndpoints
             /* UPDLOCK on the media row only, which is what FOR NO KEY UPDATE OF m said: the
                listing and the membership are read, not changed. */
             @"SELECT m.kind, m.sort_order
-              FROM listing_media m WITH (UPDLOCK, ROWLOCK)
-              JOIN listings li ON li.id = m.listing_id
-              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              FROM dbo.listing_media m WITH (UPDLOCK, ROWLOCK)
+              JOIN dbo.listings li ON li.id = m.listing_id
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
               WHERE m.id = @media AND m.listing_id = @listing", conn, tx))
         {
             find.Parameters.AddWithValue("user", userId);
@@ -297,7 +297,7 @@ public static class OwnerMediaEndpoints
                the pair directly -- (sort_order, id) < (@order, @media) -- which SQL Server cannot, so
                it is written out: a smaller sort_order, or the same one and a smaller id. */
             $@"SELECT TOP (1) id, sort_order
-               FROM listing_media WITH (UPDLOCK, ROWLOCK)
+               FROM dbo.listing_media WITH (UPDLOCK, ROWLOCK)
                WHERE listing_id = @listing AND kind = @kind
                  AND (sort_order {(earlier.Value ? "<" : ">")} @order
                       OR (sort_order = @order AND id {(earlier.Value ? "<" : ">")} @media))
@@ -331,7 +331,7 @@ public static class OwnerMediaEndpoints
             : (neighbourOrder, sortOrder);
 
         await using (var update = new SqlCommand(
-            @"UPDATE listing_media SET sort_order = CASE id WHEN @media THEN @mine ELSE @theirs END
+            @"UPDATE dbo.listing_media SET sort_order = CASE id WHEN @media THEN @mine ELSE @theirs END
               WHERE id IN (@media, @neighbour)", conn, tx))
         {
             update.Parameters.AddWithValue("media", mediaId);
@@ -360,9 +360,9 @@ public static class OwnerMediaEndpoints
                removed is "deleted", not "inserted" -- an OUTPUT on a DELETE has no inserted row. */
             @"DELETE m
               OUTPUT deleted.storage_key
-              FROM listing_media m
-              JOIN listings li ON li.id = m.listing_id
-              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              FROM dbo.listing_media m
+              JOIN dbo.listings li ON li.id = m.listing_id
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
               WHERE m.id = @media AND m.listing_id = @listing");
         command.Parameters.AddWithValue("user", userId);
         command.Parameters.AddWithValue("media", mediaId);
@@ -399,13 +399,13 @@ public static class OwnerMediaEndpoints
             // column here is how an expired listing would keep its ten photo slots.
             @"SELECT e.effective_plan_slug, e.effective_plan_name, e.photo_limit, e.video_limit, e.logo_limit,
                      e.media_limits_confirmed,
-                     (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'photo' AND m.is_hidden = 0),
-                     (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'video' AND m.is_hidden = 0),
-                     (SELECT COUNT_BIG(*) FROM listing_media m WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0),
+                     (SELECT COUNT_BIG(*) FROM dbo.listing_media m WHERE m.listing_id = li.id AND m.kind = 'photo' AND m.is_hidden = 0),
+                     (SELECT COUNT_BIG(*) FROM dbo.listing_media m WHERE m.listing_id = li.id AND m.kind = 'video' AND m.is_hidden = 0),
+                     (SELECT COUNT_BIG(*) FROM dbo.listing_media m WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0),
                      e.paid_until, e.is_verified
-              FROM listings li" + (tx is null ? "" : " WITH (UPDLOCK, ROWLOCK)") + @"
-              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
-              JOIN listing_entitlements e ON e.listing_id = li.id
+              FROM dbo.listings li" + (tx is null ? "" : " WITH (UPDLOCK, ROWLOCK)") + @"
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              JOIN dbo.listing_entitlements e ON e.listing_id = li.id
               WHERE li.id = @listing AND li.status <> 'archived'",
             conn, tx);
         command.Parameters.AddWithValue("user", userId);
@@ -437,7 +437,7 @@ public static class OwnerMediaEndpoints
     {
         await using var command = new SqlCommand(
             @"SELECT id, kind, storage_key, content_type, byte_size, width, height, sort_order, is_hidden, created_at
-              FROM listing_media
+              FROM dbo.listing_media
               WHERE listing_id = @listing
               ORDER BY kind, sort_order, id", conn);
         command.Parameters.AddWithValue("listing", listingId);

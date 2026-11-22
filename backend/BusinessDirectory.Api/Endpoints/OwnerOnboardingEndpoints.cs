@@ -60,7 +60,7 @@ public static class OwnerOnboardingEndpoints
                as it is read, so two registrations for the same person queue instead of racing.
                HOLDLOCK keeps it to the end of the transaction, which FOR UPDATE also did. */
             @"SELECT phone_e164, name, email
-              FROM users WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
+              FROM dbo.users WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
               WHERE id = @id AND status = 'active'", conn, tx))
         {
             find.Parameters.AddWithValue("id", userId);
@@ -135,7 +135,7 @@ public static class OwnerOnboardingEndpoints
             var businessId = await ListingWriter.InsertBusiness(conn, tx, validListing.Name, ct);
 
             await using (var member = new SqlCommand(
-                "INSERT INTO business_members (business_id, user_id, role) VALUES (@business, @user, 'owner')", conn, tx))
+                "INSERT INTO dbo.business_members (business_id, user_id, role) VALUES (@business, @user, 'owner')", conn, tx))
             {
                 member.Parameters.AddWithValue("business", businessId);
                 member.Parameters.AddWithValue("user", userId);
@@ -162,7 +162,7 @@ public static class OwnerOnboardingEndpoints
         // `name IS NULL` repeats the check made under the row lock, so this can never overwrite a
         // profile that was filled in by some other path.
         await using (var update = new SqlCommand(
-            "UPDATE users SET name = @name, email = @email, updated_at = SYSDATETIMEOFFSET() WHERE id = @id AND name IS NULL", conn, tx))
+            "UPDATE dbo.users SET name = @name, email = @email, updated_at = SYSDATETIMEOFFSET() WHERE id = @id AND name IS NULL", conn, tx))
         {
             update.Parameters.AddWithValue("name", validProfile.Name);
             update.Parameters.AddWithValue("email", validProfile.Email);
@@ -184,8 +184,8 @@ public static class OwnerOnboardingEndpoints
     {
         await using var command = new SqlCommand(
             @"SELECT TOP (1) li.id
-              FROM listings li
-              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              FROM dbo.listings li
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
               WHERE li.status <> 'archived'
               ORDER BY li.created_at, li.id", conn, tx);
         command.Parameters.AddWithValue("user", userId);
@@ -197,7 +197,7 @@ public static class OwnerOnboardingEndpoints
     {
         IPAddress? ip = http.Connection.RemoteIpAddress;
         await using var command = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
               VALUES ('owner', @user, 'owner.onboarded', 'listing', @entity, @ip)", conn, tx);
         command.Parameters.AddWithValue("user", userId);
         command.Parameters.AddWithValue("entity", listingId.ToString());

@@ -43,8 +43,8 @@ public static class OwnerOverviewEndpoints
     private const string OverviewSql =
         @"WITH owned AS (
               SELECT li.id, li.status, li.description, li.address_line
-              FROM listings li
-              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              FROM dbo.listings li
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
               WHERE li.status <> 'archived'
           )
           SELECT (SELECT COUNT_BIG(*) FROM owned),
@@ -60,11 +60,11 @@ public static class OwnerOverviewEndpoints
                  CAST(CASE WHEN u.name IS NOT NULL THEN 1 ELSE 0 END AS bit),
                  CAST(CASE WHEN LTRIM(RTRIM(COALESCE(u.email, ''))) <> '' THEN 1 ELSE 0 END AS bit),
                  (SELECT COUNT_BIG(*)
-                  FROM enquiries e
-                  JOIN listings el ON el.id = e.listing_id
-                  JOIN business_members ebm ON ebm.business_id = el.business_id AND ebm.user_id = @user
+                  FROM dbo.enquiries e
+                  JOIN dbo.listings el ON el.id = e.listing_id
+                  JOIN dbo.business_members ebm ON ebm.business_id = el.business_id AND ebm.user_id = @user
                   WHERE e.status = 'new')
-          FROM users u
+          FROM dbo.users u
           WHERE u.id = @user AND u.status = 'active'";
 
     /// <summary>
