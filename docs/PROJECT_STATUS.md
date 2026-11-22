@@ -1,6 +1,6 @@
 # Project status and handoff
 
-**Updated:** 2026-11-20, at commit `b6a2f50`. Read this first, then `CLAUDE.md`. It replaces
+**Updated:** 2026-11-23, at commit `aa5a3e0`. Read this first, then `CLAUDE.md`. It replaces
 re-auditing the repository.
 
 ## How to read this file
@@ -372,6 +372,81 @@ seen in a browser.**
   join to `customers` is still a LEFT JOIN, so **any review row with a NULL `customer_id` now
   renders a blank author** rather than falling back. Only an older API build writing during a
   deployment could produce one. Worth a glance after `S0027`.
+
+### 2026-11-21 to 2026-11-23 — the owner's dashboard, sessions, and two of the outstanding screens
+
+Nine commits (`7070ba0` through `aa5a3e0`).
+
+**Sessions last a day, for all four kinds of account** (`5ab9266`). `AccessTokenMinutes` and
+`AdminAccessTokenMinutes` went from 15 to `60 * 24`, and the refresh windows down to one day to
+match. A single long access token rather than wiring refresh, because `SessionStore.Rotate` detects
+reuse and revokes the whole family — so two tabs refreshing at once would have been a permanent
+logout — and rotation re-dates `expires_at`, which would let a session slide past 24 hours.
+`appsettings` may still override these; nothing in Azure was changed.
+
+**The staff menus were reorganised** (`7070ba0`) and a super admin now keeps the admin session as
+well, so every Admin row in the Super Admin sidebar is reachable instead of being drawn inert with
+an "Admin" badge. The Listings group is All / Free / Verified on both surfaces, filtered through a
+new `plan` parameter on the moderation queue, matched against `listing_entitlements` so a lapsed
+subscription reads as free immediately.
+
+**The business owner's nine per-listing screens became one editor** (`36f1084`, `ce2fe87`,
+`e9e95e0`, `198e987`). Five collapsible sections, each showing a completion percentage counted from
+the values the API returned (`lib/listing-completion.ts` — the overall figure is the sections added
+up, so the two cannot disagree). Promote, Ads and Plan stay separate. Save Changes and Submit for
+Review are now **one pair of buttons at the foot of the editor**, outside every `<details>`,
+reaching the fields through the form's id. Save leaves a draft a draft; Submit validates and queues
+it. Add-a-business no longer ends on a "Saved — what to do next" page, which has been deleted: it
+creates the draft and carries on in the editor with the other four sections live. Area and category
+are searchable during onboarding, and "my area is not listed" creates nothing — it is a request,
+sent to support with the name prefilled.
+
+**Three defects that only a browser found**, all in `198e987`:
+
+- Which button was pressed cannot ride on the submitting button's name when that button sits
+  outside the form; it travels in a hidden field now.
+- `useActionState`'s `pending` stays false for a submitter outside the form, so the buttons never
+  disabled themselves. Tracked explicitly — and the guard has to be on the form's `submit`, because
+  setting that state in the button's click handler disables the button inside the same event and the
+  activation behaviour is then skipped, which stopped the form submitting at all.
+- **A server action cannot import a value from a `"use client"` module**: it gets a client
+  reference, not the string. `OTHER_VALUE` was imported that way, so the onboarding guard never
+  matched and `__other__` was sent to the API as though it were an area slug. It lives in `lib/`
+  now, and `scripts/check-listing-actions.test.mjs` scans every server action for imports of that
+  shape.
+
+**Subscription management** (`aa5a3e0`), super admin, read-only: `/super-admin/subscriptions` shows
+how many listings are verified, how many lapse within 30 days, what has been taken, and every
+listing's period with its last payment. Nothing there writes — there is no endpoint to grant a plan,
+extend a period, change a price or refund one, because each is money — and a test asserts that POST,
+PUT, PATCH and DELETE on the route do not exist. `plans.manage` came off the "no endpoint may gate
+on this" list, which is what that test was for, and a new test pins the permission to this one file
+and to the super gate.
+
+**Listing SEO** (`aa5a3e0`): `page_meta`, the admin API and the public listing page have accepted a
+per-listing override since `S0021`; the panel could not address one, because a dropdown of thousands
+is the wrong control. `/admin/seo` now searches by name or id (`GET /api/v1/admin/seo/listings`,
+gated on `seo.manage`), and a listing with no primary category is listed as having no public page
+rather than offered a form.
+
+**Browser verification.** There is now an owner-side harness as well as the staff one: a stub API
+plus the production build, driven by Playwright in installed Chrome. 54 assertions on the owner
+editor (a save with every section collapsed, a refused submission opening the section and focusing
+the missing field, three clicks in one frame sending one request, a requested area creating nothing)
+and 23 on the two new staff screens. Both suites pass. The stub is a test double for everything
+above the API boundary; it proves nothing about the API's own behaviour or any SQL.
+
+Two findings from that run are worth remembering. The subscriptions page first shipped **outside the
+Minia shell** — in this app the shell is applied per section, and forgetting it still renders
+something, in this case a table hanging 185px off the side of a 390px screen;
+`scripts/check-staff-chrome.test.mjs` now checks every staff screen. And that test passed while
+doing nothing, because the surface's layout mentions `MiniaShell` in a comment: the second time in
+this project a scan has read a comment as code.
+
+**Still open, and needing a decision:** pending-edit staging, so that saving an already-public
+listing need not re-enter review (it does today, deliberately — `OwnerSaveStatusTests` pins it);
+somewhere to keep a requested area or category instead of an email; and Segments, which is
+DECISION 1 in `docs/original-ui-parity-plan.md` and needs the taxonomy's two-level CHECK relaxed.
 
 ## Verification
 
