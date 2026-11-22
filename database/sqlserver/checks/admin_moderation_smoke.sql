@@ -30,7 +30,7 @@ DECLARE @failed int = 0;
 DECLARE @owner bigint, @business bigint, @listing bigint, @admin bigint, @customer bigint;
 DECLARE @review bigint, @report bigint;
 DECLARE @locality int, @centre geography, @category int;
-DECLARE @status varchar(20), @n int, @note nvarchar(1000);
+DECLARE @status varchar(20), @n int, @note nvarchar(1000), @body nvarchar(2000);
 
 SELECT @locality = id, @centre = center FROM dbo.localities WHERE slug = 'madhapur';
 SELECT @category = id FROM dbo.categories WHERE level = 2 AND is_active = 1 ORDER BY id;
@@ -134,8 +134,28 @@ BEGIN CATCH
 END CATCH
 
 -- ------------------------------------------------------------------ 4. review moderation
+/* A review body has to be a real sentence: `reviews_body_length` is
+   CHECK (LEN(LTRIM(RTRIM(body))) BETWEEN 20 AND 2000). The first version of this fixture used a
+   17-character body, which the constraint refused -- and because a failed INSERT aborts the batch,
+   that one short string took all three review assertions with it.
+
+   The length is asserted here as well as satisfied, so shortening it later fails with a sentence
+   saying what the bound is rather than a constraint name and a number. */
+SET @body = 'Excellent authentic Telugu sweets, and the snacks are always fresh.';
+
+IF LEN(LTRIM(RTRIM(@body))) NOT BETWEEN 20 AND 2000
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: the fixture review body is ' + CAST(LEN(LTRIM(RTRIM(@body))) AS varchar(10))
+        + ' characters; reviews_body_length requires between 20 and 2000';
+END
+ELSE PRINT 'ok: the fixture review body satisfies reviews_body_length';
+
+-- Only customer_id is set. S0026 made user_id nullable, dropped the (listing_id, user_id) unique
+-- key, and added reviews_one_author -- so a customer-authored review is the shape a review takes
+-- now (decision D56).
 INSERT INTO dbo.reviews (listing_id, customer_id, rating, body, status)
-VALUES (@listing, @customer, 5, 'Very good sweets.', 'pending');
+VALUES (@listing, @customer, 5, @body, 'pending');
 SET @review = SCOPE_IDENTITY();
 
 /* ReviewEndpoints.Decide, both halves: the status, and the note the reviewer is shown. The same
