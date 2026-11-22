@@ -183,9 +183,25 @@ END
 ELSE PRINT 'ok: rejecting takes the review back off the public page';
 
 -- ------------------------------------------------------------------ 5. report handling
-INSERT INTO dbo.reports (listing_id, reason, details, reporter_ip, status)
-VALUES (@listing, 'wrong_details', 'The phone number is wrong.', '203.0.113.7', 'open');
+/* A report names its subject as a type and an id, not as a foreign key per reportable thing:
+   S0006 says "kept as a column pair rather than two nullable foreign keys so adding a third
+   reportable thing later does not mean another column", and the CHECK allows 'listing' or 'review'.
+   The first version of this script invented a `listing_id` column, which is why it failed to
+   compile and asserted nothing. */
+INSERT INTO dbo.reports (subject_type, subject_id, reason, details, reporter_ip, status)
+VALUES ('listing', @listing, 'wrong_details', 'The phone number is wrong.', '203.0.113.7', 'open');
 SET @report = SCOPE_IDENTITY();
+
+-- The subject really is addressed the way the admin queue reads it: it joins
+-- dbo.listings ON subject_type = 'listing' AND li.id = subject_id.
+IF NOT EXISTS (
+    SELECT 1 FROM dbo.reports
+    WHERE id = @report AND subject_type = 'listing' AND subject_id = @listing)
+BEGIN
+    SET @failed = @failed + 1;
+    PRINT 'FAIL: the report does not address the listing the way the queue looks it up';
+END
+ELSE PRINT 'ok: a report addresses its subject by type and id';
 
 /* ReportEndpoints.Decide. Closing a report records what the moderator concluded and changes nothing
    else -- which is why the staff site deliberately does not revalidate any public page for it. That
