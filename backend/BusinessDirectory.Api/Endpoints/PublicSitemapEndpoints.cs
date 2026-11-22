@@ -50,12 +50,12 @@ public static class PublicSitemapEndpoints
             @"SELECT TOP (@limit) pcparent.slug, pc.slug, li.slug,
                      CASE WHEN li.published_at IS NULL OR li.updated_at > li.published_at
                           THEN li.updated_at ELSE li.published_at END
-              FROM listings li
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
-              JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-              JOIN categories pc ON pc.id = lc.category_id
-              JOIN categories pcparent ON pcparent.id = pc.parent_id
+              FROM dbo.listings li
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
+              JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+              JOIN dbo.categories pc ON pc.id = lc.category_id
+              JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
               WHERE li.status = 'active'
                 /* A listing whose page_meta says noindex is left out. A sitemap entry says the page
                    is worth a crawler's time and a noindex tag says the opposite, so including it
@@ -88,11 +88,11 @@ public static class PublicSitemapEndpoints
         var localities = new List<SitemapEntryDto>();
         await using (var command = db.CreateCommand(
             @"SELECT DISTINCT lo.slug, pc.slug
-              FROM listings li
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
-              JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-              JOIN categories pc ON pc.id = lc.category_id
+              FROM dbo.listings li
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
+              JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+              JOIN dbo.categories pc ON pc.id = lc.category_id
               WHERE li.status = 'active'
               ORDER BY lo.slug, pc.slug"))
         {
@@ -111,8 +111,8 @@ public static class PublicSitemapEndpoints
         var categories = new List<SitemapEntryDto>();
         await using (var command = db.CreateCommand(
             @"SELECT c.level, p.slug, c.slug
-              FROM categories c
-              LEFT JOIN categories p ON p.id = c.parent_id
+              FROM dbo.categories c
+              LEFT JOIN dbo.categories p ON p.id = c.parent_id
               WHERE c.is_active = 1 AND (c.level = 1 OR p.is_active = 1)
               ORDER BY c.level, c.slug"))
         {

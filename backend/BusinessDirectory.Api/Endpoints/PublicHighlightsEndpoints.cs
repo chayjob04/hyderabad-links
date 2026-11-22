@@ -93,16 +93,16 @@ public static class PublicHighlightsEndpoints
 
     // The joins every card needs: its locality, its city, and its primary category.
     private const string CardJoins = @"
-        FROM listings li
-        JOIN localities lo ON lo.id = li.locality_id
-        JOIN cities c ON c.id = lo.city_id
-        JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-        JOIN categories cat ON cat.id = lc.category_id
+        FROM dbo.listings li
+        JOIN dbo.localities lo ON lo.id = li.locality_id
+        JOIN dbo.cities c ON c.id = lo.city_id
+        JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+        JOIN dbo.categories cat ON cat.id = lc.category_id
         -- Inner, not left: a listing filed directly under a top-level category has no public page
         -- to link to, so it does not belong on a shelf. Writes only ever file under level 2
         -- (ListingWriter.FindCategoryId), so this excludes nothing that exists today.
-        JOIN categories catparent ON catparent.id = cat.parent_id
-        JOIN listing_entitlements e ON e.listing_id = li.id";
+        JOIN dbo.categories catparent ON catparent.id = cat.parent_id
+        JOIN dbo.listing_entitlements e ON e.listing_id = li.id";
 
     private static async Task<IResult> GetHighlights(
         string? city,
@@ -158,14 +158,14 @@ public static class PublicHighlightsEndpoints
             WITH window_start AS (SELECT DATEADD(day, -@days, SYSDATETIMEOFFSET()) AS since),
             activity AS (
                 SELECT li.id AS listing_id,
-                       (SELECT COUNT_BIG(*) FROM enquiries q, window_start w
+                       (SELECT COUNT_BIG(*) FROM dbo.enquiries q, window_start w
                         WHERE q.listing_id = li.id AND q.created_at >= w.since)
-                     + (SELECT COUNT_BIG(*) FROM favourites f, window_start w
+                     + (SELECT COUNT_BIG(*) FROM dbo.favourites f, window_start w
                         WHERE f.listing_id = li.id AND f.created_at >= w.since)
-                     + (SELECT COUNT_BIG(*) FROM reviews r, window_start w
+                     + (SELECT COUNT_BIG(*) FROM dbo.reviews r, window_start w
                         WHERE r.listing_id = li.id AND r.status = 'approved' AND r.created_at >= w.since)
                        AS events
-                FROM listings li
+                FROM dbo.listings li
                 WHERE li.status = 'active'
             )
             SELECT TOP (@take) {CardColumns}

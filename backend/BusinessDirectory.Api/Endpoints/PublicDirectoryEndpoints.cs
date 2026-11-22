@@ -133,7 +133,7 @@ public static class PublicDirectoryEndpoints
 
     private static async Task<IResult> GetCities(SqlDatabase db, CancellationToken ct)
     {
-        await using var command = db.CreateCommand("SELECT slug, name, state FROM cities WHERE is_active = 1 ORDER BY name");
+        await using var command = db.CreateCommand("SELECT slug, name, state FROM dbo.cities WHERE is_active = 1 ORDER BY name");
         await using var reader = await command.ExecuteReaderAsync(ct);
         var cities = new List<CityDto>();
         while (await reader.ReadAsync(ct))
@@ -147,8 +147,8 @@ public static class PublicDirectoryEndpoints
     {
         await using var command = db.CreateCommand(
             @"SELECT l.slug, l.name, l.center.Lat, l.center.Long
-              FROM localities l
-              JOIN cities c ON c.id = l.city_id
+              FROM dbo.localities l
+              JOIN dbo.cities c ON c.id = l.city_id
               WHERE c.slug = @city AND c.is_active = 1 AND l.is_active = 1
               ORDER BY l.name");
         command.Parameters.AddWithValue("city", citySlug);
@@ -187,9 +187,9 @@ public static class PublicDirectoryEndpoints
 
         await using var command = db.CreateCommand(
             @"SELECT TOP (@max) l.slug, l.name, c.name, c.state
-              FROM localities l
-              JOIN cities c ON c.id = l.city_id
-              CROSS APPLY hl_similarity('locality', l.id, @text) sim
+              FROM dbo.localities l
+              JOIN dbo.cities c ON c.id = l.city_id
+              CROSS APPLY dbo.hl_similarity('locality', l.id, @text) sim
               WHERE l.is_active = 1 AND c.is_active = 1
                 AND (@city IS NULL OR c.slug = @city)
                 AND (l.name LIKE @contains ESCAPE '\' OR sim.similarity >= 0.3)
@@ -245,8 +245,8 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
                operator, and with a spatial index an ORDER BY on STDistance is the same plan. */
             @"SELECT TOP (1) l.slug, l.name, c.name, c.state, l.center.STDistance(p.pt)
               FROM (SELECT geography::Point(@lat, @lng, 4326) AS pt) p
-              JOIN localities l ON l.is_active = 1
-              JOIN cities c ON c.id = l.city_id AND c.is_active = 1
+              JOIN dbo.localities l ON l.is_active = 1
+              JOIN dbo.cities c ON c.id = l.city_id AND c.is_active = 1
               ORDER BY l.center.STDistance(p.pt)");
         command.Parameters.AddWithValue("lat", query.Latitude);
         command.Parameters.AddWithValue("lng", query.Longitude);
@@ -281,7 +281,7 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
                with no error anywhere. Qualifying it is proof against that. */
             @"SELECT c.id, c.parent_id, c.slug, c.name,
                      (SELECT STRING_AGG(t.term, ',') FROM dbo.category_search_terms t WHERE t.category_id = c.id)
-              FROM categories c
+              FROM dbo.categories c
               WHERE c.is_active = 1
               ORDER BY c.level, c.sort_order, c.name");
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -334,19 +334,19 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
               FROM (SELECT geography::Point(@lat, @lng, 4326) AS pt) p
               -- ST_DWithin(a, b, r) meant within r metres, which is a plain distance comparison
               -- here. The spatial index is still used: SQL Server recognises STDistance() <= value.
-              JOIN listings li ON li.status = 'active' AND li.location.STDistance(p.pt) <= @radius
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
-              JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-              JOIN categories pc ON pc.id = lc.category_id
+              JOIN dbo.listings li ON li.status = 'active' AND li.location.STDistance(p.pt) <= @radius
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
+              JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+              JOIN dbo.categories pc ON pc.id = lc.category_id
               -- The parent of the primary category, because a public path starts with it. Inner,
               -- not left: a listing with no parent category has no page to point a card at.
-              JOIN categories pcparent ON pcparent.id = pc.parent_id
+              JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
               WHERE (@cat IS NULL OR EXISTS (
                         SELECT 1
-                        FROM listing_categories x
-                        JOIN categories xc ON xc.id = x.category_id
-                        LEFT JOIN categories xp ON xp.id = xc.parent_id
+                        FROM dbo.listing_categories x
+                        JOIN dbo.categories xc ON xc.id = x.category_id
+                        LEFT JOIN dbo.categories xp ON xp.id = xc.parent_id
                         WHERE x.listing_id = li.id AND (xc.slug = @cat OR xp.slug = @cat)))
               ORDER BY li.location.STDistance(p.pt)");
         command.Parameters.AddWithValue("lat", lat);
@@ -399,13 +399,13 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
                      -- column says what was bought, the view says what is still paid for.
                      e.is_verified,
                      pcparent.slug AS parent_category_slug
-              FROM listings li
+              FROM dbo.listings li
               JOIN dbo.listing_entitlements e ON e.listing_id = li.id
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
-              JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-              JOIN categories pc ON pc.id = lc.category_id
-              JOIN categories pcparent ON pcparent.id = pc.parent_id
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
+              JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+              JOIN dbo.categories pc ON pc.id = lc.category_id
+              JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
               WHERE li.slug = @slug AND li.status = 'active'");
         command.Parameters.AddWithValue("slug", slug);
 
