@@ -103,9 +103,9 @@ async function send<T>(path: string, init: RequestInit, accessToken?: string): P
 /** Calls a super-admin endpoint with the stored token. No token, or a rejected one, means sign in again. */
 async function authed<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
   const { access } = await readTokens("super");
-  if (!access) redirect("/login/reset");
+  if (!access) redirect("/login/reset?surface=super");
   const result = await send<T>(path, init, access);
-  if (!result.ok && result.status === 401) redirect("/login/reset");
+  if (!result.ok && result.status === 401) redirect("/login/reset?surface=super");
   return result;
 }
 

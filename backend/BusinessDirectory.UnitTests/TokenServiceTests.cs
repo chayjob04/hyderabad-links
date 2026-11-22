@@ -17,14 +17,17 @@ public class TokenServiceTests
     [Fact]
     public async Task Access_token_round_trips_and_carries_the_user_id()
     {
-        var service = new TokenService(NewSettings());
+        var settings = NewSettings();
+        var service = new TokenService(settings);
         var (token, expiresIn) = service.CreateAccessToken(42);
 
         var result = await new JsonWebTokenHandler().ValidateTokenAsync(token, service.ValidationParameters);
 
         Assert.True(result.IsValid);
         Assert.Equal("42", result.ClaimsIdentity.FindFirst(JwtRegisteredClaimNames.Sub)?.Value);
-        Assert.Equal(15 * 60, expiresIn);
+        /* From the settings rather than a literal: this test is about the token round-tripping,
+           and the lifetime is pinned once, in SessionLifetimeTests. It read 15 * 60. */
+        Assert.Equal(settings.AccessTokenMinutes * 60, expiresIn);
     }
 
     [Fact]
@@ -53,14 +56,17 @@ public class TokenServiceTests
     [Fact]
     public async Task Admin_token_round_trips_and_carries_the_admin_id()
     {
-        var service = new TokenService(NewSettings());
+        var settings = NewSettings();
+        var service = new TokenService(settings);
         var (token, expiresIn) = service.CreateAdminAccessToken(7);
 
         var result = await new JsonWebTokenHandler().ValidateTokenAsync(token, service.AdminValidationParameters);
 
         Assert.True(result.IsValid);
         Assert.Equal("7", result.ClaimsIdentity.FindFirst(JwtRegisteredClaimNames.Sub)?.Value);
-        Assert.Equal(15 * 60, expiresIn);
+        /* From the settings rather than a literal: this test is about the token round-tripping,
+           and the lifetime is pinned once, in SessionLifetimeTests. It read 15 * 60. */
+        Assert.Equal(settings.AdminAccessTokenMinutes * 60, expiresIn);
     }
 
     [Fact]

@@ -54,8 +54,22 @@ public sealed class AuthSettings
     public required byte[] TotpKey { get; init; }
     public string Issuer { get; init; } = "hyderabadlinks-api";
     public string Audience { get; init; } = OwnerAudience;
-    public int AccessTokenMinutes { get; init; } = 15;
-    public int RefreshTokenDays { get; init; } = 30;
+    /// <summary>
+    /// One day, for an owner or a customer. Both halves of the session are the same length on
+    /// purpose: the frontends do not spend the refresh token (see the note on
+    /// <see cref="RefreshTokenDays"/>), so the access token is the session, and at fifteen
+    /// minutes it ended while people were still working -- switching tabs or stepping away was
+    /// enough.
+    /// </summary>
+    public int AccessTokenMinutes { get; init; } = 60 * 24;
+
+    /// <summary>
+    /// One day, matching the access token, so the whole session ends together and signing in
+    /// again is genuinely required after it. It was thirty days, which only mattered to a
+    /// caller that rotates it -- and nothing does: /api/v1/auth/owner/refresh and its customer
+    /// and admin siblings exist and work, and no frontend has ever called one.
+    /// </summary>
+    public int RefreshTokenDays { get; init; } = 1;
     public int OtpTtlSeconds { get; init; } = 300;
     public int ResendCooldownSeconds { get; init; } = 30;
     public int MaxOtpPerPhonePerHour { get; init; } = 5;
@@ -82,8 +96,11 @@ public sealed class AuthSettings
     public bool DummyOtpEnabled { get; init; }
 
     // Admin sign-in. Shorter-lived than an owner session: admins work in sittings, owners come back weeks later.
-    public int AdminAccessTokenMinutes { get; init; } = 15;
-    public int AdminRefreshTokenDays { get; init; } = 7;
+    /// <summary>One day, for an administrator or a platform owner. As above.</summary>
+    public int AdminAccessTokenMinutes { get; init; } = 60 * 24;
+
+    /// <summary>One day, matching the admin access token. Was seven, and unused.</summary>
+    public int AdminRefreshTokenDays { get; init; } = 1;
 
     /// <summary>Wrong passwords allowed before the account is locked for <see cref="AdminLockoutMinutes"/>.</summary>
     public int AdminMaxFailedLogins { get; init; } = 5;
@@ -108,15 +125,15 @@ public sealed class AuthSettings
             // AES-256-GCM needs exactly 32 bytes, so a longer key is cut rather than refused.
             TotpKey = ReadKey(section["TotpEncryptionKey"], "Auth:TotpEncryptionKey", isDevelopment)[..TotpSecrets.KeyBytes],
             Issuer = section["Issuer"] ?? "hyderabadlinks-api",
-            AccessTokenMinutes = section.GetValue("AccessTokenMinutes", 15),
-            RefreshTokenDays = section.GetValue("RefreshTokenDays", 30),
+            AccessTokenMinutes = section.GetValue("AccessTokenMinutes", 60 * 24),
+            RefreshTokenDays = section.GetValue("RefreshTokenDays", 1),
             OtpTtlSeconds = section.GetValue("OtpTtlSeconds", 300),
             ResendCooldownSeconds = section.GetValue("ResendCooldownSeconds", 30),
             MaxOtpPerPhonePerHour = section.GetValue("MaxOtpPerPhonePerHour", 5),
             MaxOtpPerIpPerHour = section.GetValue("MaxOtpPerIpPerHour", 20),
             DummyOtpEnabled = section.GetValue("DummyOtpEnabled", false),
-            AdminAccessTokenMinutes = section.GetValue("AdminAccessTokenMinutes", 15),
-            AdminRefreshTokenDays = section.GetValue("AdminRefreshTokenDays", 7),
+            AdminAccessTokenMinutes = section.GetValue("AdminAccessTokenMinutes", 60 * 24),
+            AdminRefreshTokenDays = section.GetValue("AdminRefreshTokenDays", 1),
             AdminMaxFailedLogins = section.GetValue("AdminMaxFailedLogins", 5),
             AdminLockoutMinutes = section.GetValue("AdminLockoutMinutes", 15),
             AdminMfaTokenMinutes = section.GetValue("AdminMfaTokenMinutes", 5),

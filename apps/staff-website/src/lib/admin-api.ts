@@ -120,9 +120,9 @@ async function send<T>(path: string, init: RequestInit, accessToken?: string): P
 /** Calls an admin endpoint with the signed-in admin's token. No token, or a rejected token, means sign in again. */
 async function authed<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
   const { access } = await readTokens("admin");
-  if (!access) redirect("/login/reset");
+  if (!access) redirect("/login/reset?surface=admin");
   const result = await send<T>(path, init, access);
-  if (!result.ok && result.status === 401) redirect("/login/reset");
+  if (!result.ok && result.status === 401) redirect("/login/reset?surface=admin");
   return result;
 }
 

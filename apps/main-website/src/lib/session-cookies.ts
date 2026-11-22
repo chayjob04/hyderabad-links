@@ -16,7 +16,10 @@ export function accessCookieOptions(expiresInSeconds: number) {
   return { ...base, maxAge: Math.max(expiresInSeconds - 30, 60) };
 }
 
-/** Matches the API's default refresh-token lifetime (30 days). The API remains the authority on expiry. */
-export const refreshCookieOptions = { ...base, maxAge: 60 * 60 * 24 * 30 };
+/**
+ * One day, matching the API's refresh-token lifetime, so the cookie and the token it holds
+ * expire together. The API remains the authority on expiry.
+ */
+export const refreshCookieOptions = { ...base, maxAge: 60 * 60 * 24 };
 
 export type SessionTokens = { accessToken: string; refreshToken: string; expiresInSeconds: number };
