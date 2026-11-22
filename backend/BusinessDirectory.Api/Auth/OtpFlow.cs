@@ -69,13 +69,13 @@ public static class OtpFlow
             /* Deliberately not filtered by purpose: see the class comment. The allowance belongs to
                the phone number and the IP, not to one of the two sign-ins. */
             @"SELECT
-                (SELECT COUNT_BIG(*) FROM otp_challenges WHERE phone_e164 = @phone AND created_at > DATEADD(hour, -1, SYSDATETIMEOFFSET())),
+                (SELECT COUNT_BIG(*) FROM dbo.otp_challenges WHERE phone_e164 = @phone AND created_at > DATEADD(hour, -1, SYSDATETIMEOFFSET())),
                 -- Was the last code sent within the cooldown? A yes/no answer, which in SQL Server
                 -- has to be a CASE producing a bit. No row at all means no, as the COALESCE said.
-                CAST(CASE WHEN (SELECT max(created_at) FROM otp_challenges WHERE phone_e164 = @phone)
+                CAST(CASE WHEN (SELECT max(created_at) FROM dbo.otp_challenges WHERE phone_e164 = @phone)
                              > DATEADD(second, -@cooldown, SYSDATETIMEOFFSET())
                           THEN 1 ELSE 0 END AS bit),
-                (SELECT COUNT_BIG(*) FROM otp_challenges WHERE requester_ip = @ip AND created_at > DATEADD(hour, -1, SYSDATETIMEOFFSET()))"))
+                (SELECT COUNT_BIG(*) FROM dbo.otp_challenges WHERE requester_ip = @ip AND created_at > DATEADD(hour, -1, SYSDATETIMEOFFSET()))"))
         {
             check.Parameters.AddWithValue("phone", phone);
             // int, not double: DATEADD takes a whole number of seconds.
@@ -105,7 +105,7 @@ public static class OtpFlow
            Its id comes back so that a send which fails can take the row with it; see below. */
         long challengeId;
         await using (var insert = db.CreateCommand(
-            @"INSERT INTO otp_challenges (phone_e164, purpose, code_hash, expires_at, requester_ip)
+            @"INSERT INTO dbo.otp_challenges (phone_e164, purpose, code_hash, expires_at, requester_ip)
               OUTPUT INSERTED.id
               VALUES (@phone, @purpose, @hash, DATEADD(second, @ttl, SYSDATETIMEOFFSET()), @ip)"))
         {
@@ -181,7 +181,7 @@ public static class OtpFlow
                `purpose` is in the predicate, not just in the insert: that is what stops a code
                minted for one sign-in opening a session on the other. */
             @"SELECT TOP (1) id, code_hash, attempts, max_attempts
-              FROM otp_challenges WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
+              FROM dbo.otp_challenges WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
               WHERE phone_e164 = @phone AND purpose = @purpose
                 AND consumed_at IS NULL AND expires_at > SYSDATETIMEOFFSET()
               ORDER BY created_at DESC", conn, tx))
@@ -205,7 +205,7 @@ public static class OtpFlow
         }
 
         // Count the attempt first, and commit it even when the guess is wrong.
-        await using (var bump = new SqlCommand("UPDATE otp_challenges SET attempts = attempts + 1 WHERE id = @id", conn, tx))
+        await using (var bump = new SqlCommand("UPDATE dbo.otp_challenges SET attempts = attempts + 1 WHERE id = @id", conn, tx))
         {
             bump.Parameters.AddWithValue("id", challengeId);
             await bump.ExecuteNonQueryAsync(ct);
@@ -217,7 +217,7 @@ public static class OtpFlow
         }
 
         await using (var consume = new SqlCommand(
-            "UPDATE otp_challenges SET consumed_at = SYSDATETIMEOFFSET() WHERE id = @id AND consumed_at IS NULL", conn, tx))
+            "UPDATE dbo.otp_challenges SET consumed_at = SYSDATETIMEOFFSET() WHERE id = @id AND consumed_at IS NULL", conn, tx))
         {
             consume.Parameters.AddWithValue("id", challengeId);
             if (await consume.ExecuteNonQueryAsync(ct) != 1)
@@ -240,7 +240,7 @@ public static class OtpFlow
         try
         {
             await using var delete = db.CreateCommand(
-                "DELETE FROM otp_challenges WHERE id = @id AND consumed_at IS NULL");
+                "DELETE FROM dbo.otp_challenges WHERE id = @id AND consumed_at IS NULL");
             delete.Parameters.AddWithValue("id", challengeId);
             await delete.ExecuteNonQueryAsync(ct);
         }

@@ -30,9 +30,9 @@ public static class OwnerLookup
         await using var command = new SqlCommand(
             // TOP (1) rather than LIMIT 1: SQL Server puts the row cap at the front of the SELECT.
             @"SELECT TOP (1) u.id, u.email
-              FROM listings li
-              JOIN business_members bm ON bm.business_id = li.business_id AND bm.role = 'owner'
-              JOIN users u ON u.id = bm.user_id
+              FROM dbo.listings li
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.role = 'owner'
+              JOIN dbo.users u ON u.id = bm.user_id
               WHERE li.id = @listing AND u.email IS NOT NULL
               ORDER BY bm.created_at, u.id", conn, tx);
         command.Parameters.AddWithValue("listing", listingId);

@@ -21,7 +21,7 @@ public static class ListingWriter
     {
         await using var command = new SqlCommand(
             @"SELECT lo.id, lo.center.Lat, lo.center.Long
-              FROM localities lo JOIN cities ci ON ci.id = lo.city_id
+              FROM dbo.localities lo JOIN dbo.cities ci ON ci.id = lo.city_id
               WHERE ci.slug = @city AND lo.slug = @locality AND ci.is_active = 1 AND lo.is_active = 1", conn, tx);
         command.Parameters.AddWithValue("city", citySlug);
         command.Parameters.AddWithValue("locality", localitySlug);
@@ -34,7 +34,7 @@ public static class ListingWriter
     /// <summary>Listings attach to sub-categories (level 2) only.</summary>
     public static async Task<int?> FindCategoryId(SqlConnection conn, SqlTransaction tx, string slug, CancellationToken ct)
     {
-        await using var command = new SqlCommand("SELECT id FROM categories WHERE slug = @slug AND level = 2 AND is_active = 1", conn, tx);
+        await using var command = new SqlCommand("SELECT id FROM dbo.categories WHERE slug = @slug AND level = 2 AND is_active = 1", conn, tx);
         command.Parameters.AddWithValue("slug", slug);
         var result = await command.ExecuteScalarAsync(ct);
         return result is int id ? id : null;
@@ -53,7 +53,7 @@ public static class ListingWriter
         var baseSlug = SlugGenerator.FromName(name);
         var taken = new HashSet<string>();
         await using (var command = new SqlCommand(
-            "SELECT slug FROM listings WHERE slug = @base OR slug LIKE @pattern", conn, tx))
+            "SELECT slug FROM dbo.listings WHERE slug = @base OR slug LIKE @pattern", conn, tx))
         {
             command.Parameters.AddWithValue("base", baseSlug);
             command.Parameters.AddWithValue("pattern", baseSlug + "-%");
@@ -69,7 +69,7 @@ public static class ListingWriter
     public static async Task<long> InsertBusiness(SqlConnection conn, SqlTransaction tx, string name, CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            "INSERT INTO businesses (name) OUTPUT inserted.id VALUES (@name)", conn, tx);
+            "INSERT INTO dbo.businesses (name) OUTPUT inserted.id VALUES (@name)", conn, tx);
         command.Parameters.AddWithValue("name", name);
         return (long)(await command.ExecuteScalarAsync(ct))!;
     }
@@ -98,7 +98,7 @@ public static class ListingWriter
                still reads one scalar. */
             @"DECLARE @inserted TABLE (id bigint);
 
-              INSERT INTO listings (business_id, locality_id, slug, name, description, address_line, pincode, location,
+              INSERT INTO dbo.listings (business_id, locality_id, slug, name, description, address_line, pincode, location,
                                     phone_primary, phone_whatsapp, website_url, status, source, created_by_user_id, published_at)
               OUTPUT inserted.id INTO @inserted
               VALUES (@business, @locality, @slug, @name, @description, @address, @pincode,
@@ -139,7 +139,7 @@ public static class ListingWriter
         CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            @"UPDATE listings SET
+            @"UPDATE dbo.listings SET
                   name = @name, description = @description, address_line = @address, pincode = @pincode,
                   phone_primary = @phone, phone_whatsapp = @whatsapp, website_url = @website,
                   location = geography::Point(@lat, @lng, 4326),
@@ -162,7 +162,7 @@ public static class ListingWriter
     public static async Task AddPrimaryCategory(SqlConnection conn, SqlTransaction tx, long listingId, int categoryId, CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            "INSERT INTO listing_categories (listing_id, category_id, is_primary) VALUES (@listing, @category, 1)", conn, tx);
+            "INSERT INTO dbo.listing_categories (listing_id, category_id, is_primary) VALUES (@listing, @category, 1)", conn, tx);
         command.Parameters.AddWithValue("listing", listingId);
         command.Parameters.AddWithValue("category", categoryId);
         await command.ExecuteNonQueryAsync(ct);
@@ -172,7 +172,7 @@ public static class ListingWriter
     public static async Task SetPrimaryCategory(SqlConnection conn, SqlTransaction tx, long listingId, int categoryId, CancellationToken ct)
     {
         await using (var update = new SqlCommand(
-            "UPDATE listing_categories SET category_id = @category WHERE listing_id = @listing AND is_primary = 1", conn, tx))
+            "UPDATE dbo.listing_categories SET category_id = @category WHERE listing_id = @listing AND is_primary = 1", conn, tx))
         {
             update.Parameters.AddWithValue("listing", listingId);
             update.Parameters.AddWithValue("category", categoryId);

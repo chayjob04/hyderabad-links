@@ -76,7 +76,7 @@ public sealed class DatabaseHealthCheck(IServiceProvider services) : IHealthChec
         try
         {
             await using var command = database.CreateCommand(
-                "SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM cities) THEN 1 ELSE 0 END AS bit)");
+                "SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.cities) THEN 1 ELSE 0 END AS bit)");
             if (await command.ExecuteScalarAsync(cancellationToken) is not true)
             {
                 problems.Add("no reference data");

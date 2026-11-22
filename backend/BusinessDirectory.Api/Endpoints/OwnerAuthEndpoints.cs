@@ -113,16 +113,16 @@ public static class OwnerAuthEndpoints
                error and retries into the UPDATE branch.
 
                COALESCE keeps the original verification moment rather than moving it forward. */
-            @"UPDATE users
+            @"UPDATE dbo.users
               SET phone_verified_at = COALESCE(phone_verified_at, SYSDATETIMEOFFSET()),
                   updated_at = SYSDATETIMEOFFSET()
               OUTPUT inserted.id, inserted.status
               WHERE phone_e164 = @phone;
 
-              INSERT INTO users (phone_e164, phone_verified_at)
+              INSERT INTO dbo.users (phone_e164, phone_verified_at)
               OUTPUT inserted.id, inserted.status
               SELECT @phone, SYSDATETIMEOFFSET()
-              WHERE NOT EXISTS (SELECT 1 FROM users WHERE phone_e164 = @phone)", conn, tx))
+              WHERE NOT EXISTS (SELECT 1 FROM dbo.users WHERE phone_e164 = @phone)", conn, tx))
         {
             upsert.Parameters.AddWithValue("phone", phone);
             await using var reader = await upsert.ExecuteReaderAsync(ct);

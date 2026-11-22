@@ -51,7 +51,7 @@ public static class MeEndpoints
             return Results.Unauthorized();
         }
 
-        await using var command = db.CreateCommand("SELECT phone_e164, name, email FROM users WHERE id = @id AND status = 'active'");
+        await using var command = db.CreateCommand("SELECT phone_e164, name, email FROM dbo.users WHERE id = @id AND status = 'active'");
         command.Parameters.AddWithValue("id", userId);
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))

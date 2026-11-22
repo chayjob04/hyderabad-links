@@ -56,7 +56,7 @@ public sealed class Notifier(IEmailSender sender, EmailSettings settings, ILogge
         CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            @"INSERT INTO notifications (kind, channel, recipient, user_id, subject_type, subject_id)
+            @"INSERT INTO dbo.notifications (kind, channel, recipient, user_id, subject_type, subject_id)
               OUTPUT inserted.id
               VALUES (@kind, 'email', @recipient, @user, @subject_type, @subject_id)", conn, tx);
         command.Parameters.AddWithValue("kind", kind);
@@ -104,7 +104,7 @@ public sealed class Notifier(IEmailSender sender, EmailSettings settings, ILogge
     private static async Task MarkAsync(SqlConnection conn, long notificationId, bool sent, string? error, CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            @"UPDATE notifications
+            @"UPDATE dbo.notifications
               SET status = @status,
                   attempts = attempts + 1,
                   sent_at = CASE WHEN @status = 'sent' THEN SYSDATETIMEOFFSET() ELSE NULL END,
