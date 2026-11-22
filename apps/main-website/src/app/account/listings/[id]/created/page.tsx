@@ -117,12 +117,6 @@ export default async function ListingCreatedPage({ params }: Props) {
           Finish the details
         </Link>
         <Link
-          href={`/account/listings/${id}/preview`}
-          className="rounded-full border border-brand-200 px-5 py-2.5 text-sm font-black text-brand-700 hover:border-brand-700 hover:bg-brand-50"
-        >
-          See what is filled in
-        </Link>
-        <Link
           href="/account/listings"
           className="rounded-full border border-line px-5 py-2.5 text-sm font-black text-muted hover:border-brand-200 hover:text-brand-700"
         >

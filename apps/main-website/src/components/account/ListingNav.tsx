@@ -18,19 +18,11 @@ import { LockIcon } from "@/components/account/VerifiedFeatures";
  * upgrading would unlock. A feature you cannot see is a feature you cannot want.
  */
 export function ListingNav({ listingId, current, verified }: Props) {
+  /* What is left is what is not business information: two promotional screens and the plan. The
+     rows that used to be here -- edit, preview, photos, hours, about, links -- are sections of the
+     editor now, which is why there is one row for it rather than six. */
   const items: { key: ListingScreen; href: string; label: string; locked?: boolean }[] = [
-    { key: "edit", href: `/account/listings/${listingId}/edit`, label: "Edit details" },
-    {
-      key: "photos",
-      href: `/account/listings/${listingId}/photos`,
-      label: "Photos and video",
-      locked: !verified,
-    },
-    { key: "hours", href: `/account/listings/${listingId}/hours`, label: "Opening hours" },
-    { key: "about", href: `/account/listings/${listingId}/about`, label: "About & FAQs" },
-    /* Links themselves are free and unlimited (S0029). Naming them is the paid part, so this row
-       carries no padlock: the screen is fully usable either way. */
-    { key: "links", href: `/account/listings/${listingId}/links`, label: "Website and social links" },
+    { key: "edit", href: `/account/listings/${listingId}/edit`, label: "Listing details" },
     {
       key: "promote",
       href: `/account/listings/${listingId}/promote`,
@@ -84,10 +76,6 @@ type Props = {
 
 export type ListingScreen =
   | "edit"
-  | "photos"
-  | "hours"
-  | "about"
-  | "links"
   | "promote"
   | "ads"
   | "subscription";

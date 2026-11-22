@@ -11,4 +11,3 @@ export type ListingFormState = {
 
 export const emptyListingFormState: ListingFormState = { rev: 0, values: {}, fieldErrors: {} };
 
-export type SubmitState = { message?: string; fieldErrors: Record<string, string> };

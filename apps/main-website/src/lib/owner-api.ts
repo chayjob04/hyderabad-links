@@ -109,6 +109,8 @@ export type ListingFormInput = {
   phonePrimary: string;
   phoneWhatsapp: string;
   websiteUrl: string;
+  /** True when the owner pressed Submit. Absent or false is Save Changes. */
+  submitForReview?: boolean;
 };
 
 // The HTTP helper and the result types live in api-call.ts, shared with customer-api.ts.
@@ -137,6 +139,10 @@ function toPayload(input: ListingFormInput) {
     phonePrimary: orNull(input.phonePrimary),
     phoneWhatsapp: orNull(input.phoneWhatsapp),
     websiteUrl: orNull(input.websiteUrl),
+    /* Which button was pressed. The API creates a draft and leaves an existing listing where
+       it is unless this is true, so omitting it is the safe default rather than a silent
+       submission. */
+    submitForReview: input.submitForReview === true,
   };
 }
 
@@ -225,7 +231,9 @@ export const createListing = (input: ListingFormInput) =>
   authed<OwnerListing>("/api/v1/me/listings", { method: "POST", body: json(toPayload(input)) });
 export const updateListing = (id: number, input: ListingFormInput) =>
   authed<OwnerListing>(`/api/v1/me/listings/${id}`, { method: "PUT", body: json(toPayload({ ...input, localitySlug: undefined })) });
-export const submitListing = (id: number) => authed<OwnerListing>(`/api/v1/me/listings/${id}/submit`, { method: "POST" });
+/* The /submit endpoint is still there and still serves an older client; nothing on this site
+   calls it, because Submit is a button on the listing form now and goes through the same
+   create/update call as Save with the intent set. */
 
 export const listListingAlerts = (id: number) => authed<ListingAlert[]>(`/api/v1/me/listings/${id}/alerts`);
 export const acknowledgeListingAlert = (id: number, alertId: number) =>

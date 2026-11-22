@@ -11,7 +11,13 @@ type Props = {
   localities?: { slug: string; name: string }[]; // only when creating
   lockedLocalityName?: string; // only when editing
   initialValues: Record<string, string>;
+  /** The outlined button: saves and leaves the listing where it is. */
   submitLabel: string;
+  /**
+   * The filled button's label, when sending for review is one of the choices here. Omitted on a
+   * screen where submitting is not offered, and the form then has the one button it always had.
+   */
+  submitAction?: string;
 };
 
 export function ListingForm({
@@ -21,6 +27,7 @@ export function ListingForm({
   lockedLocalityName,
   initialValues,
   submitLabel,
+  submitAction,
 }: Props) {
   const [state, formAction, pending] = useActionState(action, {
     ...emptyListingFormState,
@@ -196,15 +203,38 @@ export function ListingForm({
         />
       </Field>
 
-      <div>
+      {/* Two buttons, one form. Which was pressed travels in its own value, so the server action
+          needs no second entry point and the browser does the work. Save is the outlined one: it is
+          the action an owner takes most often and the one that cannot surprise them. */}
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
+          name="intent"
+          value="save"
           disabled={pending}
-          className="cursor-pointer rounded-full bg-brand-700 px-7 py-3 text-base font-extrabold text-white hover:bg-brand-800 disabled:cursor-default disabled:opacity-60"
+          className="cursor-pointer rounded-full border border-brand-300 px-7 py-3 text-base font-extrabold text-brand-700 hover:border-brand-700 hover:bg-brand-50 disabled:cursor-default disabled:opacity-60"
         >
           {pending ? "Saving..." : submitLabel}
         </button>
+
+        {submitAction ? (
+          <button
+            type="submit"
+            name="intent"
+            value="submit"
+            disabled={pending}
+            className="cursor-pointer rounded-full bg-brand-700 px-7 py-3 text-base font-extrabold text-white hover:bg-brand-800 disabled:cursor-default disabled:opacity-60"
+          >
+            {pending ? "Sending..." : submitAction}
+          </button>
+        ) : null}
       </div>
+
+      {submitAction ? (
+        <p className="text-sm text-muted">
+          Save keeps your work without sending it to us. Submit asks us to review it.
+        </p>
+      ) : null}
     </form>
   );
 }
