@@ -12,6 +12,7 @@ import {
   getProfile,
 } from "@/lib/super-admin-api";
 import { addLinkAction, deleteLinkAction } from "../content-actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "Links" };
 export const dynamic = "force-dynamic";
@@ -203,9 +204,15 @@ export default async function StaffLinksPage({ params, searchParams }: Props) {
                             {mayEdit ? (
                               <td className="py-3 text-end">
                                 <form action={deleteLinkAction.bind(null, id, link.id)}>
-                                  <button type="submit" className="btn btn-sm btn-outline-danger">
-                                    Remove
-                                  </button>
+                                  <ConfirmButton
+                                    label="Remove"
+                                    title="Remove this link?"
+                                    subject={link.label}
+                                    confirmLabel="Remove link"
+                                  >
+                                    The button goes from the public page for this listing, and the
+                                    slot it used becomes free for another link.
+                                  </ConfirmButton>
                                 </form>
                               </td>
                             ) : null}

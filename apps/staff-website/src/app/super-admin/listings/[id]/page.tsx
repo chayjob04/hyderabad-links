@@ -18,6 +18,7 @@ import {
 } from "@/lib/super-admin-api";
 import { archiveListingAction, deleteListingAction, saveListingAction, setFeaturedAction } from "../actions";
 import { AlertForm } from "./AlertForm";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "Listing" };
 export const dynamic = "force-dynamic";
@@ -325,9 +326,17 @@ function RemoveSection({ listing }: { listing: ListingDetail }) {
                   ) : (
                     <form action={archiveListingAction.bind(null, listing.id)}>
                       {hiddenPaths}
-                      <button type="submit" className="btn btn-sm btn-outline-secondary text-nowrap">
-                        Archive
-                      </button>
+                      <ConfirmButton
+                        label="Archive"
+                        title="Archive this listing?"
+                        subject={listing.name}
+                        confirmLabel="Archive listing"
+                        tone="archive"
+                        className="btn btn-sm btn-outline-secondary text-nowrap"
+                      >
+                        It comes off the public site. Its photos, enquiries, reviews and payments
+                        stay, and it can be put back.
+                      </ConfirmButton>
                     </form>
                   )}
                   <p className="text-muted font-size-13 mb-0">
@@ -341,9 +350,17 @@ function RemoveSection({ listing }: { listing: ListingDetail }) {
                 <div className="d-flex align-items-start gap-3">
                   <form action={deleteListingAction.bind(null, listing.id)}>
                     {hiddenPaths}
-                    <button type="submit" className="btn btn-sm btn-danger text-nowrap">
-                      Delete for good
-                    </button>
+                    <ConfirmButton
+                      label="Delete for good"
+                      title="Delete this listing for good?"
+                      subject={listing.name}
+                      confirmLabel="Delete for good"
+                      className="btn btn-sm btn-danger text-nowrap"
+                    >
+                      The listing goes, and so do its photos, enquiries and reviews. This cannot be
+                      undone. If the business has ever paid the API refuses it, and archiving is
+                      what you want instead.
+                    </ConfirmButton>
                   </form>
                   <p className="text-muted font-size-13 mb-0">
                     Deletes the listing and its photos, enquiries and reviews. This cannot be undone,

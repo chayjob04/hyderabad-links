@@ -7,6 +7,7 @@ import {
   deletePlaceholderAction,
   deleteSynonymAction,
 } from "./actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "Search" };
 
@@ -118,9 +119,16 @@ export default async function SearchTuningPage({ searchParams }: Props) {
                             {mayEdit ? (
                               <td className="py-3 text-end">
                                 <form action={deleteSynonymAction.bind(null, synonym.id)}>
-                                  <button type="submit" className="btn btn-sm btn-outline-secondary">
-                                    Remove
-                                  </button>
+                                  <ConfirmButton
+                                    label="Remove"
+                                    title="Remove this synonym?"
+                                    subject={synonym.term + " \u2192 " + synonym.mapsTo}
+                                    confirmLabel="Remove synonym"
+                                    className="btn btn-sm btn-outline-secondary"
+                                  >
+                                    Searches for this term stop being redirected, and will match
+                                    only what they literally say.
+                                  </ConfirmButton>
                                 </form>
                               </td>
                             ) : null}
@@ -206,9 +214,15 @@ export default async function SearchTuningPage({ searchParams }: Props) {
                             {mayEdit ? (
                               <td className="py-3 text-end">
                                 <form action={deletePlaceholderAction.bind(null, placeholder.id)}>
-                                  <button type="submit" className="btn btn-sm btn-outline-secondary">
-                                    Remove
-                                  </button>
+                                  <ConfirmButton
+                                    label="Remove"
+                                    title="Remove this example search?"
+                                    subject={placeholder.text}
+                                    confirmLabel="Remove example"
+                                    className="btn btn-sm btn-outline-secondary"
+                                  >
+                                    It stops being suggested in the search box on the public site.
+                                  </ConfirmButton>
                                 </form>
                               </td>
                             ) : null}

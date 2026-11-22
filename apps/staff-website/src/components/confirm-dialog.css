@@ -1,0 +1,70 @@
+/*
+ * The confirmation dialog, styled to sit inside the Minia theme without being part of it.
+ *
+ * This is a native <dialog>. Everything the theme's own modal markup would need JavaScript for --
+ * the backdrop, trapping focus, closing on Escape, returning focus to the button afterwards -- the
+ * element does on its own, so there is no modal library here and no Bootstrap JS.
+ */
+
+.hl-confirm {
+  /* Native dialogs are auto-sized and centred by the browser; only width needs saying. */
+  width: min(30rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 0;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.75rem 2.5rem rgba(18, 38, 63, 0.22);
+  color: #495057;
+  background: #fff;
+}
+
+.hl-confirm::backdrop {
+  background: rgba(18, 38, 63, 0.45);
+}
+
+.hl-confirm__body {
+  padding: 1.25rem 1.25rem 0.5rem;
+}
+
+.hl-confirm__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #343a40;
+}
+
+.hl-confirm__text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* The record being acted on, so the dialog says which one rather than "this item". */
+.hl-confirm__subject {
+  display: block;
+  margin: 0.625rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #343a40;
+  /* A long business name must not widen the dialog past the viewport. */
+  overflow-wrap: anywhere;
+}
+
+.hl-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+/* Stacked on a phone, and the confirming button last so it is furthest from the thumb's rest. */
+@media (max-width: 24rem) {
+  .hl-confirm__actions {
+    flex-direction: column-reverse;
+  }
+
+  .hl-confirm__actions > * {
+    width: 100%;
+  }
+}

@@ -11,6 +11,7 @@ import {
   getProfile,
 } from "@/lib/super-admin-api";
 import { addFaqAction, deleteFaqAction } from "../content-actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "FAQs" };
 export const dynamic = "force-dynamic";
@@ -145,9 +146,14 @@ export default async function StaffFaqsPage({ params, searchParams }: Props) {
                         <h5 className="font-size-14 mb-0">{faq.question}</h5>
                         {mayEdit ? (
                           <form action={deleteFaqAction.bind(null, id, faq.id)}>
-                            <button type="submit" className="btn btn-sm btn-outline-danger">
-                              Remove
-                            </button>
+                            <ConfirmButton
+                              label="Remove"
+                              title="Remove this question?"
+                              subject={faq.question}
+                              confirmLabel="Remove question"
+                            >
+                              The question and its answer go from the public page for this listing.
+                            </ConfirmButton>
                           </form>
                         ) : null}
                       </div>

@@ -8,6 +8,7 @@ import {
   editCategoryAction,
   toggleCategoryAction,
 } from "./actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "Categories" };
 export const dynamic = "force-dynamic";
@@ -217,9 +218,16 @@ function CategoryRow({ category }: { category: AdminCategory }) {
 
         {deletable ? (
           <form action={deleteCategoryAction.bind(null, category.id)}>
-            <button type="submit" className="btn btn-sm btn-outline-danger">
-              Delete
-            </button>
+            <ConfirmButton
+              label="Delete"
+              title="Delete this category?"
+              subject={category.name}
+              confirmLabel="Delete category"
+            >
+              It goes from the public site and from every menu that lists it. Nothing points at it,
+              so nothing else changes. Switching it off instead keeps it, and keeps its listings
+              working.
+            </ConfirmButton>
           </form>
         ) : null}
       </div>

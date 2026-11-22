@@ -14,6 +14,7 @@ import {
 import { removeFromShelfAction } from "./actions";
 import { moveToGroupAction } from "./group-actions";
 import { HomepageGroups } from "./HomepageGroups";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "Featured", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -181,9 +182,16 @@ export default async function FeaturedPage({ searchParams }: Props) {
                                   ) : null}
                                   {mayFeature ? (
                                     <form action={removeFromShelfAction.bind(null, row.id)}>
-                                      <button type="submit" className="btn btn-sm btn-outline-danger">
-                                        Take off
-                                      </button>
+                                      <ConfirmButton
+                                        label="Take off"
+                                        title="Take this off the Featured shelf?"
+                                        subject={row.name}
+                                        confirmLabel="Take off the shelf"
+                                        tone="archive"
+                                      >
+                                        The homepage stops recommending it. The listing itself is
+                                        untouched, and it can be featured again at any time.
+                                      </ConfirmButton>
                                     </form>
                                   ) : null}
                                 </div>

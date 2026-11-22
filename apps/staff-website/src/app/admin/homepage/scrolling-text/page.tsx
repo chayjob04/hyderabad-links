@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/minia/FilterTabs";
 import { PageTitle } from "@/components/minia/PageTitle";
 import { PERMISSION_HOMEPAGE, getAdminProfile, getScrollingText } from "@/lib/admin-api";
 import { addLineAction, deleteLineAction, toggleLineAction } from "../actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "Scrolling text" };
 
@@ -167,9 +168,16 @@ export default async function ScrollingTextPage({ searchParams }: Props) {
                                     </button>
                                   </form>
                                   <form action={deleteLineAction.bind(null, line.id)}>
-                                    <button type="submit" className="btn btn-sm btn-outline-danger">
-                                      Remove
-                                    </button>
+                                    <ConfirmButton
+                                      label="Remove"
+                                      title="Remove this line?"
+                                      subject={line.message}
+                                      confirmLabel="Remove line"
+                                    >
+                                      It stops appearing in the strip across the top of the
+                                      homepage. Switching it off instead keeps the wording for
+                                      later.
+                                    </ConfirmButton>
                                   </form>
                                 </div>
                               </td>

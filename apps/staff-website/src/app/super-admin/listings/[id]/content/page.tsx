@@ -11,6 +11,7 @@ import {
   getProfile,
 } from "@/lib/super-admin-api";
 import { addContentAction, deleteContentAction } from "../content-actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "About" };
 export const dynamic = "force-dynamic";
@@ -155,9 +156,14 @@ export default async function StaffContentPage({ params, searchParams }: Props) 
                         <h5 className="font-size-14 mb-0">{section.heading}</h5>
                         {mayEdit ? (
                           <form action={deleteContentAction.bind(null, id, section.id)}>
-                            <button type="submit" className="btn btn-sm btn-outline-danger">
-                              Remove
-                            </button>
+                            <ConfirmButton
+                              label="Remove"
+                              title="Remove this section?"
+                              subject={section.heading}
+                              confirmLabel="Remove section"
+                            >
+                              The heading and its text go from the public page for this listing.
+                            </ConfirmButton>
                           </form>
                         ) : null}
                       </div>

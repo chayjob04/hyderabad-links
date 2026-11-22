@@ -1,5 +1,6 @@
 import type { HomepageGroupList } from "@/lib/super-admin-api";
 import { createGroupAction, deleteGroupAction, updateGroupAction } from "./group-actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 /**
  * Named shelves for the homepage.
@@ -124,9 +125,16 @@ export function HomepageGroups({ groups, mayEdit }: { groups: HomepageGroupList;
                       action={deleteGroupAction.bind(null, group.id)}
                       className="border-top mt-3 pt-2 d-flex flex-wrap align-items-center gap-2"
                     >
-                      <button type="submit" className="btn btn-sm btn-outline-danger">
-                        Remove this shelf
-                      </button>
+                      <ConfirmButton
+                        label="Remove this shelf"
+                        title="Remove this shelf?"
+                        subject={group.title}
+                        confirmLabel="Remove shelf"
+                      >
+                        The shelf and its heading go from the homepage. The listings on it stay
+                        featured and return to the default strip, so nothing stops being
+                        recommended.
+                      </ConfirmButton>
                       <span className="text-muted font-size-12">
                         Its listings stay featured and return to the default strip.
                       </span>

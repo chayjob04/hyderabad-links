@@ -14,6 +14,7 @@ import {
   editLocalityAction,
   toggleLocalityAction,
 } from "./actions";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const metadata: Metadata = { title: "Locations" };
 export const dynamic = "force-dynamic";
@@ -252,9 +253,15 @@ function LocalityRow({ locality }: { locality: AdminLocality }) {
 
         {locality.listingCount === 0 ? (
           <form action={deleteLocalityAction.bind(null, locality.id, locality.slug)}>
-            <button type="submit" className="btn btn-sm btn-outline-danger">
-              Delete
-            </button>
+            <ConfirmButton
+              label="Delete"
+              title="Delete this locality?"
+              subject={locality.name}
+              confirmLabel="Delete locality"
+            >
+              Its area page goes from the public site. No listing sits in it, so no listing is
+              affected. Switching it off instead keeps the page reachable by its old links.
+            </ConfirmButton>
           </form>
         ) : null}
       </div>
