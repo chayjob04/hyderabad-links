@@ -15,5 +15,8 @@ export async function signOutAction(): Promise<void> {
   const { refresh } = await readTokens("super");
   if (refresh) await staffLogout(refresh);
   await clearSessionCookies("super");
+  /* The admin cookies too: signing in here now sets both, so clearing only one would leave a live
+     admin session behind and signing out would not have signed you out. */
+  await clearSessionCookies("admin");
   redirect("/login?tab=super");
 }

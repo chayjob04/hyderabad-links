@@ -92,6 +92,7 @@ public static class SuperAdminListingEndpoints
         string? q = null,
         string? status = null,
         string? category = null,
+        string? plan = null,
         int? page = null,
         int? pageSize = null)
     {
@@ -107,6 +108,24 @@ public static class SuperAdminListingEndpoints
         // A category slug, for the by-category screens. Matched on the primary category only, the
         // same one /category-counts counts, so a drill-in returns exactly the number it promised.
         var categorySlug = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
+
+        /* Free or Verified, for the two Listings rows that ask for one. Validated against the same
+           list the admin queue uses, so an unknown value is refused here rather than quietly
+           returning everything -- a filter that silently does nothing is worse than an error. */
+        var wantedPlan = string.IsNullOrWhiteSpace(plan) ? null : plan.Trim().ToLowerInvariant();
+        if (wantedPlan is not null && !ModerationQueueQuery.AllowedPlans.Contains(wantedPlan))
+        {
+            return Results.Problem(
+                $"plan must be one of: {string.Join(", ", ModerationQueueQuery.AllowedPlans)}.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        bool? verifiedOnly = wantedPlan switch
+        {
+            ModerationQueueQuery.VerifiedPlan => true,
+            ModerationQueueQuery.FreePlan => false,
+            _ => null,
+        };
 
         /* One statement returns the page and the total, so the two cannot disagree. The ORDER BY is
            repeated outside the CTE because ordering only inside it returns the right rows in an
@@ -125,6 +144,7 @@ public static class SuperAdminListingEndpoints
                 WHERE (@status IS NULL OR li.status = @status)
                   AND (@q IS NULL OR li.name LIKE '%' + @q + '%' OR li.slug LIKE '%' + @q + '%')
                   AND (@category IS NULL OR pc.slug = @category)
+                  AND (@verified IS NULL OR e.is_verified = @verified)
               )
               SELECT id, name, slug, status, locality_name, category_name, phone_primary,
                      is_verified, paid_until, created_at, featured_at, total
@@ -134,6 +154,10 @@ public static class SuperAdminListingEndpoints
         command.Parameters.Add(new SqlParameter("status", SqlDbType.VarChar) { Value = (object?)status ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("q", SqlDbType.NVarChar) { Value = (object?)search ?? DBNull.Value });
         command.Parameters.Add(new SqlParameter("category", SqlDbType.VarChar) { Value = (object?)categorySlug ?? DBNull.Value });
+        command.Parameters.Add(new SqlParameter("verified", SqlDbType.Bit)
+        {
+            Value = verifiedOnly is { } only ? only : DBNull.Value,
+        });
         command.Parameters.AddWithValue("skip", (currentPage - 1) * size);
         command.Parameters.AddWithValue("take", size);
 

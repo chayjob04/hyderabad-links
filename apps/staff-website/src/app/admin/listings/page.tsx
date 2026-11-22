@@ -4,12 +4,29 @@ import { Pagination } from "@/components/Pagination";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState, FilterTabs } from "@/components/minia/FilterTabs";
 import { PageTitle } from "@/components/minia/PageTitle";
-import { QUEUE_STATUSES, describeStatus, formatWhen, getAdminProfile, getQueue } from "@/lib/admin-api";
+import {
+  ALL_STATUSES,
+  LISTING_PLANS,
+  QUEUE_STATUSES,
+  describeStatus,
+  formatWhen,
+  getAdminProfile,
+  getQueue,
+  type ListingPlan,
+} from "@/lib/admin-api";
 
 export const metadata: Metadata = { title: "Moderation queue" };
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ status?: string; page?: string; decided?: string; added?: string }> };
+type Props = {
+  searchParams: Promise<{
+    status?: string;
+    plan?: string;
+    page?: string;
+    decided?: string;
+    added?: string;
+  }>;
+};
 
 /**
  * The moderation queue, on the original's Minia layout.
@@ -20,17 +37,30 @@ type Props = { searchParams: Promise<{ status?: string; page?: string; decided?:
  * API call, same statuses, same URL-as-state.
  */
 export default async function ModerationQueuePage({ searchParams }: Props) {
-  const { status: rawStatus, page: rawPage, decided } = await searchParams;
+  const { status: rawStatus, plan: rawPlan, page: rawPage, decided } = await searchParams;
 
   // Anything unknown falls back to the review queue; the API validates the value again.
-  const status = QUEUE_STATUSES.includes(rawStatus as (typeof QUEUE_STATUSES)[number]) ? rawStatus! : "pending_review";
+  const known = QUEUE_STATUSES.includes(rawStatus as (typeof QUEUE_STATUSES)[number]);
+  const status = known || rawStatus === ALL_STATUSES ? rawStatus! : "pending_review";
+  const plan = LISTING_PLANS.includes(rawPlan as ListingPlan) ? (rawPlan as ListingPlan) : undefined;
   const page = Math.max(Number.parseInt(rawPage ?? "1", 10) || 1, 1);
 
-  const [result, me] = await Promise.all([getQueue(status, page), getAdminProfile()]);
+  const [result, me] = await Promise.all([getQueue(status, page, plan), getAdminProfile()]);
+
+  /* The two filters are independent, so changing one keeps the other. Page is deliberately not
+     carried over: the first page of a different filter is where you want to be. */
+  const filterHref = (next: { status?: string; plan?: string }) => {
+    const query = new URLSearchParams({ status: next.status ?? status });
+    const wanted = next.plan === undefined ? plan : next.plan;
+    if (wanted) query.set("plan", wanted);
+    return `/admin/listings?${query.toString()}`;
+  };
+
+  const heading = status === ALL_STATUSES ? "All listings" : describeStatus(status).label;
 
   return (
     <>
-      <PageTitle title="Listings" breadcrumb={[{ label: "Listings" }, { label: describeStatus(status).label }]} />
+      <PageTitle title="Listings" breadcrumb={[{ label: "Listings" }, { label: heading }]} />
 
       <div className="row mb-3">
         <div className="col-12">
@@ -43,9 +73,26 @@ export default async function ModerationQueuePage({ searchParams }: Props) {
               </p>
 
               <FilterTabs
-                tabs={QUEUE_STATUSES.map((value) => ({ value, label: describeStatus(value).label }))}
+                tabs={[
+                  { value: ALL_STATUSES, label: "All" },
+                  ...QUEUE_STATUSES.map((value) => ({ value, label: describeStatus(value).label })),
+                ]}
                 current={status}
-                hrefFor={(value) => `/admin/listings?status=${value}`}
+                hrefFor={(value) => filterHref({ status: value })}
+              />
+
+              {/* The plan, on its own row of the same tabs the statuses use -- this is what the
+                  Free Listings and Verified Listings menu rows open. Verified means paid up right
+                  now, from the entitlement view, not what the listing once bought. */}
+              <FilterTabs
+                label="Filter by plan"
+                tabs={[
+                  { value: "", label: "All plans" },
+                  { value: "free", label: "Free" },
+                  { value: "verified", label: "Verified" },
+                ]}
+                current={plan ?? ""}
+                hrefFor={(value) => filterHref({ plan: value })}
               />
 
               {decided ? (

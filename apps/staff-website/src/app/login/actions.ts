@@ -80,6 +80,27 @@ async function keepSession(surface: StaffTab, session: StaffSession): Promise<st
       refreshToken: session.refreshToken,
       expiresInSeconds: session.expiresInSeconds,
     });
+
+    /*
+     * The admin session as well, for a super admin only.
+     *
+     * Several screens a platform owner needs -- SEO, the blog, categories, areas, search tuning,
+     * the homepage strips -- are served by `/api/v1/admin/...` and so live under /admin on this
+     * site. With only the super cookies set, every one of those sidebar rows had to be rendered
+     * inert, because following it would hit the middleware with no admin cookie and bounce the
+     * owner to the admin sign-in. From the inside that reads as being logged out at random, so the
+     * rows carried an "Admin" badge instead and the features were simply unreachable.
+     *
+     * This grants no permission the account does not already hold: the API issued
+     * `superAdminAccessToken` only after reading `admins.manage` from the database, and the same
+     * sign-in handed back `accessToken` for the same account, whose admin-surface permissions the
+     * API checks again on every request. What changes is reachability, not authority.
+     *
+     * The reverse is deliberately not done. The admin tab below is never given the super token,
+     * even for an account that holds both, so choosing a tab still decides what a stolen cookie is
+     * worth -- an admin session cannot reach /super-admin.
+     */
+    await setSessionCookies("admin", session);
   } else {
     await setSessionCookies(surface, session);
   }

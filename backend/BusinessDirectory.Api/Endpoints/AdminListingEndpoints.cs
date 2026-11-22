@@ -140,6 +140,7 @@ public static class AdminListingEndpoints
         SqlDatabase db,
         CancellationToken ct,
         string? status = null,
+        string? plan = null,
         int? page = null,
         int? pageSize = null)
     {
@@ -153,7 +154,7 @@ public static class AdminListingEndpoints
             return refused;
         }
 
-        var query = ModerationQueueQuery.TryCreate(status, page, pageSize, out var error);
+        var query = ModerationQueueQuery.TryCreate(status, plan, page, pageSize, out var error);
         if (query is null)
         {
             return Results.Problem(error, statusCode: StatusCodes.Status400BadRequest);
@@ -172,7 +173,12 @@ public static class AdminListingEndpoints
                   JOIN dbo.localities lo ON lo.id = li.locality_id
                   LEFT JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
                   LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
-                  WHERE li.status = @status
+                  /* Both filters are optional. All Listings sends status=all, which arrives as a
+                     null here rather than as a status no listing holds; Free and Verified Listings
+                     send a plan, matched against the entitlement view so a lapsed subscription
+                     counts as free immediately. */
+                  WHERE (@status IS NULL OR li.status = @status)
+                    AND (@verified IS NULL OR e.is_verified = @verified)
               ),
               page AS (
                   SELECT * FROM matches
@@ -188,7 +194,14 @@ public static class AdminListingEndpoints
               ORDER BY " + (query.OldestFirst ? "p.created_at ASC" : "p.updated_at DESC") + ", p.id ASC";
 
         await using var command = db.CreateCommand(sql);
-        command.Parameters.AddWithValue("status", query.Status);
+        command.Parameters.Add(new SqlParameter("status", SqlDbType.VarChar)
+        {
+            Value = query.EveryStatus ? DBNull.Value : query.Status,
+        });
+        command.Parameters.Add(new SqlParameter("verified", SqlDbType.Bit)
+        {
+            Value = query.VerifiedOnly is { } only ? only : DBNull.Value,
+        });
         command.Parameters.AddWithValue("limit", query.PageSize);
         command.Parameters.AddWithValue("offset", query.Offset);
 

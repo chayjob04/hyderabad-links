@@ -145,8 +145,18 @@ export const adminLogout = (refreshToken: string) =>
 // ---- signed-in admin
 export const getAdminProfile = () => authed<AdminProfile>("/api/v1/admin/me");
 
-export const getQueue = (status: string, page: number) =>
-  authed<QueuePage>(`/api/v1/admin/listings?status=${encodeURIComponent(status)}&page=${page}`);
+/** Every status at once, for the All Listings row. Mirrors ModerationQueueQuery.AllStatuses. */
+export const ALL_STATUSES = "all";
+
+/** The plan filters behind Free Listings and Verified Listings. */
+export const LISTING_PLANS = ["free", "verified"] as const;
+export type ListingPlan = (typeof LISTING_PLANS)[number];
+
+export const getQueue = (status: string, page: number, plan?: ListingPlan) => {
+  const query = new URLSearchParams({ status, page: String(page) });
+  if (plan) query.set("plan", plan);
+  return authed<QueuePage>(`/api/v1/admin/listings?${query.toString()}`);
+};
 
 export const getListing = (id: number) => authed<AdminListing>(`/api/v1/admin/listings/${id}`);
 

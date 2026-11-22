@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { MiniaNavItem } from "./nav";
 
@@ -18,17 +18,35 @@ import type { MiniaNavItem } from "./nav";
  * another closes it — the original's accordion behaviour.
  */
 
-function isCurrent(pathname: string, href: string): boolean {
-  // The two dashboards are prefixes of everything on their surface, so they match exactly or not
-  // at all; every other row may also be the parent of a detail page.
-  if (href === "/admin" || href === "/super-admin/overview") return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
+/** The `plan` filter a row or a URL carries, with its absence spelled out as "every plan". */
+function planOf(query: string): string {
+  return new URLSearchParams(query).get("plan") ?? "";
 }
 
-/** Which group, if any, contains the page being shown. */
+function isCurrent(pathname: string, search: string, href: string): boolean {
+  const [path, query = ""] = href.split("?");
+
+  // The two dashboards are prefixes of everything on their surface, so they match exactly or not
+  // at all; every other row may also be the parent of a detail page.
+  if (path === "/admin" || path === "/super-admin/overview") return pathname === path;
+
+  /* All, Free and Verified Listings are one page with one filter between them, so the path alone
+     cannot tell them apart -- compared on the path only, all three would light up at once. The
+     filter decides, and no filter is itself a value. */
+  if (pathname === path) return planOf(query) === planOf(search);
+
+  return pathname.startsWith(`${path}/`);
+}
+
+/**
+ * Which group, if any, contains the page being shown.
+ *
+ * Matched on the path alone, deliberately: a group holding All, Free and Verified Listings should
+ * open on any of them, not only on the one whose filter is in the address.
+ */
 function groupForPath(items: MiniaNavItem[], pathname: string): string | null {
   for (const item of items) {
-    if (item.children?.some((child) => child.href && isCurrent(pathname, child.href))) {
+    if (item.children?.some((child) => child.href && isCurrent(pathname, "", child.href.split("?")[0] ?? child.href))) {
       return item.label;
     }
   }
@@ -37,6 +55,7 @@ function groupForPath(items: MiniaNavItem[], pathname: string): string | null {
 
 export function SidebarMenu({ items }: { items: MiniaNavItem[] }) {
   const pathname = usePathname();
+  const search = useSearchParams().toString();
   const [open, setOpen] = useState<string | null>(() => groupForPath(items, pathname));
 
   // Following a link into another group opens that group, as metisMenu did on each page load.
@@ -54,11 +73,12 @@ export function SidebarMenu({ items }: { items: MiniaNavItem[] }) {
               key={item.label}
               item={item}
               pathname={pathname}
+              search={search}
               open={open === item.label}
               onToggle={() => setOpen((current) => (current === item.label ? null : item.label))}
             />
           ) : (
-            <Row key={item.label} item={item} pathname={pathname} />
+            <Row key={item.label} item={item} pathname={pathname} search={search} />
           ),
         )}
       </ul>
@@ -69,15 +89,19 @@ export function SidebarMenu({ items }: { items: MiniaNavItem[] }) {
 function Group({
   item,
   pathname,
+  search,
   open,
   onToggle,
 }: {
   item: MiniaNavItem;
   pathname: string;
+  search: string;
   open: boolean;
   onToggle: () => void;
 }) {
-  const holdsCurrent = item.children?.some((child) => child.href && isCurrent(pathname, child.href));
+  const holdsCurrent = item.children?.some(
+    (child) => child.href && isCurrent(pathname, search, child.href),
+  );
   return (
     <li className={open || holdsCurrent ? "mm-active" : undefined}>
       <button
@@ -91,7 +115,7 @@ function Group({
       </button>
       <ul className={`sub-menu mm-collapse${open ? " mm-show" : ""}`}>
         {item.children?.map((child) => (
-          <Row key={child.label} item={child} pathname={pathname} nested />
+          <Row key={child.label} item={child} pathname={pathname} search={search} nested />
         ))}
       </ul>
     </li>
@@ -101,10 +125,12 @@ function Group({
 function Row({
   item,
   pathname,
+  search,
   nested = false,
 }: {
   item: MiniaNavItem;
   pathname: string;
+  search: string;
   nested?: boolean;
 }) {
   /* A row the original had but this backend cannot serve. It keeps its place and its shape and is
@@ -142,7 +168,7 @@ function Row({
     );
   }
 
-  const current = isCurrent(pathname, item.href);
+  const current = isCurrent(pathname, search, item.href);
   return (
     <li className={current ? "mm-active" : undefined}>
       <Link

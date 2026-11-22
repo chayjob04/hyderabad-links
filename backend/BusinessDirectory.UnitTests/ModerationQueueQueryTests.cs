@@ -4,8 +4,9 @@ namespace BusinessDirectory.UnitTests;
 
 public class ModerationQueueQueryTests
 {
-    private static ModerationQueueQuery? Create(string? status = null, int? page = null, int? pageSize = null) =>
-        ModerationQueueQuery.TryCreate(status, page, pageSize, out _);
+    private static ModerationQueueQuery? Create(
+        string? status = null, int? page = null, int? pageSize = null, string? plan = null) =>
+        ModerationQueueQuery.TryCreate(status, plan, page, pageSize, out _);
 
     [Fact]
     public void An_empty_request_shows_the_review_queue_oldest_first()
@@ -40,7 +41,7 @@ public class ModerationQueueQueryTests
     [InlineData("pending_review'; DROP TABLE listings --")]
     public void An_unknown_status_is_refused_with_a_message(string status)
     {
-        var query = ModerationQueueQuery.TryCreate(status, null, null, out var error);
+        var query = ModerationQueueQuery.TryCreate(status, null, null, null, out var error);
 
         Assert.Null(query);
         Assert.NotNull(error);
@@ -80,6 +81,66 @@ public class ModerationQueueQueryTests
     {
         Assert.Equal(40, Create(page: 3, pageSize: 20)!.Offset);
         Assert.Equal(0, Create(page: 1, pageSize: 50)!.Offset);
+    }
+
+    // ---------------------------------------------------------------- the three Listings views
+
+    [Fact]
+    public void All_statuses_is_accepted_and_means_no_status_filter()
+    {
+        // What the All Listings row asks for. Without it the queue would answer with its default,
+        // the review queue, and the row would quietly show a subset.
+        var query = Create(status: ModerationQueueQuery.AllStatuses);
+
+        Assert.NotNull(query);
+        Assert.True(query!.EveryStatus);
+        Assert.Equal(ModerationQueueQuery.AllStatuses, query.Status);
+    }
+
+    [Fact]
+    public void A_real_status_is_not_every_status()
+    {
+        Assert.False(Create()!.EveryStatus);
+        Assert.False(Create(status: "active")!.EveryStatus);
+    }
+
+    [Theory]
+    [InlineData("verified", true)]
+    [InlineData("free", false)]
+    [InlineData("VERIFIED", true)]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    public void A_plan_becomes_a_verified_filter(string? plan, bool? expected)
+    {
+        // Verified means paid up right now; free means not. No plan means both, which is the
+        // difference between "All Listings" and the two filtered views.
+        var query = Create(plan: plan);
+
+        Assert.NotNull(query);
+        Assert.Equal(expected, query!.VerifiedOnly);
+    }
+
+    [Theory]
+    [InlineData("platinum")]
+    [InlineData("paid")]
+    [InlineData("0")]
+    public void An_unknown_plan_is_refused_rather_than_ignored(string plan)
+    {
+        /* Refused, not dropped. A filter that silently matches everything is the worse failure:
+           the screen says Verified Listings and lists all of them, and nobody can tell. */
+        var query = ModerationQueueQuery.TryCreate(null, plan, null, null, out var error);
+
+        Assert.Null(query);
+        Assert.NotNull(error);
+        Assert.Contains("plan", error);
+    }
+
+    [Fact]
+    public void A_status_that_does_not_exist_is_still_refused()
+    {
+        // Accepting "all" must not have opened the door to anything else.
+        Assert.Null(ModerationQueueQuery.TryCreate("everything", null, null, null, out var error));
+        Assert.NotNull(error);
     }
 }
 
@@ -122,4 +183,5 @@ public class RejectionReasonTests
     {
         Assert.NotNull(RejectionReason.TryClean(new string('x', RejectionReason.MaxLength), out _));
     }
+
 }

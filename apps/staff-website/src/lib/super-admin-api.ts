@@ -266,10 +266,17 @@ export function describeStatus(status: string): { label: string; tone: "grey" | 
   }
 }
 
-export const listListings = (options: { q?: string; status?: string; page?: number } = {}) => {
+/** The plan filters behind Free Listings and Verified Listings. */
+export const LISTING_PLANS = ["free", "verified"] as const;
+export type ListingPlan = (typeof LISTING_PLANS)[number];
+
+export const listListings = (
+  options: { q?: string; status?: string; plan?: string; page?: number } = {},
+) => {
   const query = new URLSearchParams();
   if (options.q) query.set("q", options.q);
   if (options.status) query.set("status", options.status);
+  if (options.plan) query.set("plan", options.plan);
   query.set("page", String(options.page ?? 1));
   return authed<ListingPage>(`/api/v1/super-admin/listings?${query.toString()}`);
 };

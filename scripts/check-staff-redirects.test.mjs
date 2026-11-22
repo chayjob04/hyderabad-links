@@ -120,3 +120,61 @@ test("a missing route prefix is actually caught", () => {
   assert.equal(resolves(["admin", "categories"]), true, "'/admin/categories' must resolve");
   assert.equal(resolves(["admin", "listings", "*"]), true, "'/admin/listings/${id}' must resolve");
 });
+
+/* ---------------------------------------------------------------- the sidebar
+
+   The menus were reorganised: the Listings group became All / Free / Verified, the groups that
+   pointed at "/Super/UnderConstruction" in the original were dropped rather than greyed, and the
+   rows served from /admin became live on the super surface. Each of those is a chance to leave a
+   link pointing nowhere, which is exactly what the route tree can answer. */
+
+const navSource = readFileSync(
+  join(here, "..", "apps", "staff-website", "src", "components", "minia", "nav.ts"),
+  "utf8",
+);
+
+/** Every href in nav.ts, as a path with its query dropped. Template literals are included. */
+function navHrefs() {
+  const found = [];
+  for (const m of navSource.matchAll(/href:\s*(["'`])([^"'`]+)\1/g)) found.push(m[2]);
+  return found;
+}
+
+test("the scan finds the sidebar's links", () => {
+  // Guards the guard: an empty list would make both assertions below pass by vacuity.
+  assert.ok(navHrefs().length > 15, `only found ${navHrefs().length} sidebar links`);
+});
+
+test("every sidebar link points at a page that exists", () => {
+  const broken = navHrefs()
+    .map((href) => ({ href, path: href.split("?")[0] }))
+    .filter(({ path }) => !resolves(path.split("/").filter((s) => s !== "")))
+    .map(({ href }) => href);
+
+  assert.deepEqual(
+    [...new Set(broken)],
+    [],
+    "these sidebar rows link to a page that does not exist:\n  " + [...new Set(broken)].join("\n  "),
+  );
+});
+
+test("no sidebar row is inert or misnamed", () => {
+  /* `comingSoon` rendered a greyed row with a badge for a page this backend cannot serve. They are
+     gone: a menu listing what does not exist costs more to read than it gains in shape. And "My
+     listings" was never anybody's own listings -- it was the moderation queue under a name that
+     implied ownership. */
+  assert.doesNotMatch(navSource, /comingSoon:\s*true/, "a Coming Soon row is back in the sidebar");
+  assert.doesNotMatch(navSource, /label:\s*"My ?[Ll]istings"/, '"My listings" is back in the sidebar');
+});
+
+test("the three Listings rows differ only by their plan filter", () => {
+  /* They are one page with one filter between them. If two rows ever carried the same filter the
+     sidebar could not tell them apart, and whichever was second would never light up. */
+  const listingRows = navHrefs().filter((href) => /\/listings(\?|$)/.test(href));
+  assert.ok(listingRows.length >= 6, `expected both panels' Listings rows, found ${listingRows.length}`);
+
+  const plans = listingRows.map((href) => new URLSearchParams(href.split("?")[1] ?? "").get("plan") ?? "");
+  for (const wanted of ["", "free", "verified"]) {
+    assert.ok(plans.includes(wanted), `no Listings row asks for plan=${JSON.stringify(wanted)}`);
+  }
+});

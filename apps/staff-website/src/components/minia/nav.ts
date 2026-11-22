@@ -60,133 +60,131 @@ export const PERM = {
 } as const;
 
 /**
+ * Every status at once. Mirrors `ModerationQueueQuery.AllStatuses`: the admin queue defaults to the
+ * review queue, so All Listings has to ask for all of them explicitly.
+ */
+const ALL = "all";
+
+/**
  * The Admin sidebar.
  *
  * The original's "Listings" group held Add listing and My listings; the business-owner rows beside
  * them belonged to a fourth role this application does not have, so they are not here. Everything
  * else is row for row.
  */
+/**
+ * The Admin sidebar.
+ *
+ * Grouped by what a thing is rather than by where it came from. The Listings group is the three
+ * views that matter -- everything, free, paid -- and nothing else: "My listings" was never anybody's
+ * own listings, it was the moderation queue under a name that implied ownership.
+ *
+ * Rows whose page is served by the super-admin surface are gated on a super-only permission, so an
+ * administrator never sees them: `visibleNav` drops a row the account cannot hold.
+ */
 export const ADMIN_NAV: MiniaNavItem[] = [
   { label: "Dashboard", href: "/admin", icon: "fas fa-tachometer-alt" },
   {
     label: "Listings",
     icon: "fas fa-newspaper",
+    permission: PERM.listingsView,
     children: [
-      { label: "My listings", href: "/admin/listings", permission: PERM.listingsView },
+      { label: "All Listings", href: `/admin/listings?status=${ALL}` },
+      { label: "Free Listings", href: `/admin/listings?status=${ALL}&plan=free` },
+      { label: "Verified Listings", href: `/admin/listings?status=${ALL}&plan=verified` },
+    ],
+  },
+  {
+    label: "Reviews & Reports",
+    icon: "fas fa-comments",
+    children: [
       { label: "Reviews", href: "/admin/reviews", permission: PERM.listingsReview },
       { label: "Reports", href: "/admin/reports", permission: PERM.reportsHandle },
     ],
   },
   {
-    label: "Home page",
-    icon: "fas fa-home",
-    permission: PERM.homepageManage,
+    label: "Website Management",
+    icon: "fas fa-globe",
     children: [
-      { label: "Scrolling", href: "/admin/homepage/scrolling-text" },
-      { label: "Popular categories", href: "/admin/homepage/popular-categories" },
-      { label: "Verified listing", href: "/super-admin/featured", permission: PERM.listingsFeature },
-      { label: "Trending", comingSoon: true },
-      { label: "Endless listing", comingSoon: true },
+      // One page manages both levels of the tree, so one row names both rather than two rows
+      // pointing at the same screen.
+      { label: "Categories & Subcategories", href: "/admin/categories", permission: PERM.taxonomyManage },
+      { label: "Areas / Locations", href: "/admin/locations", permission: PERM.taxonomyManage },
+      { label: "Listing Groups", href: "/super-admin/featured", permission: PERM.listingsFeature },
     ],
   },
-  { label: "SEO Home", href: "/admin/seo", icon: "fas fa-chart-line", permission: PERM.seoManage },
-  { label: "Blog Home", href: "/admin/blog", icon: "fas fa-blog", permission: PERM.blogManage },
+  { label: "SEO Management", href: "/admin/seo", icon: "fas fa-chart-line", permission: PERM.seoManage },
+  { label: "Search Management", href: "/admin/search", icon: "fas fa-search", permission: PERM.taxonomyManage },
   {
-    label: "Categories view",
-    href: "/admin/categories",
-    icon: "fas fa-list",
-    permission: PERM.taxonomyManage,
+    label: "Content Management",
+    icon: "fas fa-blog",
+    children: [
+      { label: "Blog", href: "/admin/blog", permission: PERM.blogManage },
+      { label: "Homepage strip", href: "/admin/homepage/scrolling-text", permission: PERM.homepageManage },
+      { label: "Popular categories", href: "/admin/homepage/popular-categories", permission: PERM.homepageManage },
+    ],
   },
-  { label: "Locations", href: "/admin/locations", icon: "fas fa-map-marker-alt", permission: PERM.taxonomyManage },
-  { label: "Search", href: "/admin/search", icon: "fas fa-search", permission: PERM.taxonomyManage },
-  { label: "Audit Dashboard", href: "/super-admin/audit", icon: "fas fa-history", permission: PERM.auditView },
-  { label: "My password", href: "/admin/password", icon: "fas fa-key" },
+  { label: "My Password", href: "/admin/password", icon: "fas fa-key" },
 ];
 
 /**
- * The Super Admin sidebar.
+ * The Super Admin sidebar: the Admin menu, plus what only a platform owner can do.
  *
- * The original pointed a dozen rows at `/Super/UnderConstruction`. They are kept, in their original
- * groups and order, as `comingSoon` rows: the shape of the menu is part of what is being
- * reproduced, and an inert row is honest where a link to a missing page would not be.
+ * Every Admin row is here and reachable, because a super sign-in now keeps the admin session as
+ * well (see `app/login/actions.ts`). Before that, the rows served from /admin had to be drawn inert
+ * with an "Admin" badge, which read as a restriction on the most privileged account in the system.
+ *
+ * The original pointed a dozen rows at `/Super/UnderConstruction`. Those are gone rather than
+ * greyed: a menu that lists what does not exist costs more to read than it gains in shape. What
+ * each of them would have shown, where it exists at all, is reachable from the rows below.
  */
 export const SUPER_ADMIN_NAV: MiniaNavItem[] = [
   { label: "Dashboard", href: "/super-admin/overview", icon: "fas fa-tachometer-alt" },
   {
     label: "Listings",
     icon: "fas fa-boxes",
+    permission: PERM.listingsView,
     children: [
-      { label: "By Category", href: "/super-admin/listings/by-category", permission: PERM.listingsView },
-      { label: "By Subcategory", href: "/super-admin/listings/by-subcategory", permission: PERM.listingsView },
-      { label: "By Area", comingSoon: true },
-      { label: "By Admin", comingSoon: true },
-      { label: "By Plan", comingSoon: true },
-      { label: "Recent", href: "/super-admin/listings", permission: PERM.listingsView },
-      { label: "Add Listings", href: "/super-admin/listings/new", permission: PERM.listingsCreate },
-      { label: "MyListings", href: "/super-admin/listings", permission: PERM.listingsView },
-    ],
-  },
-  { label: "SEO Home", href: "/admin/seo", icon: "fas fa-chart-line", permission: PERM.seoManage },
-  {
-    label: "Analytics",
-    icon: "fas fa-chart-bar",
-    permission: PERM.analyticsView,
-    children: [{ label: "Dashboard", comingSoon: true }],
-  },
-  {
-    label: "Subscriptions",
-    icon: "fas fa-money-bill-alt",
-    permission: PERM.plansManage,
-    children: [
-      { label: "Dashboard", comingSoon: true },
-      { label: "Report", comingSoon: true },
+      { label: "All Listings", href: "/super-admin/listings" },
+      { label: "Free Listings", href: "/super-admin/listings?plan=free" },
+      { label: "Verified Listings", href: "/super-admin/listings?plan=verified" },
     ],
   },
   {
-    label: "Business accounts",
-    icon: "fas fa-award",
-    permission: PERM.usersView,
-    children: [{ label: "Accounts", href: "/super-admin/accounts" }],
-  },
-  {
-    label: "Home page",
-    icon: "fas fa-home",
-    permission: PERM.homepageManage,
+    label: "Reviews & Reports",
+    icon: "fas fa-comments",
     children: [
-      { label: "Scrolling", href: "/admin/homepage/scrolling-text" },
-      { label: "Popular categories", href: "/admin/homepage/popular-categories" },
-      { label: "Verified listing", href: "/super-admin/featured", permission: PERM.listingsFeature },
-      { label: "Trending", comingSoon: true },
-      { label: "Endless listing", comingSoon: true },
+      { label: "Reviews", href: "/admin/reviews", permission: PERM.listingsReview },
+      { label: "Reports", href: "/admin/reports", permission: PERM.reportsHandle },
     ],
   },
   {
-    label: "Mixed",
-    icon: "fas fa-adjust",
+    label: "Website Management",
+    icon: "fas fa-globe",
     children: [
-      { label: "Blogs", href: "/admin/blog", permission: PERM.blogManage },
-      { label: "Plans", comingSoon: true },
-      { label: "Features", comingSoon: true },
-      { label: "Audit Dashboard", href: "/super-admin/audit", permission: PERM.auditView },
+      { label: "Categories & Subcategories", href: "/admin/categories", permission: PERM.taxonomyManage },
+      { label: "Areas / Locations", href: "/admin/locations", permission: PERM.taxonomyManage },
+      { label: "Listing Groups", href: "/super-admin/featured", permission: PERM.listingsFeature },
+      // Counts per category and per subcategory, each drilling in to the listings filed under it.
+      { label: "Listings by Category", href: "/super-admin/listings/by-category", permission: PERM.listingsEdit },
+      { label: "Listings by Subcategory", href: "/super-admin/listings/by-subcategory", permission: PERM.listingsEdit },
     ],
   },
+  { label: "SEO Management", href: "/admin/seo", icon: "fas fa-chart-line", permission: PERM.seoManage },
+  { label: "Search Management", href: "/admin/search", icon: "fas fa-search", permission: PERM.taxonomyManage },
   {
-    label: "Configurations",
-    icon: "fas fa-cogs",
+    label: "Content Management",
+    icon: "fas fa-blog",
     children: [
-      { label: "Admins", href: "/super-admin/admins", permission: PERM.adminsManage },
-      { label: "Area", href: "/admin/locations", permission: PERM.taxonomyManage },
-      { label: "Listing Group", comingSoon: true },
-      { label: "Categories view", href: "/admin/categories", permission: PERM.taxonomyManage },
-      { label: "Primary category", href: "/admin/categories", permission: PERM.taxonomyManage },
-      { label: "Sub category", href: "/admin/categories", permission: PERM.taxonomyManage },
-      { label: "Segment", comingSoon: true },
-      { label: "Manage SearchKeys", href: "/admin/search", permission: PERM.taxonomyManage },
-      { label: "Manage PlaceholderText", href: "/admin/search", permission: PERM.taxonomyManage },
-      { label: "Manage Register Data", comingSoon: true },
+      { label: "Blog", href: "/admin/blog", permission: PERM.blogManage },
+      { label: "Homepage strip", href: "/admin/homepage/scrolling-text", permission: PERM.homepageManage },
+      { label: "Popular categories", href: "/admin/homepage/popular-categories", permission: PERM.homepageManage },
     ],
   },
-  { label: "My password", href: "/super-admin/password", icon: "fas fa-key" },
+  { label: "Business Accounts", href: "/super-admin/accounts", icon: "fas fa-award", permission: PERM.usersView },
+  { label: "Admin Management", href: "/super-admin/admins", icon: "fas fa-cogs", permission: PERM.adminsManage },
+  { label: "Audit Logs", href: "/super-admin/audit", icon: "fas fa-history", permission: PERM.auditView },
+  { label: "My Password", href: "/super-admin/password", icon: "fas fa-key" },
 ];
 
 /**
@@ -214,8 +212,13 @@ export function visibleNav(
      segment is exact either way. */
   const onThisSurface = (href: string) => href === prefix || href.startsWith(`${prefix}/`);
 
+  /* A super-admin sign-in keeps the admin session as well, so a row pointing at /admin is
+     reachable from the super surface and must not be marked. The reverse still is: an admin session
+     holds no super cookie, and following such a row would bounce them to the other sign-in. */
+  const reachable = (href: string) => onThisSurface(href) || surface === "super";
+
   const mark = (item: MiniaNavItem): MiniaNavItem =>
-    item.href && !onThisSurface(item.href) ? { ...item, otherSurface: other } : item;
+    item.href && !reachable(item.href) ? { ...item, otherSurface: other } : item;
 
   const result: MiniaNavItem[] = [];
   for (const item of items) {

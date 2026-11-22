@@ -17,7 +17,16 @@ import { FeatureToggle } from "./FeatureToggle";
 export const metadata: Metadata = { title: "Listings" };
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ q?: string; status?: string; page?: string; done?: string; error?: string }> };
+type Props = {
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    plan?: string;
+    page?: string;
+    done?: string;
+    error?: string;
+  }>;
+};
 
 /** The theme's soft badge per status tone, matching the admin site's StatusBadge. */
 const TONES: Record<string, string> = {
@@ -35,7 +44,7 @@ const TONES: Record<string, string> = {
  * rejecting what owners submit happens on the admin site.
  */
 export default async function ListingsPage({ searchParams }: Props) {
-  const { q, status, page: rawPage, done, error } = await searchParams;
+  const { q, status, plan, page: rawPage, done, error } = await searchParams;
   const page = Number.parseInt(rawPage ?? "1", 10);
 
   /* Where the Feature toggle sends you back to: this same page, with the search, filter and page
@@ -43,11 +52,12 @@ export default async function ListingsPage({ searchParams }: Props) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (status) params.set("status", status);
+  if (plan) params.set("plan", plan);
   if (rawPage) params.set("page", rawPage);
   const returnTo = params.size > 0 ? `/super-admin/listings?${params}` : "/super-admin/listings";
 
   const [result, me] = await Promise.all([
-    listListings({ q, status, page: Number.isSafeInteger(page) && page > 0 ? page : 1 }),
+    listListings({ q, status, plan, page: Number.isSafeInteger(page) && page > 0 ? page : 1 }),
     getProfile(),
   ]);
 
@@ -94,7 +104,7 @@ export default async function ListingsPage({ searchParams }: Props) {
 
               {/* A plain GET form, so the search and the filter end up in the URL and can be shared. */}
               <form className="row g-2 align-items-end mb-3">
-                <div className="col-md-5">
+                <div className="col-md-4">
                   <label htmlFor="q" className="form-label">
                     Search by name
                   </label>
@@ -111,6 +121,18 @@ export default async function ListingsPage({ searchParams }: Props) {
                         {describeStatus(value).label}
                       </option>
                     ))}
+                  </select>
+                </div>
+                {/* The plan, which is what the Free Listings and Verified Listings menu rows
+                    open. Verified means paid up right now, from the entitlement view. */}
+                <div className="col-md-3">
+                  <label htmlFor="plan" className="form-label">
+                    Plan
+                  </label>
+                  <select id="plan" name="plan" defaultValue={plan ?? ""} className="form-select">
+                    <option value="">Any</option>
+                    <option value="free">Free</option>
+                    <option value="verified">Verified</option>
                   </select>
                 </div>
                 <div className="col-md-2">
@@ -201,7 +223,7 @@ export default async function ListingsPage({ searchParams }: Props) {
                   <Pagination
                     page={result.data.page}
                     totalPages={result.data.totalPages}
-                    params={{ q, status }}
+                    params={{ q, status, plan }}
                     basePath="/super-admin/listings"
                   />
                 </>

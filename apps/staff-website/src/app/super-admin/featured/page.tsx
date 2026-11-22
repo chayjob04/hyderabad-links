@@ -39,9 +39,11 @@ export default async function FeaturedPage({ searchParams }: Props) {
 
   return (
     <SuperAdminChrome>
+      {/* The heading said "Verified listing", which this screen has nothing to do with: a listing
+          is verified by an active subscription, not by being featured. */}
       <PageTitle
-        title="Verified listing"
-        breadcrumb={[{ label: "Home page" }, { label: "Featured shelf" }]}
+        title="Listing groups"
+        breadcrumb={[{ label: "Website Management" }, { label: "Listing groups" }]}
         action={
           /* The way in. Adding happens from the listings page, where each row has a Feature
              toggle, so this page needs to say where that is rather than leaving someone looking
