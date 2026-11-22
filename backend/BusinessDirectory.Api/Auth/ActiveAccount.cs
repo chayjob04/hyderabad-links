@@ -48,8 +48,12 @@ public static class ActiveAccount
         public string Sql => $"SELECT TOP (1) 1 FROM {Table} WHERE id = @id AND status = 'active'";
     }
 
-    public static readonly Realm Owner = new("owner", "users");
-    public static readonly Realm Customer = new("customer", "customers");
+    /* Schema-qualified, for the reason given on SessionStore's two instances: the production
+       login's default schema is not `dbo` (decision D58), so an unqualified name resolves there
+       first. This statement is the suspension control for every owner and customer route, so a
+       same-named table appearing in that schema would answer "still active" for everybody. */
+    public static readonly Realm Owner = new("owner", "dbo.users");
+    public static readonly Realm Customer = new("customer", "dbo.customers");
 
     /// <summary>
     /// Adds the check to every route in the group. Applied to <c>/api/v1/me</c> and

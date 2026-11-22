@@ -28,7 +28,7 @@ public static class AuditLog
     {
         IPAddress? ip = http.Connection.RemoteIpAddress;
         await using var command = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
               VALUES ('admin', @admin, @action, @entityType, @entity, @details, @ip)", conn, tx);
         command.Parameters.AddWithValue("admin", adminId);
         command.Parameters.AddWithValue("action", action);

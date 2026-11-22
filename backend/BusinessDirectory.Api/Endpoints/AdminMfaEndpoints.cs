@@ -69,7 +69,7 @@ public static class AdminMfaEndpoints
         var secret = Totp.NewSecret();
 
         await using var command = db.CreateCommand(
-            @"UPDATE admin_users
+            @"UPDATE dbo.admin_users
               SET totp_secret_encrypted = @secret, updated_at = SYSDATETIMEOFFSET()
               OUTPUT inserted.email
               WHERE id = @id AND status = 'active' AND totp_enabled_at IS NULL");
@@ -131,7 +131,7 @@ public static class AdminMfaEndpoints
         await RecordUsedStep(conn, tx, adminId, matchedStep, ct);
 
         await using (var enable = new SqlCommand(
-            @"UPDATE admin_users
+            @"UPDATE dbo.admin_users
               SET totp_enabled_at = SYSDATETIMEOFFSET(), failed_login_count = 0, locked_until = NULL, updated_at = SYSDATETIMEOFFSET()
               WHERE id = @id", conn, tx))
         {
@@ -140,7 +140,7 @@ public static class AdminMfaEndpoints
         }
 
         // A fresh set replaces anything left from a previous enrollment.
-        await using (var clear = new SqlCommand("DELETE FROM admin_recovery_codes WHERE admin_user_id = @id", conn, tx))
+        await using (var clear = new SqlCommand("DELETE FROM dbo.admin_recovery_codes WHERE admin_user_id = @id", conn, tx))
         {
             clear.Parameters.AddWithValue("id", adminId);
             await clear.ExecuteNonQueryAsync(ct);
@@ -150,7 +150,7 @@ public static class AdminMfaEndpoints
         foreach (var code in codes)
         {
             await using var insert = new SqlCommand(
-                "INSERT INTO admin_recovery_codes (admin_user_id, code_hash) VALUES (@id, @hash)", conn, tx);
+                "INSERT INTO dbo.admin_recovery_codes (admin_user_id, code_hash) VALUES (@id, @hash)", conn, tx);
             insert.Parameters.AddWithValue("id", adminId);
             insert.Parameters.Add(new SqlParameter("hash", SqlDbType.VarBinary) { Value = RecoveryCodes.Hash(code) });
             await insert.ExecuteNonQueryAsync(ct);
@@ -226,7 +226,7 @@ public static class AdminMfaEndpoints
         }
 
         await using (var reset = new SqlCommand(
-            @"UPDATE admin_users
+            @"UPDATE dbo.admin_users
               SET failed_login_count = 0, locked_until = NULL, last_login_at = SYSDATETIMEOFFSET(), updated_at = SYSDATETIMEOFFSET()
               WHERE id = @id", conn, tx))
         {
@@ -261,7 +261,7 @@ public static class AdminMfaEndpoints
                      CAST(CASE WHEN totp_enabled_at IS NOT NULL THEN 1 ELSE 0 END AS bit),
                      CAST(CASE WHEN locked_until > SYSDATETIMEOFFSET() THEN 1 ELSE 0 END AS bit),
                      totp_last_step
-              FROM admin_users WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
+              FROM dbo.admin_users WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
               WHERE id = @id AND status = 'active'", conn, tx);
         command.Parameters.AddWithValue("id", adminId);
 
@@ -292,7 +292,7 @@ public static class AdminMfaEndpoints
         CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            "UPDATE admin_users SET totp_last_step = @step, updated_at = SYSDATETIMEOFFSET() WHERE id = @id", conn, tx);
+            "UPDATE dbo.admin_users SET totp_last_step = @step, updated_at = SYSDATETIMEOFFSET() WHERE id = @id", conn, tx);
         command.Parameters.AddWithValue("step", step);
         command.Parameters.AddWithValue("id", adminId);
         await command.ExecuteNonQueryAsync(ct);
@@ -325,10 +325,10 @@ public static class AdminMfaEndpoints
                The real guarantee is the same as before and does not depend on the hints: the
                UPDATE only matches a row whose used_at is still null, so whichever transaction
                gets there second updates nothing and the caller is told the code is spent. */
-            @"UPDATE admin_recovery_codes
+            @"UPDATE dbo.admin_recovery_codes
               SET used_at = SYSDATETIMEOFFSET()
               WHERE id = (SELECT TOP (1) id
-                          FROM admin_recovery_codes WITH (UPDLOCK, READPAST, ROWLOCK)
+                          FROM dbo.admin_recovery_codes WITH (UPDLOCK, READPAST, ROWLOCK)
                           WHERE admin_user_id = @id AND code_hash = @hash AND used_at IS NULL)
                 AND used_at IS NULL", conn, tx);
         command.Parameters.AddWithValue("id", adminId);
@@ -345,7 +345,7 @@ public static class AdminMfaEndpoints
         CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            @"UPDATE admin_users
+            @"UPDATE dbo.admin_users
               SET failed_login_count = failed_login_count + 1,
                   locked_until = CASE WHEN failed_login_count + 1 >= @max
                                       THEN DATEADD(minute, @lockMinutes, SYSDATETIMEOFFSET())
@@ -370,7 +370,7 @@ public static class AdminMfaEndpoints
     {
         var refreshToken = TokenService.NewRefreshToken();
         await using (var insert = new SqlCommand(
-            @"INSERT INTO admin_sessions (admin_user_id, refresh_token_hash, expires_at, last_mfa_at, ip, user_agent)
+            @"INSERT INTO dbo.admin_sessions (admin_user_id, refresh_token_hash, expires_at, last_mfa_at, ip, user_agent)
               VALUES (@admin, @hash, DATEADD(day, @days, SYSDATETIMEOFFSET()), SYSDATETIMEOFFSET(), @ip, @ua)", conn, tx))
         {
             AdminAuthEndpoints.AddSessionParameters(insert, adminId, refreshToken, settings, http);

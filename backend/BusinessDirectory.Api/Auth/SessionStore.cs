@@ -25,8 +25,13 @@ namespace BusinessDirectory.Api.Auth;
 /// </summary>
 public sealed class SessionStore
 {
-    public static readonly SessionStore Owner = new("user_sessions", "user_id", "users");
-    public static readonly SessionStore Customer = new("customer_sessions", "customer_id", "customers");
+    /* Schema-qualified here rather than in the eleven statements below, which is the whole point of
+       the names arriving from one place: `dbo.` reaches every one of them from a single edit. It
+       matters on this deployment because the production login's default schema is not `dbo`
+       (decision D58), so an unqualified name resolves against that schema first and only then falls
+       back -- and a table of the same name appearing there would silently shadow the real one. */
+    public static readonly SessionStore Owner = new("dbo.user_sessions", "user_id", "dbo.users");
+    public static readonly SessionStore Customer = new("dbo.customer_sessions", "customer_id", "dbo.customers");
 
     private readonly string _sessions;
     private readonly string _subjectColumn;

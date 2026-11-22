@@ -136,12 +136,12 @@ public static class SuperAdminEndpoints
         // "views", "visits" or "revenue" here, because nothing in the database records any of them.
         await using var command = db.CreateCommand(
             @"SELECT
-                (SELECT COUNT_BIG(*) FROM businesses),
-                (SELECT COUNT_BIG(*) FROM users),
-                (SELECT COUNT_BIG(*) FROM admin_users WHERE status = 'active'),
-                (SELECT COUNT_BIG(*) FROM reviews WHERE status = 'pending'),
-                (SELECT COUNT_BIG(*) FROM reports WHERE status = 'open'),
-                (SELECT COUNT_BIG(*) FROM enquiries WHERE status = 'new')");
+                (SELECT COUNT_BIG(*) FROM dbo.businesses),
+                (SELECT COUNT_BIG(*) FROM dbo.users),
+                (SELECT COUNT_BIG(*) FROM dbo.admin_users WHERE status = 'active'),
+                (SELECT COUNT_BIG(*) FROM dbo.reviews WHERE status = 'pending'),
+                (SELECT COUNT_BIG(*) FROM dbo.reports WHERE status = 'open'),
+                (SELECT COUNT_BIG(*) FROM dbo.enquiries WHERE status = 'new')");
         await using var reader = await command.ExecuteReaderAsync(ct);
         await reader.ReadAsync(ct);
         var businesses = (int)reader.GetInt64(0);
@@ -152,10 +152,10 @@ public static class SuperAdminEndpoints
         var newEnquiries = (int)reader.GetInt64(5);
         await reader.CloseAsync();
 
-        var byStatus = await CountRows(db, "SELECT status, COUNT_BIG(*) FROM listings GROUP BY status ORDER BY status", ct);
+        var byStatus = await CountRows(db, "SELECT status, COUNT_BIG(*) FROM dbo.listings GROUP BY status ORDER BY status", ct);
         var byPlan = await CountRows(
             db,
-            /* Grouped by the *effective* plan, from listing_entitlements, not by listings.plan_slug.
+            /* Grouped by the *effective* plan, from dbo.listing_entitlements, not by listings.plan_slug.
                That column records what a listing bought and never expires, so counting it would
                report a listing as Verified years after its period ran out — the one figure on this
                page staff would use to answer "how many are paying right now". */
@@ -198,15 +198,15 @@ public static class SuperAdminEndpoints
             @"SELECT au.id, au.email, au.display_name, au.status,
                      (SELECT STRING_AGG(x.slug, ',')
                       FROM (SELECT DISTINCT r.slug
-                            FROM admin_user_roles aur
-                            JOIN roles r ON r.id = aur.role_id
+                            FROM dbo.admin_user_roles aur
+                            JOIN dbo.roles r ON r.id = aur.role_id
                             WHERE aur.admin_user_id = au.id) x),
                      CAST(CASE WHEN au.totp_enabled_at IS NOT NULL THEN 1 ELSE 0 END AS bit),
-                     (SELECT COUNT_BIG(*) FROM admin_recovery_codes arc
+                     (SELECT COUNT_BIG(*) FROM dbo.admin_recovery_codes arc
                       WHERE arc.admin_user_id = au.id AND arc.used_at IS NULL),
-                     (SELECT max(s.created_at) FROM admin_sessions s WHERE s.admin_user_id = au.id),
+                     (SELECT max(s.created_at) FROM dbo.admin_sessions s WHERE s.admin_user_id = au.id),
                      au.created_at
-              FROM admin_users au
+              FROM dbo.admin_users au
               ORDER BY au.created_at");
 
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -238,10 +238,10 @@ public static class SuperAdminEndpoints
         await using var command = db.CreateCommand(
             @"SELECT r.slug, r.name,
                      (SELECT STRING_AGG(p.code, ',') WITHIN GROUP (ORDER BY p.code)
-                      FROM role_permissions rp
-                      JOIN permissions p ON p.id = rp.permission_id
+                      FROM dbo.role_permissions rp
+                      JOIN dbo.permissions p ON p.id = rp.permission_id
                       WHERE rp.role_id = r.id)
-              FROM roles r
+              FROM dbo.roles r
               ORDER BY r.name");
 
         await using var reader = await command.ExecuteReaderAsync(ct);
@@ -280,7 +280,7 @@ public static class SuperAdminEndpoints
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginSqlTransactionAsync(ct);
 
-        await using (var find = new SqlCommand("SELECT id FROM admin_users WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE id = @id", conn, tx))
+        await using (var find = new SqlCommand("SELECT id FROM dbo.admin_users WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE id = @id", conn, tx))
         {
             find.Parameters.AddWithValue("id", id);
             if (await find.ExecuteScalarAsync(ct) is null)
@@ -301,9 +301,9 @@ public static class SuperAdminEndpoints
         {
             await using var others = new SqlCommand(
                 @"SELECT COUNT_BIG(*)
-                  FROM admin_user_roles aur
-                  JOIN roles r ON r.id = aur.role_id
-                  JOIN admin_users au ON au.id = aur.admin_user_id
+                  FROM dbo.admin_user_roles aur
+                  JOIN dbo.roles r ON r.id = aur.role_id
+                  JOIN dbo.admin_users au ON au.id = aur.admin_user_id
                   WHERE r.slug = 'super_admin' AND au.status = 'active' AND au.id <> @id", conn, tx);
             others.Parameters.AddWithValue("id", id);
             if ((long)(await others.ExecuteScalarAsync(ct))! == 0)
@@ -322,7 +322,7 @@ public static class SuperAdminEndpoints
            them again. A role slug cannot contain a comma -- the slug format check in S0003 allows
            only letters, digits and underscores -- so nothing can be split in the wrong place. */
         await using (var lookup = new SqlCommand(
-            "SELECT r.slug, r.id FROM roles r JOIN STRING_SPLIT(@slugs, ',') s ON s.value = r.slug", conn, tx))
+            "SELECT r.slug, r.id FROM dbo.roles r JOIN STRING_SPLIT(@slugs, ',') s ON s.value = r.slug", conn, tx))
         {
             lookup.Parameters.Add(new SqlParameter("slugs", SqlDbType.NVarChar) { Value = string.Join(",", wanted) });
             await using var reader = await lookup.ExecuteReaderAsync(ct);
@@ -344,7 +344,7 @@ public static class SuperAdminEndpoints
             roleIds = [.. found.Values];
         }
 
-        await using (var clear = new SqlCommand("DELETE FROM admin_user_roles WHERE admin_user_id = @id", conn, tx))
+        await using (var clear = new SqlCommand("DELETE FROM dbo.admin_user_roles WHERE admin_user_id = @id", conn, tx))
         {
             clear.Parameters.AddWithValue("id", id);
             await clear.ExecuteNonQueryAsync(ct);
@@ -353,7 +353,7 @@ public static class SuperAdminEndpoints
         if (roleIds.Length > 0)
         {
             await using var insert = new SqlCommand(
-                @"INSERT INTO admin_user_roles (admin_user_id, role_id)
+                @"INSERT INTO dbo.admin_user_roles (admin_user_id, role_id)
                   SELECT @id, CAST(value AS int) FROM STRING_SPLIT(@roles, ',')", conn, tx);
             insert.Parameters.AddWithValue("id", id);
             insert.Parameters.Add(new SqlParameter("roles", SqlDbType.NVarChar)
@@ -415,9 +415,9 @@ public static class SuperAdminEndpoints
         {
             await using var others = new SqlCommand(
                 @"SELECT COUNT_BIG(*)
-                  FROM admin_user_roles aur
-                  JOIN roles r ON r.id = aur.role_id
-                  JOIN admin_users au ON au.id = aur.admin_user_id
+                  FROM dbo.admin_user_roles aur
+                  JOIN dbo.roles r ON r.id = aur.role_id
+                  JOIN dbo.admin_users au ON au.id = aur.admin_user_id
                   WHERE r.slug = 'super_admin' AND au.status = 'active' AND au.id <> @id", conn, tx);
             others.Parameters.AddWithValue("id", id);
             if ((long)(await others.ExecuteScalarAsync(ct))! == 0)
@@ -429,7 +429,7 @@ public static class SuperAdminEndpoints
         }
 
         await using (var update = new SqlCommand(
-            "UPDATE admin_users SET status = @status, updated_at = SYSDATETIMEOFFSET() OUTPUT inserted.id WHERE id = @id", conn, tx))
+            "UPDATE dbo.admin_users SET status = @status, updated_at = SYSDATETIMEOFFSET() OUTPUT inserted.id WHERE id = @id", conn, tx))
         {
             update.Parameters.AddWithValue("status", status);
             update.Parameters.AddWithValue("id", id);
@@ -443,7 +443,7 @@ public static class SuperAdminEndpoints
         {
             // End the sessions too, so a token already issued stops being refreshable.
             await using var revoke = new SqlCommand(
-                "UPDATE admin_sessions SET revoked_at = SYSDATETIMEOFFSET() WHERE admin_user_id = @id AND revoked_at IS NULL", conn, tx);
+                "UPDATE dbo.admin_sessions SET revoked_at = SYSDATETIMEOFFSET() WHERE admin_user_id = @id AND revoked_at IS NULL", conn, tx);
             revoke.Parameters.AddWithValue("id", id);
             await revoke.ExecuteNonQueryAsync(ct);
         }
@@ -473,7 +473,7 @@ public static class SuperAdminEndpoints
         await using var tx = await conn.BeginSqlTransactionAsync(ct);
 
         await using (var update = new SqlCommand(
-            @"UPDATE admin_users
+            @"UPDATE dbo.admin_users
               SET totp_secret_encrypted = NULL, totp_enabled_at = NULL, totp_last_step = NULL, updated_at = SYSDATETIMEOFFSET()
               OUTPUT inserted.id
               WHERE id = @id", conn, tx))
@@ -487,13 +487,13 @@ public static class SuperAdminEndpoints
 
         // The old recovery codes belonged to the old authenticator, and any live session was opened
         // with it, so both go.
-        await using (var codes = new SqlCommand("DELETE FROM admin_recovery_codes WHERE admin_user_id = @id", conn, tx))
+        await using (var codes = new SqlCommand("DELETE FROM dbo.admin_recovery_codes WHERE admin_user_id = @id", conn, tx))
         {
             codes.Parameters.AddWithValue("id", id);
             await codes.ExecuteNonQueryAsync(ct);
         }
         await using (var revoke = new SqlCommand(
-            "UPDATE admin_sessions SET revoked_at = SYSDATETIMEOFFSET() WHERE admin_user_id = @id AND revoked_at IS NULL", conn, tx))
+            "UPDATE dbo.admin_sessions SET revoked_at = SYSDATETIMEOFFSET() WHERE admin_user_id = @id AND revoked_at IS NULL", conn, tx))
         {
             revoke.Parameters.AddWithValue("id", id);
             await revoke.ExecuteNonQueryAsync(ct);
@@ -525,8 +525,8 @@ public static class SuperAdminEndpoints
             @"WITH matching AS (
                   SELECT a.id, a.occurred_at, a.actor_type, a.actor_id, a.action, a.entity_type,
                          a.entity_id, a.details, au.display_name AS actor_name
-                  FROM audit_logs a
-                  LEFT JOIN admin_users au ON a.actor_type = 'admin' AND au.id = a.actor_id
+                  FROM dbo.audit_logs a
+                  LEFT JOIN dbo.admin_users au ON a.actor_type = 'admin' AND au.id = a.actor_id
                   WHERE (@action IS NULL OR a.action = @action)
                     AND (@entity IS NULL OR a.entity_type = @entity)
               ),
@@ -583,7 +583,7 @@ public static class SuperAdminEndpoints
         CancellationToken ct)
     {
         await using var command = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
               VALUES ('admin', @actor, @action, 'admin_user', @entity, @details, @ip)", conn, tx);
         command.Parameters.AddWithValue("actor", actorId);
         command.Parameters.AddWithValue("action", action);

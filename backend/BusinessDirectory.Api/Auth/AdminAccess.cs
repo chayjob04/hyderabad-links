@@ -70,16 +70,16 @@ public static class AdminAccess
                  au.must_change_password,
                  (SELECT STRING_AGG(x.slug, ',')
                   FROM (SELECT DISTINCT r.slug
-                        FROM admin_user_roles aur
-                        JOIN roles r ON r.id = aur.role_id
+                        FROM dbo.admin_user_roles aur
+                        JOIN dbo.roles r ON r.id = aur.role_id
                         WHERE aur.admin_user_id = au.id) x),
                  (SELECT STRING_AGG(x.code, ',')
                   FROM (SELECT DISTINCT p.code
-                        FROM admin_user_roles aur
-                        JOIN role_permissions rp ON rp.role_id = aur.role_id
-                        JOIN permissions p ON p.id = rp.permission_id
+                        FROM dbo.admin_user_roles aur
+                        JOIN dbo.role_permissions rp ON rp.role_id = aur.role_id
+                        JOIN dbo.permissions p ON p.id = rp.permission_id
                         WHERE aur.admin_user_id = au.id) x)
-          FROM admin_users au
+          FROM dbo.admin_users au
           WHERE au.id = @id AND au.status = 'active'";
 
     /// <summary>
@@ -105,9 +105,9 @@ public static class AdminAccess
     {
         await using var command = new SqlCommand(
             @"SELECT TOP (1) 1
-              FROM admin_user_roles aur
-              JOIN role_permissions rp ON rp.role_id = aur.role_id
-              JOIN permissions p ON p.id = rp.permission_id
+              FROM dbo.admin_user_roles aur
+              JOIN dbo.role_permissions rp ON rp.role_id = aur.role_id
+              JOIN dbo.permissions p ON p.id = rp.permission_id
               WHERE aur.admin_user_id = @id AND p.code = @permission", conn, tx);
         command.Parameters.AddWithValue("id", adminUserId);
         command.Parameters.AddWithValue("permission", AdminPermissions.AdminsManage);

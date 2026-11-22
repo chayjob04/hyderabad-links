@@ -62,7 +62,7 @@ public static class AdminBootstrap
                direct translation, but MERGE has a history of edge-case bugs and this runs on exactly
                one row, so an UPDATE followed by an INSERT when nothing was updated is plainer and
                safer. Both run inside the caller's transaction. */
-            @"UPDATE admin_users
+            @"UPDATE dbo.admin_users
               SET display_name = @name,
                   password_hash = @hash,
                   status = 'active',
@@ -73,10 +73,10 @@ public static class AdminBootstrap
               OUTPUT inserted.id, CAST(0 AS bit) AS created
               WHERE email = @email;
 
-              INSERT INTO admin_users (email, display_name, password_hash, status, password_changed_at)
+              INSERT INTO dbo.admin_users (email, display_name, password_hash, status, password_changed_at)
               OUTPUT inserted.id, CAST(1 AS bit) AS created
               SELECT @email, @name, @hash, 'active', SYSDATETIMEOFFSET()
-              WHERE NOT EXISTS (SELECT 1 FROM admin_users WHERE email = @email)", conn, tx))
+              WHERE NOT EXISTS (SELECT 1 FROM dbo.admin_users WHERE email = @email)", conn, tx))
         {
             upsert.Parameters.AddWithValue("email", email);
             upsert.Parameters.AddWithValue("name", displayName);
@@ -102,11 +102,11 @@ public static class AdminBootstrap
         using (var assign = new SqlCommand(
             /* ON CONFLICT DO NOTHING becomes "only insert what is not there": the WHERE NOT EXISTS
                does the same job and needs no MERGE. */
-            @"INSERT INTO admin_user_roles (admin_user_id, role_id)
+            @"INSERT INTO dbo.admin_user_roles (admin_user_id, role_id)
               SELECT @admin, r.id
-              FROM roles r
+              FROM dbo.roles r
               WHERE r.slug = @role
-                AND NOT EXISTS (SELECT 1 FROM admin_user_roles aur
+                AND NOT EXISTS (SELECT 1 FROM dbo.admin_user_roles aur
                                 WHERE aur.admin_user_id = @admin AND aur.role_id = r.id)", conn, tx))
         {
             assign.Parameters.AddWithValue("admin", adminId);
@@ -120,7 +120,7 @@ public static class AdminBootstrap
         }
 
         using (var audit = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, action, entity_type, entity_id, details)
+            @"INSERT INTO dbo.audit_logs (actor_type, action, entity_type, entity_id, details)
               VALUES ('system', @action, 'admin_user', @entity, @details)", conn, tx))
         {
             audit.Parameters.AddWithValue("action", created ? "admin.bootstrapped" : "admin.password_reset_by_cli");

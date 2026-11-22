@@ -16,8 +16,31 @@ public class AccountSuspensionTests
     [Fact]
     public void The_owner_realm_asks_the_users_table_and_the_customer_realm_asks_customers()
     {
-        Assert.Equal("users", ActiveAccount.Owner.Table);
-        Assert.Equal("customers", ActiveAccount.Customer.Table);
+        Assert.Equal("dbo.users", ActiveAccount.Owner.Table);
+        Assert.Equal("dbo.customers", ActiveAccount.Customer.Table);
+    }
+
+    /* Both interpolated table names must carry their schema. On this deployment the production
+       login's default schema is not `dbo` (decision D58), so an unqualified name resolves against
+       that schema first and only then falls back -- and these two statements are the suspension
+       control for every owner and customer route. A table of the same name appearing in the
+       login's schema would answer "still active" for every suspended account.
+
+       Asserted as a property of both realms and both stores rather than as four string literals,
+       so a new realm or store cannot be added without it. */
+    [Theory]
+    [MemberData(nameof(Realms))]
+    public void Every_realm_names_its_table_with_a_schema(ActiveAccount.Realm realm)
+    {
+        Assert.StartsWith("dbo.", realm.Table);
+        Assert.Contains("FROM dbo.", realm.Sql);
+    }
+
+    [Theory]
+    [MemberData(nameof(Stores))]
+    public void Every_store_names_its_table_with_a_schema(SessionStore store)
+    {
+        Assert.Contains("UPDATE dbo.", store.RevokeAllSql);
     }
 
     // The predicate is the control. Deleting it would make the filter a no-op that still looks
@@ -45,7 +68,7 @@ public class AccountSuspensionTests
     {
         var sql = SessionStore.Owner.RevokeAllSql;
 
-        Assert.Contains("UPDATE user_sessions", sql);
+        Assert.Contains("UPDATE dbo.user_sessions", sql);
         Assert.Contains("user_id = @subject", sql);
     }
 
@@ -54,7 +77,7 @@ public class AccountSuspensionTests
     {
         var sql = SessionStore.Customer.RevokeAllSql;
 
-        Assert.Contains("UPDATE customer_sessions", sql);
+        Assert.Contains("UPDATE dbo.customer_sessions", sql);
         Assert.Contains("customer_id = @subject", sql);
     }
 

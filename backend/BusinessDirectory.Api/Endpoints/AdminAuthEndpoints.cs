@@ -90,7 +90,7 @@ public static class AdminAuthEndpoints
             @"SELECT id, password_hash, status, failed_login_count,
                      CAST(CASE WHEN locked_until > SYSDATETIMEOFFSET() THEN 1 ELSE 0 END AS bit),
                      CAST(CASE WHEN totp_enabled_at IS NOT NULL THEN 1 ELSE 0 END AS bit)
-              FROM admin_users WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
+              FROM dbo.admin_users WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
               WHERE email = @email", conn, tx))
         {
             find.Parameters.AddWithValue("email", email);
@@ -119,7 +119,7 @@ public static class AdminAuthEndpoints
             {
                 // Count the failure and lock the account once the allowance is used up.
                 await using var bump = new SqlCommand(
-                    @"UPDATE admin_users
+                    @"UPDATE dbo.admin_users
                       SET failed_login_count = failed_login_count + 1,
                           locked_until = CASE WHEN failed_login_count + 1 >= @max
                                               THEN DATEADD(minute, @lockMinutes, SYSDATETIMEOFFSET())
@@ -141,7 +141,7 @@ public static class AdminAuthEndpoints
         }
 
         await using (var reset = new SqlCommand(
-            @"UPDATE admin_users
+            @"UPDATE dbo.admin_users
               SET failed_login_count = 0, locked_until = NULL, last_login_at = SYSDATETIMEOFFSET(), updated_at = SYSDATETIMEOFFSET()
               WHERE id = @id", conn, tx))
         {
@@ -195,7 +195,7 @@ public static class AdminAuthEndpoints
                      CAST(CASE WHEN expires_at <= SYSDATETIMEOFFSET() THEN 1 ELSE 0 END AS bit),
                      CAST(CASE WHEN rotated_at IS NOT NULL OR revoked_at IS NOT NULL THEN 1 ELSE 0 END AS bit),
                      last_mfa_at
-              FROM admin_sessions WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
+              FROM dbo.admin_sessions WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
               WHERE refresh_token_hash = @hash", conn, tx))
         {
             find.Parameters.Add(new SqlParameter("hash", SqlDbType.VarBinary) { Value = TokenService.HashRefreshToken(request.RefreshToken) });
@@ -223,7 +223,7 @@ public static class AdminAuthEndpoints
         {
             // A rotated or revoked token presented again means it was copied: end every session in the family.
             await using (var revoke = new SqlCommand(
-                "UPDATE admin_sessions SET revoked_at = SYSDATETIMEOFFSET(), revoked_reason = 'reuse_detected' WHERE family_id = @family AND revoked_at IS NULL", conn, tx))
+                "UPDATE dbo.admin_sessions SET revoked_at = SYSDATETIMEOFFSET(), revoked_reason = 'reuse_detected' WHERE family_id = @family AND revoked_at IS NULL", conn, tx))
             {
                 revoke.Parameters.AddWithValue("family", familyId);
                 await revoke.ExecuteNonQueryAsync(ct);
@@ -238,7 +238,7 @@ public static class AdminAuthEndpoints
             return Results.Unauthorized();
         }
 
-        await using (var status = new SqlCommand("SELECT status FROM admin_users WHERE id = @id", conn, tx))
+        await using (var status = new SqlCommand("SELECT status FROM dbo.admin_users WHERE id = @id", conn, tx))
         {
             status.Parameters.AddWithValue("id", adminId);
             if ((string?)await status.ExecuteScalarAsync(ct) != "active")
@@ -247,7 +247,7 @@ public static class AdminAuthEndpoints
             }
         }
 
-        await using (var rotate = new SqlCommand("UPDATE admin_sessions SET rotated_at = SYSDATETIMEOFFSET() WHERE id = @id", conn, tx))
+        await using (var rotate = new SqlCommand("UPDATE dbo.admin_sessions SET rotated_at = SYSDATETIMEOFFSET() WHERE id = @id", conn, tx))
         {
             rotate.Parameters.AddWithValue("id", sessionId);
             await rotate.ExecuteNonQueryAsync(ct);
@@ -255,7 +255,7 @@ public static class AdminAuthEndpoints
 
         var newRefreshToken = TokenService.NewRefreshToken();
         await using (var insert = new SqlCommand(
-            @"INSERT INTO admin_sessions (admin_user_id, family_id, refresh_token_hash, expires_at, last_mfa_at, ip, user_agent)
+            @"INSERT INTO dbo.admin_sessions (admin_user_id, family_id, refresh_token_hash, expires_at, last_mfa_at, ip, user_agent)
               VALUES (@admin, @family, @hash, DATEADD(day, @days, SYSDATETIMEOFFSET()), @lastMfa, @ip, @ua)", conn, tx))
         {
             AddSessionParameters(insert, adminId, newRefreshToken, settings, http);
@@ -282,9 +282,9 @@ public static class AdminAuthEndpoints
         if (!string.IsNullOrWhiteSpace(request.RefreshToken) && request.RefreshToken.Length <= 200)
         {
             await using var command = db.CreateCommand(
-                @"UPDATE admin_sessions SET revoked_at = SYSDATETIMEOFFSET(), revoked_reason = 'logout'
+                @"UPDATE dbo.admin_sessions SET revoked_at = SYSDATETIMEOFFSET(), revoked_reason = 'logout'
                   WHERE revoked_at IS NULL
-                    AND family_id = (SELECT family_id FROM admin_sessions WHERE refresh_token_hash = @hash)");
+                    AND family_id = (SELECT family_id FROM dbo.admin_sessions WHERE refresh_token_hash = @hash)");
             command.Parameters.Add(new SqlParameter("hash", SqlDbType.VarBinary) { Value = TokenService.HashRefreshToken(request.RefreshToken) });
             await command.ExecuteNonQueryAsync(ct);
         }
@@ -343,7 +343,7 @@ public static class AdminAuthEndpoints
     {
         IPAddress? ip = http.Connection.RemoteIpAddress;
         await using var command = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
               VALUES (@actorType, @actor, @action, 'admin_user', @entity, @details, @ip)", conn, tx);
         command.Parameters.AddWithValue("actorType", actorAdminId is null ? "system" : "admin");
         command.Parameters.Add(new SqlParameter("actor", SqlDbType.BigInt) { Value = (object?)actorAdminId ?? DBNull.Value });
