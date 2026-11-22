@@ -10,8 +10,11 @@ import { localityListPages, localityPages, revalidatePublicPages } from "@/lib/r
  * API checks `taxonomy.manage` on every call, and the result comes back as a message in the query
  * string so the screen stays server-rendered.
  */
-const DONE = "/locations?done=";
-const FAILED = "/locations?error=";
+/* Absolute, and under /admin: this screen is at /admin/locations, and a redirect to "/locations"
+   lands on the staff 404 instead -- which is where every action on this page used to end,
+   success or failure, leaving the Notice below unreachable. */
+const DONE = "/admin/locations?done=";
+const FAILED = "/admin/locations?error=";
 
 /* `/areas` is the index of every area and was missing. A newly added area needs only these: its
    own page cannot be stale, because nothing has rendered it yet. */

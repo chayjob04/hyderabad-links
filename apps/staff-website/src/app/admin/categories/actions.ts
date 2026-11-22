@@ -13,8 +13,11 @@ import { categoryListPages, revalidatePublicPages } from "@/lib/revalidate";
  * listing queue already reports a decision. That keeps this screen server-rendered: no client
  * component, no `useActionState`, and the fresh list is the redirect's own render.
  */
-const DONE = "/categories?done=";
-const FAILED = "/categories?error=";
+/* Absolute, and under /admin: this screen is at /admin/categories, and a redirect to "/categories"
+   lands on the staff 404 instead -- which is where every action on this page used to end,
+   success or failure, leaving the Notice below unreachable. */
+const DONE = "/admin/categories?done=";
+const FAILED = "/admin/categories?error=";
 
 /**
  * The public site caches for 60 seconds, so a category change shows up on its own. This nudges the
