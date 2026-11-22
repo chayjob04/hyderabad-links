@@ -97,16 +97,16 @@ public static class CustomerAuthEndpoints
         long customerId;
         string status;
         await using (var upsert = new SqlCommand(
-            @"UPDATE customers
+            @"UPDATE dbo.customers
               SET phone_verified_at = COALESCE(phone_verified_at, SYSDATETIMEOFFSET()),
                   updated_at = SYSDATETIMEOFFSET()
               OUTPUT inserted.id, inserted.status
               WHERE phone_e164 = @phone;
 
-              INSERT INTO customers (phone_e164, phone_verified_at)
+              INSERT INTO dbo.customers (phone_e164, phone_verified_at)
               OUTPUT inserted.id, inserted.status
               SELECT @phone, SYSDATETIMEOFFSET()
-              WHERE NOT EXISTS (SELECT 1 FROM customers WHERE phone_e164 = @phone)", conn, tx))
+              WHERE NOT EXISTS (SELECT 1 FROM dbo.customers WHERE phone_e164 = @phone)", conn, tx))
         {
             upsert.Parameters.AddWithValue("phone", phone);
             await using var reader = await upsert.ExecuteReaderAsync(ct);

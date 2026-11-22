@@ -49,7 +49,7 @@ public static class CustomerEndpoints
         }
 
         await using var command = db.CreateCommand(
-            "SELECT phone_e164, name, email FROM customers WHERE id = @id AND status = 'active'");
+            "SELECT phone_e164, name, email FROM dbo.customers WHERE id = @id AND status = 'active'");
         command.Parameters.AddWithValue("id", customerId);
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
@@ -91,7 +91,7 @@ public static class CustomerEndpoints
 
         string phone;
         await using (var update = new SqlCommand(
-            @"UPDATE customers SET name = @name, email = @email, updated_at = SYSDATETIMEOFFSET()
+            @"UPDATE dbo.customers SET name = @name, email = @email, updated_at = SYSDATETIMEOFFSET()
               OUTPUT inserted.phone_e164
               WHERE id = @id AND status = 'active'", conn, tx))
         {
@@ -109,7 +109,7 @@ public static class CustomerEndpoints
         // What changed is not recorded, only that it did: the name and email are personal data and
         // the audit log is read by administrators.
         await using (var audit = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
               VALUES ('customer', @customer, 'customer.profile_updated', 'customer', @entity, @ip)", conn, tx))
         {
             IPAddress? ip = http.Connection.RemoteIpAddress;

@@ -53,18 +53,18 @@ public static class FavouriteEndpoints
         await using var command = db.CreateCommand(
             @"SELECT li.id, li.name, pc.name, lo.name, li.phone_primary,
                      ci.slug, lo.slug, pc.slug, li.slug,
-                     (SELECT m.storage_key FROM listing_media m
+                     (SELECT m.storage_key FROM dbo.listing_media m
                       WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0
                       ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY),
                      -- A comparison is not a value in SQL Server, so the yes/no answer is a bit.
                      CAST(CASE WHEN li.status = 'active' THEN 1 ELSE 0 END AS bit) AS is_available,
                      f.created_at
-              FROM favourites f
-              JOIN listings li ON li.id = f.listing_id
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
-              JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-              JOIN categories pc ON pc.id = lc.category_id
+              FROM dbo.favourites f
+              JOIN dbo.listings li ON li.id = f.listing_id
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
+              JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+              JOIN dbo.categories pc ON pc.id = lc.category_id
               WHERE f.customer_id = @customer
               ORDER BY f.created_at DESC");
         command.Parameters.AddWithValue("customer", customerId);
@@ -106,14 +106,14 @@ public static class FavouriteEndpoints
                the other's NOT EXISTS was true a moment too early, which surfaces as a duplicate-key
                error -- and saving something already saved is a no-op either way, so the caller is
                told the same thing. */
-            @"INSERT INTO favourites (customer_id, listing_id)
+            @"INSERT INTO dbo.favourites (customer_id, listing_id)
               OUTPUT inserted.listing_id
               SELECT @customer, li.id
-              FROM listings li
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
+              FROM dbo.listings li
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
               WHERE ci.slug = @city AND lo.slug = @locality AND li.slug = @slug AND li.status = 'active'
-                AND NOT EXISTS (SELECT 1 FROM favourites f
+                AND NOT EXISTS (SELECT 1 FROM dbo.favourites f
                                 WHERE f.customer_id = @customer AND f.listing_id = li.id)");
         command.Parameters.AddWithValue("customer", customerId);
         command.Parameters.AddWithValue("city", citySlug);
@@ -130,10 +130,10 @@ public static class FavouriteEndpoints
         // favourite.
         await using var exists = db.CreateCommand(
             @"SELECT 1
-              FROM favourites f
-              JOIN listings li ON li.id = f.listing_id
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
+              FROM dbo.favourites f
+              JOIN dbo.listings li ON li.id = f.listing_id
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
               WHERE f.customer_id = @customer AND ci.slug = @city AND lo.slug = @locality AND li.slug = @slug");
         exists.Parameters.AddWithValue("customer", customerId);
         exists.Parameters.AddWithValue("city", citySlug);
@@ -157,10 +157,10 @@ public static class FavouriteEndpoints
             /* PostgreSQL's DELETE ... USING, as SQL Server writes it: the alias to delete from
                goes after DELETE and the joins hang off FROM. */
             @"DELETE f
-              FROM favourites f
-              JOIN listings li ON li.id = f.listing_id
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
+              FROM dbo.favourites f
+              JOIN dbo.listings li ON li.id = f.listing_id
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
               WHERE f.customer_id = @customer
                 AND ci.slug = @city AND lo.slug = @locality AND li.slug = @slug");
         command.Parameters.AddWithValue("customer", customerId);

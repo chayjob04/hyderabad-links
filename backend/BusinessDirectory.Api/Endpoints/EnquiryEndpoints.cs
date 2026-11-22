@@ -96,9 +96,9 @@ public static class EnquiryEndpoints
         string listingName;
         await using (var find = new SqlCommand(
             @"SELECT li.id, li.name
-              FROM listings li
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
+              FROM dbo.listings li
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
               WHERE ci.slug = @city AND lo.slug = @locality AND li.slug = @slug AND li.status = 'active'", conn, tx))
         {
             find.Parameters.AddWithValue("city", citySlug);
@@ -124,7 +124,7 @@ public static class EnquiryEndpoints
         long id;
         DateTimeOffset receivedAt;
         await using (var insert = new SqlCommand(
-            @"INSERT INTO enquiries (listing_id, name, phone_e164, email, message, ip)
+            @"INSERT INTO dbo.enquiries (listing_id, name, phone_e164, email, message, ip)
               OUTPUT inserted.id, inserted.created_at
               VALUES (@listing, @name, @phone, @email, @message, @ip)", conn, tx))
         {
@@ -190,7 +190,7 @@ public static class EnquiryEndpoints
                an address must not fail on a null. */
             @"SELECT COALESCE(SUM(CAST(CASE WHEN created_at > DATEADD(hour, -1, SYSDATETIMEOFFSET()) THEN 1 ELSE 0 END AS bigint)), 0),
                      COALESCE(SUM(CAST(CASE WHEN created_at > DATEADD(day, -1, SYSDATETIMEOFFSET()) AND listing_id = @listing THEN 1 ELSE 0 END AS bigint)), 0)
-              FROM enquiries
+              FROM dbo.enquiries
               WHERE ip = @ip", conn, tx);
         command.Parameters.Add(new SqlParameter("ip", SqlDbType.VarChar) { Value = ip.ToString() });
         command.Parameters.AddWithValue("listing", listingId);
@@ -229,9 +229,9 @@ public static class EnquiryEndpoints
             @"WITH owned AS (
                   SELECT e.id, e.listing_id, li.name AS listing_name, e.name, e.phone_e164, e.email,
                          e.message, e.status, e.created_at
-                  FROM enquiries e
-                  JOIN listings li ON li.id = e.listing_id
-                  JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+                  FROM dbo.enquiries e
+                  JOIN dbo.listings li ON li.id = e.listing_id
+                  JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
               ),
               filtered AS (
                   SELECT * FROM owned WHERE @status IS NULL OR status = @status
@@ -310,9 +310,9 @@ public static class EnquiryEndpoints
             @"UPDATE e
               SET status = @status, updated_at = SYSDATETIMEOFFSET()
               OUTPUT inserted.id
-              FROM enquiries e
-              JOIN listings li ON li.id = e.listing_id
-              JOIN business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              FROM dbo.enquiries e
+              JOIN dbo.listings li ON li.id = e.listing_id
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
               WHERE e.id = @id");
         command.Parameters.AddWithValue("status", status);
         command.Parameters.AddWithValue("id", id);
