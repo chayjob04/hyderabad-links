@@ -12,6 +12,7 @@ import type {
   NearestLocality,
   SearchCriteria,
   SearchResults,
+  Segment,
   Sitemap,
 } from "./types";
 
@@ -53,6 +54,21 @@ async function getJson<T>(path: string, revalidateSeconds: number): Promise<T | 
 export async function getCategories(): Promise<Category[]> {
   try {
     return (await getJson<Category[]>("/api/v1/public/categories", 300)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The segments: the tier above categories, and the menu's top row.
+ *
+ * Swallows failures for the same reason `getCategories` does -- it is read by pages that must
+ * render on a build with no API -- and an empty list means every screen falls back to showing
+ * categories ungrouped, which is what the site looked like before segments existed.
+ */
+export async function getSegments(): Promise<Segment[]> {
+  try {
+    return (await getJson<Segment[]>("/api/v1/public/segments", 300)) ?? [];
   } catch {
     return [];
   }

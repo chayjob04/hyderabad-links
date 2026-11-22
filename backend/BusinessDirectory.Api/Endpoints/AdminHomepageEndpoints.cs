@@ -101,6 +101,10 @@ public static class AdminHomepageEndpoints
                       WHERE lc.category_id = c.id) AS listing_count
               FROM dbo.categories c
               LEFT JOIN dbo.categories parent ON parent.id = c.parent_id
+              -- Categories and subcategories only. A segment (level 0, S0030) is a grouping for the
+              -- menu, not a card: the homepage strip is a shortcut to a page full of businesses,
+              -- and a segment's page is a page full of categories.
+              WHERE c.level IN (1, 2)
               -- Popular first so the chosen set reads as a block at the top, then the directory's
               -- own order, which is what staff already know their way around.
               ORDER BY c.is_popular DESC, c.level, parent.sort_order, c.sort_order, c.name", conn);

@@ -115,14 +115,16 @@ export function OnboardingForm({ phone, categories, localities }: Props) {
         <SearchableSelect
           id="categorySlug"
           name="categorySlug"
-          /* Flattened, with the parent as the hint: the groups a `<select>` showed cannot be typed
-             into, and carrying the parent along means typing "food" still finds the trades under
-             it. */
+          /* Flattened, with the path above it as the hint: the groups a `<select>` showed cannot
+             be typed into, and carrying the parent along means typing "food" still finds the
+             trades under it. The segment is included when the category has one (S0030), so the
+             hint reads "in Food - Restaurants and Food" and typing a segment name finds everything
+             under it. */
           options={categories.flatMap((parent) =>
             parent.children.map((child) => ({
               value: child.slug,
               label: child.name,
-              hint: `in ${parent.name}`,
+              hint: parent.segmentName ? `in ${parent.segmentName} · ${parent.name}` : `in ${parent.name}`,
             })),
           )}
           defaultValue={state.values.categorySlug ?? ""}

@@ -58,8 +58,13 @@ export function ListingForm({ categories, localities, lockedLocalityName }: Prop
           {...aria("categorySlug")}
         >
           <option value="">Choose a category</option>
+          {/* The group label carries the segment when there is one, so the three tiers of the
+              taxonomy are all visible in a list that can only show two. */}
           {categories.map((parent) => (
-            <optgroup key={parent.slug} label={parent.name}>
+            <optgroup
+              key={parent.slug}
+              label={parent.segmentName ? `${parent.segmentName} · ${parent.name}` : parent.name}
+            >
               {parent.children.map((child) => (
                 <option key={child.slug} value={child.slug}>
                   {child.name}

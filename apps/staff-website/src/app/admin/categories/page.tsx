@@ -1,9 +1,18 @@
 import type { Metadata } from "next";
 import { EmptyState } from "@/components/minia/FilterTabs";
 import { PageTitle } from "@/components/minia/PageTitle";
-import { PERMISSION_TAXONOMY, getAdminCategories, getAdminProfile, type AdminCategory } from "@/lib/admin-api";
+import {
+  PERMISSION_TAXONOMY,
+  getAdminCategories,
+  getAdminProfile,
+  getAdminSegments,
+  type AdminCategory,
+  type AdminSegment,
+} from "@/lib/admin-api";
 import {
   addCategoryAction,
+  addSegmentAction,
+  assignSegmentAction,
   deleteCategoryAction,
   editCategoryAction,
   toggleCategoryAction,
@@ -16,15 +25,27 @@ export const dynamic = "force-dynamic";
 type Props = { searchParams: Promise<{ done?: string; error?: string }> };
 
 /**
- * Categories and their subcategories, on the original's Minia layout.
+ * The taxonomy, on the original's Minia layout: Segment > Category > Subcategory.
  *
  * Businesses are listed under a subcategory, so the hierarchy is the point of the screen: each
- * category is a card, and its subcategories are indented inside it against a left rule. A flat
- * table would lose the one relationship that matters here.
+ * category is a card, its subcategories are indented inside it against a left rule, and the segment
+ * it belongs to is a dropdown on its header. A flat table would lose the one relationship that
+ * matters here.
+ *
+ * Segments (S0030) are the tier above, listed in their own card at the top. They are rows in the
+ * same table, so renaming, reordering, switching off and deleting one go through the same controls
+ * and the same endpoints as a category -- only "add" and "move a category" are their own actions.
  */
 export default async function CategoriesPage({ searchParams }: Props) {
   const { done, error } = await searchParams;
-  const [result, me] = await Promise.all([getAdminCategories(), getAdminProfile()]);
+  const [result, me, segmentResult] = await Promise.all([
+    getAdminCategories(),
+    getAdminProfile(),
+    getAdminSegments(),
+  ]);
+  /* A failure here is not worth failing the screen for: the categories below are still manageable,
+     and the segment controls simply are not offered. An API deployed before S0030 answers 404. */
+  const segments = segmentResult.ok ? segmentResult.data : [];
 
   const title = <PageTitle title="Categories view" breadcrumb={[{ label: "Configurations" }, { label: "Categories" }]} />;
 
@@ -59,6 +80,76 @@ export default async function CategoriesPage({ searchParams }: Props) {
       {title}
       <Notice done={done} error={error} />
 
+      {/* ---------------------------------------------------------------- segments */}
+      <div className="row g-3 mb-4">
+        <div className="col-12">
+          <div className="card">
+            <div className="card-body">
+              <h4 className="card-title mb-1">Segments</h4>
+              <p className="card-title-desc mb-3">
+                The top of the menu: Food, Stays, Services. A segment holds categories, and a
+                category holds the subcategories businesses are listed under. Moving a category
+                between segments does not change its web address.
+              </p>
+
+              <form action={addSegmentAction} className="row g-2 align-items-end mb-3">
+                <div className="col-md-6">
+                  <label htmlFor="segment-name" className="form-label">
+                    Name
+                  </label>
+                  <input
+                    id="segment-name"
+                    name="name"
+                    required
+                    maxLength={200}
+                    placeholder="Food"
+                    className="form-control"
+                  />
+                </div>
+                <div className="col-md-3">
+                  <label htmlFor="segment-order" className="form-label">
+                    Order
+                  </label>
+                  <input
+                    id="segment-order"
+                    name="sortOrder"
+                    type="number"
+                    defaultValue={0}
+                    className="form-control"
+                  />
+                </div>
+                <div className="col-md-3">
+                  <button type="submit" className="btn btn-primary w-100">
+                    Add segment
+                  </button>
+                </div>
+              </form>
+
+              {segments.length === 0 ? (
+                <p className="text-muted font-size-13 mb-0">
+                  No segments yet. Categories work without one; a segment groups them on the public
+                  menu.
+                </p>
+              ) : (
+                <div>
+                  {segments.map((segment) => (
+                    <div key={segment.id} className="py-2 border-bottom">
+                      <CategoryRow
+                        category={asRow(segment)}
+                        /* A segment with categories under it cannot be deleted -- the API refuses
+                           it, and a button that always fails is worse than no button. */
+                        deletable={segment.categoryCount === 0}
+                        countLabel={`${segment.categoryCount} categor${segment.categoryCount === 1 ? "y" : "ies"}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* A web address is settled once and never edited: see AdminTaxonomyEndpoints for why. */}
       <div className="row g-3 mb-4">
         <div className="col-12">
@@ -88,13 +179,26 @@ export default async function CategoriesPage({ searchParams }: Props) {
                   <label htmlFor="parentId" className="form-label">
                     Under
                   </label>
+                  {/* The tier of whatever is chosen decides the tier of the new row: a segment
+                      makes a category, a category makes a subcategory. */}
                   <select id="parentId" name="parentId" className="form-select">
-                    <option value="">Nothing — a top-level category</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
+                    <option value="">Nothing — a category with no segment</option>
+                    {segments.length > 0 ? (
+                      <optgroup label="In a segment (makes a category)">
+                        {segments.map((segment) => (
+                          <option key={`s-${segment.id}`} value={segment.id}>
+                            {segment.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    <optgroup label="Under a category (makes a subcategory)">
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
                 <div className="col-md-2">
@@ -130,6 +234,37 @@ export default async function CategoriesPage({ searchParams }: Props) {
                 <div className="card-body">
                   <CategoryRow category={category} />
 
+                  {segments.length > 0 ? (
+                    <form
+                      action={assignSegmentAction.bind(null, category.id)}
+                      className="d-flex flex-wrap align-items-center gap-2 mt-2"
+                    >
+                      <label
+                        className="text-muted font-size-12 mb-0"
+                        htmlFor={`segment-${category.id}`}
+                      >
+                        Segment
+                      </label>
+                      <select
+                        id={`segment-${category.id}`}
+                        name="segmentId"
+                        defaultValue={category.parentId ?? ""}
+                        className="form-select form-select-sm"
+                        style={{ width: "14rem" }}
+                      >
+                        <option value="">No segment</option>
+                        {segments.map((segment) => (
+                          <option key={segment.id} value={segment.id}>
+                            {segment.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="submit" className="btn btn-sm btn-outline-secondary">
+                        Move
+                      </button>
+                    </form>
+                  ) : null}
+
                   <div className="border-start ps-3 ms-2 mt-3">
                     {category.children.map((child) => (
                       <div key={child.id} className="py-2 border-bottom">
@@ -157,8 +292,19 @@ export default async function CategoriesPage({ searchParams }: Props) {
  * is only offered when nothing points at the row — the API refuses it otherwise, but offering a
  * button that always fails is worse than not offering it.
  */
-function CategoryRow({ category }: { category: AdminCategory }) {
-  const deletable = category.listingCount === 0 && category.children.length === 0;
+function CategoryRow({
+  category,
+  deletable: deletableOverride,
+  countLabel,
+}: {
+  category: AdminCategory;
+  /** For a segment, whose "children" are categories and are counted separately. */
+  deletable?: boolean;
+  /** Replaces the listing count, which means nothing for a segment. */
+  countLabel?: string;
+}) {
+  const deletable =
+    deletableOverride ?? (category.listingCount === 0 && category.children.length === 0);
 
   return (
     <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -196,8 +342,9 @@ function CategoryRow({ category }: { category: AdminCategory }) {
         </button>
 
         <span className="text-muted font-size-12">
-          /{category.slug} &middot; {category.listingCount} listing
-          {category.listingCount === 1 ? "" : "s"}
+          /{category.slug} &middot;{" "}
+          {countLabel ??
+            `${category.listingCount} listing${category.listingCount === 1 ? "" : "s"}`}
         </span>
       </form>
 
@@ -251,4 +398,25 @@ function Notice({ done, error }: { done?: string; error?: string }) {
     );
   }
   return null;
+}
+
+/**
+ * A segment in the shape `CategoryRow` renders.
+ *
+ * They are the same kind of row in the database -- one table, a `level` column -- so the controls
+ * are the same controls and the endpoints behind them are the same endpoints. This is the seam, and
+ * it is three lines rather than a second copy of the row.
+ */
+function asRow(segment: AdminSegment): AdminCategory {
+  return {
+    id: segment.id,
+    level: 0,
+    parentId: null,
+    slug: segment.slug,
+    name: segment.name,
+    sortOrder: segment.sortOrder,
+    isActive: segment.isActive,
+    listingCount: 0,
+    children: [],
+  };
 }

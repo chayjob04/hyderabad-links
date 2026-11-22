@@ -28,8 +28,23 @@ namespace BusinessDirectory.Api.Endpoints;
 public static class AdminTaxonomyEndpoints
 {
     // ---- requests ------------------------------------------------------------------------------
-    /// <summary>`parentId` null creates a top-level category; otherwise a subcategory under it.</summary>
+    /// <summary>
+    /// `parentId` names the row above the new one, and its tier decides the new row's.
+    ///
+    /// A segment (level 0, S0030) makes a category; a category makes a subcategory; null makes a
+    /// category with no segment yet. That last case is what this field meant before segments
+    /// existed, so a caller written against the old behaviour keeps working.
+    /// </summary>
     public sealed record CategoryCreateRequest(string? Name, int? ParentId, int? SortOrder);
+
+    /// <summary>A segment: the top tier. It has no parent, so there is nothing to pass but a name.</summary>
+    public sealed record SegmentCreateRequest(string? Name, int? SortOrder);
+
+    /// <summary>
+    /// Which segment a category belongs under. Null unplaces it, which the taxonomy allows: a
+    /// category nobody has classified yet is better than one filed somewhere wrong.
+    /// </summary>
+    public sealed record SegmentAssignRequest(int? SegmentId);
 
     /// <summary>No slug: see the class comment. Any field left null keeps its current value.</summary>
     public sealed record CategoryUpdateRequest(string? Name, int? SortOrder, bool? IsActive);
@@ -54,6 +69,15 @@ public static class AdminTaxonomyEndpoints
         /// <summary>Subcategories under it, for a top-level category. Empty for a subcategory.</summary>
         IReadOnlyList<CategoryDto> Children);
 
+    /// <param name="CategoryCount">Categories under it, so the screen can say what a segment holds.</param>
+    public sealed record SegmentDto(
+        int Id,
+        string Slug,
+        string Name,
+        int SortOrder,
+        bool IsActive,
+        int CategoryCount);
+
     public sealed record CityDto(int Id, string Slug, string Name, string State, bool IsActive);
 
     public sealed record LocalityDto(
@@ -75,6 +99,17 @@ public static class AdminTaxonomyEndpoints
         categories.MapPost("", CreateCategory);
         categories.MapPut("/{id:int}", UpdateCategory);
         categories.MapDelete("/{id:int}", DeleteCategory);
+        /* Moving a category between segments. A PUT of its own rather than a field on the update
+           above, because that endpoint deliberately never changes a row's place in the tree -- and
+           because this one has to check the destination exists and is a segment. */
+        categories.MapPut("/{id:int}/segment", AssignSegment);
+
+        /* Segments (S0030). Creating one is its own route because it takes no parent; renaming,
+           reordering, retiring and deleting one all go through the category routes above, which
+           work on a row at any tier. */
+        var segments = admin.MapGroup("/segments");
+        segments.MapGet("", ListSegments);
+        segments.MapPost("", CreateSegment);
 
         admin.MapGet("/cities", ListCities);
 
@@ -142,8 +177,11 @@ public static class AdminTaxonomyEndpoints
             }
         }
 
-        // The ORDER BY put level 1 first, so every parent is already known when its children arrive.
-        var tops = all.Where(c => c.Level == 1).ToList();
+        /* Categories with their subcategories nested, which is what this screen has always shown.
+           Segments are in `all` but not in the result: they are their own list, from ListSegments,
+           so the shape this screen already reads is unchanged by a third tier arriving above it.
+           A level-1 row's ParentId is its segment id. */
+        var tops = all.Where(c => c.Level == CategoryTree.CategoryLevel).ToList();
         var nested = tops
             .Select(t => t with { Children = all.Where(c => c.ParentId == t.Id).ToList() })
             .ToList();
@@ -177,22 +215,39 @@ public static class AdminTaxonomyEndpoints
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginSqlTransactionAsync(ct);
 
-        // A subcategory needs a live level-1 parent: the table's own CHECK allows a parent only at
-        // level 1, and FindCategoryId (used when a listing is written) only ever matches level 2.
-        short level = 1;
+        /* The parent's tier decides the new row's: under a segment this is a category, under a
+           category a subcategory. The table's own CHECK and its composite foreign key enforce the
+           same rule, so a wrong answer here is a failed INSERT rather than a bad row -- but the
+           caller deserves the reason in words. */
+        short level = CategoryTree.CategoryLevel;
         if (request.ParentId is { } parentId)
         {
-            await using var parent = new SqlCommand(
-                "SELECT TOP (1) 1 FROM dbo.categories WHERE id = @id AND level = 1", conn, tx);
-            parent.Parameters.AddWithValue("id", parentId);
-            if (await parent.ExecuteScalarAsync(ct) is null)
+            short parentLevel;
+            await using (var parent = new SqlCommand(
+                "SELECT TOP (1) level FROM dbo.categories WHERE id = @id", conn, tx))
+            {
+                parent.Parameters.AddWithValue("id", parentId);
+                if (await parent.ExecuteScalarAsync(ct) is not short found)
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["parentId"] = ["That parent does not exist."],
+                    });
+                }
+                parentLevel = found;
+            }
+
+            if (parentLevel == CategoryTree.SubcategoryLevel)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
-                    ["parentId"] = ["That parent category does not exist."],
+                    ["parentId"] = ["A subcategory cannot have anything under it. The taxonomy is three tiers deep."],
                 });
             }
-            level = 2;
+
+            level = parentLevel == CategoryTree.SegmentLevel
+                ? CategoryTree.CategoryLevel
+                : CategoryTree.SubcategoryLevel;
         }
 
         int id;
@@ -209,7 +264,10 @@ public static class AdminTaxonomyEndpoints
             });
             insert.Parameters.Add(new SqlParameter("parentLevel", SqlDbType.SmallInt)
             {
-                Value = level == 2 ? (short)1 : DBNull.Value,
+                // Null when nothing is above it, which is a category with no segment yet.
+                Value = request.ParentId is null
+                    ? DBNull.Value
+                    : (object?)CategoryTree.ParentLevelFor(level) ?? DBNull.Value,
             });
             insert.Parameters.Add(new SqlParameter("slug", SqlDbType.NVarChar) { Value = slug });
             insert.Parameters.Add(new SqlParameter("name", SqlDbType.NVarChar) { Value = name });
@@ -371,6 +429,197 @@ public static class AdminTaxonomyEndpoints
         await AuditLog.WriteAsync(
             conn, tx, admin.Id, "taxonomy.category_deleted", "category",
             id.ToString(System.Globalization.CultureInfo.InvariantCulture), http, new { slug }, ct);
+        await tx.CommitAsync(ct);
+
+        return Results.NoContent();
+    }
+
+    // ================================================================= segments
+    /// <summary>
+    /// The segments, with how many categories sit under each. Inactive ones included, for the same
+    /// reason inactive categories are: this is the screen where one is turned back on.
+    /// </summary>
+    private static async Task<IResult> ListSegments(
+        ClaimsPrincipal principal, SqlDatabase db, CancellationToken ct)
+    {
+        var (_, refused) = await Gate(principal, db, ct);
+        if (refused is not null)
+        {
+            return refused;
+        }
+
+        await using var command = db.CreateCommand(
+            @"SELECT s.id, s.slug, s.name, s.sort_order, s.is_active,
+                     (SELECT COUNT_BIG(*) FROM dbo.categories c WHERE c.parent_id = s.id AND c.level = 1)
+              FROM dbo.categories s
+              WHERE s.level = 0
+              ORDER BY s.sort_order, s.name");
+
+        var segments = new List<SegmentDto>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            segments.Add(new SegmentDto(
+                reader.GetInt32(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetInt32(3),
+                reader.GetBoolean(4),
+                (int)reader.GetInt64(5)));
+        }
+
+        return Results.Ok(segments);
+    }
+
+    /// <summary>
+    /// Creates a segment. The slug comes from the name and is never editable afterwards, the same
+    /// rule as every other row in this file: a segment is a public page one path segment deep.
+    /// </summary>
+    private static async Task<IResult> CreateSegment(
+        SegmentCreateRequest request,
+        ClaimsPrincipal principal,
+        HttpContext http,
+        SqlDatabase db,
+        CancellationToken ct)
+    {
+        var (admin, refused) = await Gate(principal, db, ct);
+        if (refused is not null || admin is null)
+        {
+            return refused ?? Results.Unauthorized();
+        }
+
+        if (!TryReadName(request.Name, out var name, out var nameError))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = [nameError] });
+        }
+
+        if (!TryReadSlug(name, out var slug, out var slugError))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = [slugError] });
+        }
+
+        /* `areas` is reserved: an area page is /areas/madhapur, so a segment with that slug would
+           make every area page unreachable. The same check guards category creation. */
+        if (string.Equals(slug, PublicUrl.ReservedFirstSegment, StringComparison.Ordinal))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["name"] = [$"'{PublicUrl.ReservedFirstSegment}' is reserved for area pages. Please use a different name."],
+            });
+        }
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginSqlTransactionAsync(ct);
+
+        int id;
+        try
+        {
+            await using var insert = new SqlCommand(
+                @"INSERT INTO dbo.categories (level, parent_id, parent_level, slug, name, sort_order)
+                  OUTPUT INSERTED.id
+                  VALUES (0, NULL, NULL, @slug, @name, @sort)", conn, tx);
+            insert.Parameters.Add(new SqlParameter("slug", SqlDbType.NVarChar) { Value = slug });
+            insert.Parameters.Add(new SqlParameter("name", SqlDbType.NVarChar) { Value = name });
+            insert.Parameters.AddWithValue("sort", request.SortOrder ?? 0);
+            id = (int)(await insert.ExecuteScalarAsync(ct))!;
+        }
+        catch (SqlException ex) when (SqlErrors.IsUniqueViolation(ex))
+        {
+            return Results.Problem(
+                $"Something already uses the web address '{slug}'. Slugs are unique across segments, categories and subcategories, so a page can be one segment deep. Use a different name.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+
+        await AuditLog.WriteAsync(
+            conn, tx, admin.Id, "taxonomy.segment_created", "category",
+            id.ToString(System.Globalization.CultureInfo.InvariantCulture), http,
+            new { slug, name }, ct);
+        await tx.CommitAsync(ct);
+
+        return Results.Created(
+            $"/api/v1/admin/segments/{id}",
+            new SegmentDto(id, slug, name, request.SortOrder ?? 0, true, 0));
+    }
+
+    /// <summary>
+    /// Moves a category under a segment, or out from under one.
+    /// </summary>
+    /// <remarks>
+    /// Only a category may move: a subcategory belongs to its category and a segment is the top, so
+    /// both are refused rather than silently ignored. Nothing about the category's own slug or its
+    /// subcategories changes, so no public URL moves — which is the point of putting segments above
+    /// the tree rather than into the middle of it.
+    /// </remarks>
+    private static async Task<IResult> AssignSegment(
+        int id,
+        SegmentAssignRequest request,
+        ClaimsPrincipal principal,
+        HttpContext http,
+        SqlDatabase db,
+        CancellationToken ct)
+    {
+        var (admin, refused) = await Gate(principal, db, ct);
+        if (refused is not null || admin is null)
+        {
+            return refused ?? Results.Unauthorized();
+        }
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginSqlTransactionAsync(ct);
+
+        int? previous;
+        await using (var find = new SqlCommand(
+            @"SELECT level, parent_id FROM dbo.categories WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
+              WHERE id = @id", conn, tx))
+        {
+            find.Parameters.AddWithValue("id", id);
+            await using var reader = await find.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
+            {
+                return Results.NotFound();
+            }
+            if (reader.GetInt16(0) != CategoryTree.CategoryLevel)
+            {
+                return Results.Problem(
+                    "Only a category can be moved between segments. A subcategory belongs to its category, and a segment is already at the top.",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+            previous = reader.IsDBNull(1) ? null : reader.GetInt32(1);
+        }
+
+        if (request.SegmentId is { } segmentId)
+        {
+            await using var segment = new SqlCommand(
+                "SELECT TOP (1) 1 FROM dbo.categories WHERE id = @id AND level = 0", conn, tx);
+            segment.Parameters.AddWithValue("id", segmentId);
+            if (await segment.ExecuteScalarAsync(ct) is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["segmentId"] = ["That segment does not exist."],
+                });
+            }
+        }
+
+        await using (var update = new SqlCommand(
+            @"UPDATE dbo.categories
+              SET parent_id = @segment,
+                  parent_level = CASE WHEN @segment IS NULL THEN NULL ELSE 0 END,
+                  updated_at = SYSDATETIMEOFFSET()
+              WHERE id = @id", conn, tx))
+        {
+            update.Parameters.AddWithValue("id", id);
+            update.Parameters.Add(new SqlParameter("segment", SqlDbType.Int)
+            {
+                Value = (object?)request.SegmentId ?? DBNull.Value,
+            });
+            await update.ExecuteNonQueryAsync(ct);
+        }
+
+        await AuditLog.WriteAsync(
+            conn, tx, admin.Id, "taxonomy.category_segment_changed", "category",
+            id.ToString(System.Globalization.CultureInfo.InvariantCulture), http,
+            new { previousSegmentId = previous, segmentId = request.SegmentId }, ct);
         await tx.CommitAsync(ct);
 
         return Results.NoContent();

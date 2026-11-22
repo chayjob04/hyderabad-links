@@ -41,12 +41,20 @@ public static class PublicHomepageEndpoints
     {
         var categories = new List<PopularCategoryDto>();
         await using (var command = db.CreateCommand(
-            @"SELECT c.slug, c.name, parent.slug AS parent_slug
+            /* `parent_slug` is sent only for a subcategory, and that CASE is the whole point of
+               it. The website builds a card's address as `/{parentSlug}/{slug}` when a parent is
+               present and `/{slug}` when it is not -- so once S0030 gave every category a segment,
+               an unconditional `parent.slug` turned the card for Restaurants and Food into
+               /food/restaurants-and-food, which is not a page. A segment and a category are both
+               one path segment deep; only a subcategory is two. */
+            @"SELECT c.slug, c.name,
+                     CASE WHEN c.level = 2 THEN parent.slug END AS parent_slug
               FROM dbo.categories c
               LEFT JOIN dbo.categories parent ON parent.id = c.parent_id
               WHERE c.is_popular = 1
                 AND c.is_active = 1
-                -- A subcategory whose parent was retired has no public URL, so it cannot be a card.
+                -- A row whose parent was retired has no public URL, so it cannot be a card. For a
+                -- subcategory that parent is its category; for a category it is its segment.
                 AND (c.parent_id IS NULL OR parent.is_active = 1)
               ORDER BY c.sort_order, c.name"))
         await using (var reader = await command.ExecuteReaderAsync(ct))

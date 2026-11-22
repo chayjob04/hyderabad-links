@@ -27,7 +27,23 @@ public static class PublicDirectoryEndpoints
 
     public sealed record SubCategoryDto(string Slug, string Name, string[] SearchTerms);
 
-    public sealed record CategoryDto(string Slug, string Name, List<SubCategoryDto> Children);
+    /// <param name="SegmentSlug">
+    /// The segment this category sits under, or null while it has none. Added by S0030 and
+    /// appended rather than inserted, so a website built before segments existed keeps reading the
+    /// same first three members and simply ignores these.
+    /// </param>
+    public sealed record CategoryDto(
+        string Slug,
+        string Name,
+        List<SubCategoryDto> Children,
+        string? SegmentSlug = null,
+        string? SegmentName = null);
+
+    /// <summary>One segment, with the categories under it. The top tier of the taxonomy (S0030).</summary>
+    public sealed record SegmentDto(string Slug, string Name, List<SegmentCategoryDto> Categories);
+
+    /// <param name="SubcategoryCount">So a segment page can say how deep each category goes.</param>
+    public sealed record SegmentCategoryDto(string Slug, string Name, int SubcategoryCount);
 
     public sealed record NearbyListingDto(
         string Slug,
@@ -126,6 +142,10 @@ public static class PublicDirectoryEndpoints
         group.MapGet("/localities/search", SearchLocalities);
         group.MapGet("/localities/nearest", GetNearestLocality);
         group.MapGet("/categories", GetCategories);
+        /* The tier above. A separate endpoint rather than a changed shape for /categories: that
+           response is read by a deployed website, and turning its top level into segments would
+           have shown seven rows where it expects seventeen until the new build went out. */
+        group.MapGet("/segments", GetSegments);
         group.MapGet("/listings/nearby", GetNearby);
         group.MapGet("/listings/{parentCategorySlug}/{categorySlug}/{slug}", GetListing);
         return group;
@@ -280,26 +300,46 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
                would win here and every category would come back with no search terms, silently,
                with no error anywhere. Qualifying it is proof against that. */
             @"SELECT c.id, c.parent_id, c.slug, c.name,
-                     (SELECT STRING_AGG(t.term, ',') FROM dbo.category_search_terms t WHERE t.category_id = c.id)
+                     (SELECT STRING_AGG(t.term, ',') FROM dbo.category_search_terms t WHERE t.category_id = c.id),
+                     c.level
               FROM dbo.categories c
               WHERE c.is_active = 1
+                AND (c.parent_id IS NULL OR EXISTS (
+                        SELECT 1 FROM dbo.categories p WHERE p.id = c.parent_id AND p.is_active = 1))
               ORDER BY c.level, c.sort_order, c.name");
         await using var reader = await command.ExecuteReaderAsync(ct);
 
-        var parents = new List<(int Id, CategoryDto Dto)>();
-        var childrenByParent = new Dictionary<int, List<SubCategoryDto>>();
+        /* Which tier a row belongs to is read from `level`, not from whether it has a parent.
+           Since S0030 a category has one -- its segment -- and this decided by `parent_id IS NULL`,
+           so the seven segments would have come back as the whole tree with no children and every
+           category and subcategory would have vanished from the menus, the owner's picker and the
+           admin forms. The ORDER BY level means a segment is always read before the categories
+           under it and a category before its subcategories. */
+        var segmentNames = new Dictionary<int, (string Slug, string Name)>();
+        var categories = new List<CategoryDto>();
+        var childrenByCategory = new Dictionary<int, List<SubCategoryDto>>();
         while (await reader.ReadAsync(ct))
         {
             var id = reader.GetInt32(0);
             var slug = reader.GetString(2);
             var name = reader.GetString(3);
-            if (reader.IsDBNull(1))
+            var level = reader.GetInt16(5);
+
+            if (level == CategoryTree.SegmentLevel)
             {
-                var dto = new CategoryDto(slug, name, new List<SubCategoryDto>());
-                parents.Add((id, dto));
-                childrenByParent[id] = dto.Children;
+                segmentNames[id] = (slug, name);
             }
-            else if (childrenByParent.TryGetValue(reader.GetInt32(1), out var siblings))
+            else if (level == CategoryTree.CategoryLevel)
+            {
+                var segment = !reader.IsDBNull(1) && segmentNames.TryGetValue(reader.GetInt32(1), out var found)
+                    ? found
+                    : default;
+                var dto = new CategoryDto(
+                    slug, name, new List<SubCategoryDto>(), segment.Slug, segment.Name);
+                categories.Add(dto);
+                childrenByCategory[id] = dto.Children;
+            }
+            else if (!reader.IsDBNull(1) && childrenByCategory.TryGetValue(reader.GetInt32(1), out var siblings))
             {
                 var terms = reader.IsDBNull(4)
                     ? []
@@ -307,7 +347,56 @@ ORDER BY CASE WHEN l.name LIKE @prefix ESCAPE '\' THEN 0
                 siblings.Add(new SubCategoryDto(slug, name, terms));
             }
         }
-        return Results.Ok(parents.Select(p => p.Dto));
+        return Results.Ok(categories);
+    }
+
+    /// <summary>
+    /// The segments, each with the categories under it — the public menu's top row.
+    /// </summary>
+    /// <remarks>
+    /// Active rows only, and a category whose segment is inactive is left out with it: hiding a
+    /// segment has to hide what is under it, or the menu would offer a page that is no longer in
+    /// the menu it belongs to.
+    ///
+    /// A segment with no categories is returned anyway. It is a real page with a real heading, and
+    /// an empty one tells staff that they have made a segment and not filled it, which an omission
+    /// would not.
+    /// </remarks>
+    private static async Task<IResult> GetSegments(SqlDatabase db, CancellationToken ct)
+    {
+        await using var command = db.CreateCommand(
+            @"SELECT s.id, s.slug, s.name,
+                     c.slug AS category_slug, c.name AS category_name,
+                     (SELECT COUNT_BIG(*) FROM dbo.categories k
+                      WHERE k.parent_id = c.id AND k.level = 2 AND k.is_active = 1) AS subcategory_count
+              FROM dbo.categories s
+              LEFT JOIN dbo.categories c
+                     ON c.parent_id = s.id AND c.level = 1 AND c.is_active = 1
+              WHERE s.level = 0 AND s.is_active = 1
+              ORDER BY s.sort_order, s.name, c.sort_order, c.name");
+
+        var segments = new List<SegmentDto>();
+        var byId = new Dictionary<int, SegmentDto>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var id = reader.GetInt32(0);
+            if (!byId.TryGetValue(id, out var segment))
+            {
+                segment = new SegmentDto(reader.GetString(1), reader.GetString(2), []);
+                byId[id] = segment;
+                segments.Add(segment);
+            }
+
+            // The LEFT JOIN: a segment with nothing under it arrives as one row with nulls.
+            if (!reader.IsDBNull(3))
+            {
+                segment.Categories.Add(new SegmentCategoryDto(
+                    reader.GetString(3), reader.GetString(4), (int)reader.GetInt64(5)));
+            }
+        }
+
+        return Results.Ok(segments);
     }
 
     private static async Task<IResult> GetNearby(

@@ -5,27 +5,56 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
 import { SearchBox } from "@/components/SearchBox";
-import { getCategories, getLocalities, getPageMeta, withPageMeta } from "@/lib/api";
+import { getCategories, getLocalities, getPageMeta, getSegments, withPageMeta } from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { findTopCategory, toSearchCategories } from "@/lib/categories";
 import { absoluteUrl } from "@/lib/format";
 
 /**
- * A top-level category: /food, /shopping, /healthcare.
+ * One path segment deep: a category (/shopping, /healthcare) or a segment (/food, /services).
  *
- * It lists its subcategories rather than businesses, because a business is filed under a
- * subcategory — "Food" is a heading, "Cafes" is where listings live.
+ * A category lists its subcategories and a segment lists its categories, because in both cases a
+ * business is filed further down -- "Food" is a heading, "Cafes" is where listings live.
  *
- * This route sits at the root, so it catches any single unmatched segment. Next.js prefers a
- * static segment over a dynamic one, so /search, /login, /onboarding and /account still win;
- * anything else that is not a category falls through to notFound() below.
+ * <b>Both tiers live at the root on purpose.</b> Slugs are unique across the whole taxonomy
+ * (decision D4) precisely so that a page can be one segment deep, and segments were added above the
+ * existing tree (S0030) rather than into the middle of it -- so every category URL that worked
+ * before still works, and a segment is a new URL rather than a new prefix on old ones.
+ *
+ * A category is looked up first. If the two ever shared a slug the database would have refused the
+ * second one, but the order is fixed anyway so the answer cannot depend on which query ran first.
+ *
+ * This route catches any single unmatched segment. Next.js prefers a static segment over a dynamic
+ * one, so /search, /login, /onboarding and /account still win; anything that is neither a category
+ * nor a segment falls through to the area redirect and then notFound() below.
  */
 type Props = { params: Promise<{ category: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category } = await params;
   const found = findTopCategory(await getCategories(), category);
-  if (!found) return { title: "Not found", robots: { index: false } };
+  if (!found) {
+    const segment = (await getSegments()).find((s) => s.slug === category);
+    if (!segment) return { title: "Not found", robots: { index: false } };
+
+    const appliedSegment = withPageMeta(
+      {
+        title: `${segment.name} in ${DEFAULT_CITY_NAME}`,
+        description: `Browse ${segment.name.toLowerCase()} businesses across ${DEFAULT_CITY_NAME}.`,
+      },
+      /* A segment is a category row at level 0, so an SEO override on it is addressed exactly the
+         way a category's is -- the panel's picker and the public lookup both already work. */
+      await getPageMeta("category", segment.slug),
+    );
+
+    return {
+      ...appliedSegment,
+      alternates: { canonical: absoluteUrl(`/${segment.slug}`) },
+      robots:
+        appliedSegment.robots ??
+        (segment.categories.length === 0 ? { index: false, follow: true } : undefined),
+    };
+  }
 
   const applied = withPageMeta(
     {
@@ -59,9 +88,84 @@ async function redirectIfItIsAnArea(slug: string): Promise<void> {
 
 export default async function TopCategoryPage({ params }: Props) {
   const { category } = await params;
-  const tree = await getCategories();
+  const [tree, segments] = await Promise.all([getCategories(), getSegments()]);
   const found = findTopCategory(tree, category);
+
   if (!found) {
+    const segment = segments.find((s) => s.slug === category);
+    if (segment) {
+      return (
+        <>
+          <PageHero
+            crumbs={[{ label: "Home", href: "/" }, { label: segment.name }]}
+            title={
+              <>
+                {segment.name} in <span className="text-[#42d0dc]">{DEFAULT_CITY_NAME}</span>
+              </>
+            }
+            subtitle={
+              segment.categories.length === 0
+                ? undefined
+                : `${segment.categories.length} ${
+                    segment.categories.length === 1 ? "category" : "categories"
+                  } under ${segment.name.toLowerCase()}`
+            }
+          />
+
+          <main className="mx-auto max-w-5xl px-5 pt-8 pb-16 sm:px-8">
+            <SearchBox categories={toSearchCategories(tree)} />
+
+            {segment.categories.length === 0 ? (
+              <p className="mt-4 text-neutral-600">Nothing listed under {segment.name} yet.</p>
+            ) : (
+              <>
+                <p className="mt-1 text-sm text-neutral-500">Pick what you are looking for.</p>
+
+                {/* The same cards a category page uses for its subcategories. One tier up, one
+                    layout: a visitor should not be able to tell which tier they are on except by
+                    the heading. */}
+                <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {segment.categories.map((item) => (
+                    <li key={item.slug}>
+                      <Link
+                        href={`/${item.slug}`}
+                        className="flex items-center gap-3 rounded-xl border border-line bg-white p-3 font-bold text-ink shadow-[0_6px_18px_#002a340a] transition hover:border-brand-700 hover:shadow-[0_10px_24px_#002a3414]"
+                      >
+                        <CategoryThumb slug={item.slug} name={item.name} className="size-14 shrink-0" />
+                        <span className="min-w-0">
+                          {item.name}
+                          {item.subcategoryCount > 0 ? (
+                            <span className="block text-xs font-bold text-muted">
+                              {item.subcategoryCount}{" "}
+                              {item.subcategoryCount === 1 ? "kind" : "kinds"}
+                            </span>
+                          ) : null}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+
+                <JsonLd
+                  data={{
+                    "@context": "https://schema.org",
+                    "@type": "ItemList",
+                    name: `${segment.name} in ${DEFAULT_CITY_NAME}`,
+                    itemListElement: segment.categories.map((item, index) => ({
+                      "@type": "ListItem",
+                      position: index + 1,
+                      url: absoluteUrl(`/${item.slug}`),
+                      name: item.name,
+                    })),
+                  }}
+                />
+              </>
+            )}
+          </main>
+        </>
+      );
+    }
+
     await redirectIfItIsAnArea(category);
     notFound();
   }

@@ -2,7 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createCategory, deleteCategory, updateCategory } from "@/lib/admin-api";
+import {
+  assignCategorySegment,
+  createCategory,
+  createSegment,
+  deleteCategory,
+  updateCategory,
+} from "@/lib/admin-api";
 import { categoryListPages, revalidatePublicPages } from "@/lib/revalidate";
 
 /**
@@ -82,4 +88,44 @@ export async function deleteCategoryAction(id: number): Promise<void> {
   const result = await deleteCategory(id);
   if (result.ok) await refreshPublicLists();
   back(result, "Deleted.");
+}
+
+/**
+ * Adds a segment: the tier above categories.
+ *
+ * Renaming, reordering, switching off and deleting a segment reuse the category actions above,
+ * because a segment is a row in the same table and those endpoints work on any tier. Only creating
+ * one is separate, since there is no parent to pass.
+ */
+export async function addSegmentAction(formData: FormData): Promise<void> {
+  const name = String(formData.get("name") ?? "").trim();
+  const sortOrder = Number.parseInt(String(formData.get("sortOrder") ?? "0"), 10);
+
+  if (name === "") redirect(FAILED + encodeURIComponent("Enter a name."));
+
+  const result = await createSegment({
+    name,
+    sortOrder: Number.isSafeInteger(sortOrder) ? sortOrder : 0,
+  });
+  if (result.ok) await refreshPublicLists();
+  back(result, `Added the "${name}" segment.`);
+}
+
+/**
+ * Moves a category under a segment, or out from under one.
+ *
+ * Nothing about the category's own address changes: segments sit above the tree rather than inside
+ * the path, so /restaurants-and-food stays where it is whichever segment it belongs to. That is why
+ * this is safe to do from a dropdown without a confirmation.
+ */
+export async function assignSegmentAction(id: number, formData: FormData): Promise<void> {
+  const raw = String(formData.get("segmentId") ?? "");
+  const segmentId = raw === "" ? null : Number.parseInt(raw, 10);
+
+  const result = await assignCategorySegment(
+    id,
+    segmentId !== null && Number.isSafeInteger(segmentId) ? segmentId : null,
+  );
+  if (result.ok) await refreshPublicLists();
+  back(result, segmentId === null ? "Taken out of its segment." : "Moved.");
 }

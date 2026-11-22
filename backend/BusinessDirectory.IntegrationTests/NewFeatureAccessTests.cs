@@ -121,6 +121,11 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
         { "POST", "/api/v1/admin/search/placeholders" },
         { "DELETE", "/api/v1/admin/search/placeholders/1" },
         // S0025: curating the homepage.
+        // S0030: the tier above categories. Managing the taxonomy is taxonomy.manage work, so these
+        // must be no more open than the category routes beside them.
+        { "GET", "/api/v1/admin/segments" },
+        { "POST", "/api/v1/admin/segments" },
+        { "PUT", "/api/v1/admin/categories/1/segment" },
         { "GET", "/api/v1/admin/popular-categories" },
         { "PUT", "/api/v1/admin/popular-categories/1" },
         { "GET", "/api/v1/admin/scrolling-text" },
@@ -163,6 +168,8 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
     [InlineData("/api/v1/public/blog")]
     [InlineData("/api/v1/public/search-placeholders")]
     [InlineData("/api/v1/public/page-meta")]
+    // S0030: the segment menu. Public, like the category tree it sits above.
+    [InlineData("/api/v1/public/segments")]
     [InlineData("/api/v1/public/plans")]
     public async Task The_new_public_routes_exist_and_need_no_token(string path)
     {

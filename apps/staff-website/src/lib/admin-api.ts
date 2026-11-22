@@ -334,7 +334,34 @@ export type AdminLocality = {
   listingCount: number;
 };
 
+/**
+ * One segment: the top tier of the taxonomy (Segment > Category > Subcategory, S0030).
+ *
+ * It is a row in the same table as categories, at level 0, which is why renaming, reordering,
+ * retiring and deleting one all go through the category endpoints -- those work on a row at any
+ * tier. Only creating one and moving a category between segments need their own routes.
+ */
+export type AdminSegment = {
+  id: number;
+  slug: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  categoryCount: number;
+};
+
 export const getAdminCategories = () => authed<AdminCategory[]>("/api/v1/admin/categories");
+export const getAdminSegments = () => authed<AdminSegment[]>("/api/v1/admin/segments");
+
+export const createSegment = (input: { name: string; sortOrder: number }) =>
+  authed<AdminSegment>("/api/v1/admin/segments", { method: "POST", body: json(input) });
+
+/** Moves a category under a segment, or out from under one with null. */
+export const assignCategorySegment = (id: number, segmentId: number | null) =>
+  authed<void>("/api/v1/admin/categories/" + id + "/segment", {
+    method: "PUT",
+    body: json({ segmentId }),
+  });
 export const getAdminCities = () => authed<AdminCity[]>("/api/v1/admin/cities");
 export const getAdminLocalities = () => authed<AdminLocality[]>("/api/v1/admin/localities");
 

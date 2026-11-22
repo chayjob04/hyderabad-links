@@ -105,21 +105,29 @@ public static class PublicSitemapEndpoints
             }
         }
 
-        /* Category pages. Both levels are real pages: /food lists its subcategories, /food/cafes
-           lists businesses. They used to be /search?category=..., which search engines treat as one
-           page with a parameter rather than as a page each. */
+        /* Category pages. All three tiers are real pages: /food lists its categories,
+           /restaurants-and-food lists its subcategories, /restaurants-and-food/cafes lists
+           businesses. They used to be /search?category=..., which search engines treat as one page
+           with a parameter rather than as a page each.
+
+           A segment (level 0, S0030) has no parent, so the old `p.is_active = 1` condition excluded
+           it: segment pages were missing from the sitemap entirely until this said so. A level-1
+           category now has a parent, so it is the one whose parent may be inactive. */
         var categories = new List<SitemapEntryDto>();
         await using (var command = db.CreateCommand(
             @"SELECT c.level, p.slug, c.slug
               FROM dbo.categories c
               LEFT JOIN dbo.categories p ON p.id = c.parent_id
-              WHERE c.is_active = 1 AND (c.level = 1 OR p.is_active = 1)
+              WHERE c.is_active = 1
+                AND (c.parent_id IS NULL OR p.is_active = 1)
               ORDER BY c.level, c.slug"))
         {
             await using var reader = await command.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                var path = reader.GetInt16(0) == 1
+                /* A segment and a top-level category are both one segment deep, which is the whole
+                   reason category slugs are unique across the tree (decision D4). */
+                var path = reader.GetInt16(0) <= CategoryTree.CategoryLevel
                     ? PublicUrl.ForTopCategory(reader.GetString(2))
                     : PublicUrl.ForCategory(reader.GetString(1), reader.GetString(2));
                 categories.Add(new SitemapEntryDto(path, null));

@@ -2,7 +2,29 @@
 // Later these come from the generated OpenAPI client in packages/api-client.
 
 export type SubCategory = { slug: string; name: string; searchTerms: string[] };
-export type Category = { slug: string; name: string; children: SubCategory[] };
+
+/**
+ * A category, with its subcategories.
+ *
+ * `segmentSlug` and `segmentName` are the tier above it (S0030): Food, Stays, Services and so on.
+ * Optional because an API deployed before segments existed does not send them, and because a
+ * category may legitimately have no segment while somebody decides where it belongs. Either way the
+ * category's own page is still `/{slug}` -- a segment sits above the tree, it is not part of the
+ * path.
+ */
+export type Category = {
+  slug: string;
+  name: string;
+  children: SubCategory[];
+  segmentSlug?: string | null;
+  segmentName?: string | null;
+};
+
+/** One category as a segment lists it. */
+export type SegmentCategory = { slug: string; name: string; subcategoryCount: number };
+
+/** The top tier of the taxonomy: Segment > Category > Subcategory. */
+export type Segment = { slug: string; name: string; categories: SegmentCategory[] };
 export type Locality = { slug: string; name: string; latitude: number; longitude: number };
 
 /** One row from /api/v1/public/localities/search, for the location autocomplete. */
