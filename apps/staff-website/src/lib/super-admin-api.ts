@@ -386,6 +386,8 @@ export type FeaturedRow = {
   featuredAt: string;
   /** Null when the admin who chose it has since been removed. */
   featuredBy: string | null;
+  /** The shelf it is on, or null for the default Featured strip. */
+  homepageGroupId: number | null;
 };
 
 /** `remaining` is sent so a full shelf disables the button rather than offering a refused action. */

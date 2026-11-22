@@ -38,7 +38,17 @@ public static class SuperAdminFeaturedEndpoints
         string? Url,
         DateTimeOffset FeaturedAt,
         /// <summary>Who chose it. Null when that admin account has since been removed.</summary>
-        string? FeaturedBy);
+        string? FeaturedBy,
+        /// <summary>
+        /// The shelf it sits on, or null for the default Featured strip.
+        ///
+        /// Sent so the shelf picker on the Featured screen can show where a listing is now, rather
+        /// than offering a move with no indication of the current state. Until this was added
+        /// nothing reported it, and nothing could set it either: the endpoint that moves a listing
+        /// between shelves existed and was never reachable from the UI, so a named shelf could be
+        /// created but never filled.
+        /// </summary>
+        int? HomepageGroupId);
 
     public sealed record FeaturedListDto(
         IReadOnlyList<FeaturedRowDto> Items,
@@ -79,7 +89,8 @@ public static class SuperAdminFeaturedEndpoints
 
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var command = new SqlCommand(
-            @"SELECT li.id, li.name, li.status, li.slug, pc.slug, pcparent.slug, li.featured_at, fa.display_name
+            @"SELECT li.id, li.name, li.status, li.slug, pc.slug, pcparent.slug, li.featured_at, fa.display_name,
+                     li.homepage_group_id
               FROM dbo.listings li
               LEFT JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
@@ -101,7 +112,8 @@ public static class SuperAdminFeaturedEndpoints
                     reader.IsDBNull(4) ? null : reader.GetString(4),
                     reader.GetString(3)),
                 reader.GetDateTimeOffset(6),
-                reader.IsDBNull(7) ? null : reader.GetString(7)));
+                reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.IsDBNull(8) ? null : reader.GetInt32(8)));
         }
 
         return Results.Ok(new FeaturedListDto(items, MaxFeatured, Math.Max(0, MaxFeatured - items.Count)));

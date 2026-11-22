@@ -8,9 +8,11 @@ import {
   formatWhen,
   getFeatured,
   getHomepageGroups,
+  type HomepageGroup,
   getProfile,
 } from "@/lib/super-admin-api";
 import { removeFromShelfAction } from "./actions";
+import { moveToGroupAction } from "./group-actions";
 import { HomepageGroups } from "./HomepageGroups";
 
 export const metadata: Metadata = { title: "Featured", robots: { index: false, follow: false } };
@@ -142,6 +144,40 @@ export default async function FeaturedPage({ searchParams }: Props) {
                                     >
                                       Public page
                                     </a>
+                                  ) : null}
+                                  {/* Which shelf it sits on. The endpoint, the client call and the
+                                      server action for this all existed and nothing rendered a
+                                      control for them, so a named shelf could be created, renamed
+                                      and deleted but never filled — every featured listing stayed
+                                      on the default strip and `/groups/<slug>` was always empty. */}
+                                  {mayFeature && groups.ok && groups.data.items.length > 0 ? (
+                                    <form
+                                      action={moveToGroupAction.bind(null, row.id)}
+                                      className="d-flex align-items-center gap-1"
+                                    >
+                                      <label className="visually-hidden" htmlFor={`shelf-${row.id}`}>
+                                        Shelf for {row.name}
+                                      </label>
+                                      {/* A select and a submit, not submit-on-change: this page is a
+                                          server component, so it cannot carry an onChange handler,
+                                          and every other control here is a plain form too. */}
+                                      <select
+                                        id={`shelf-${row.id}`}
+                                        name="groupId"
+                                        className="form-select form-select-sm w-auto"
+                                        defaultValue={String(row.homepageGroupId ?? 0)}
+                                      >
+                                        <option value="0">Default strip</option>
+                                        {groups.data.items.map((group: HomepageGroup) => (
+                                          <option key={group.id} value={String(group.id)}>
+                                            {group.title}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button type="submit" className="btn btn-sm btn-outline-secondary">
+                                        Move
+                                      </button>
+                                    </form>
                                   ) : null}
                                   {mayFeature ? (
                                     <form action={removeFromShelfAction.bind(null, row.id)}>
