@@ -140,6 +140,23 @@ export function staticPagePages(pageKey: string): string[] {
 }
 
 /**
+ * The public pages a review decision changes.
+ *
+ * The listing's own page shows the review list and the rating average, both computed over approved
+ * reviews only, so approving or rejecting one changes it. Home is included because the trending
+ * shelf counts approved reviews inside its window -- `ReadTrending` sums enquiries, favourites and
+ * reviews with no weighting -- so a decision can reorder it. Search is not: its result cards carry
+ * no rating.
+ *
+ * `listingUrl` is null when the listing has no primary category and therefore no public page, which
+ * the review queue shows rather than hides. Nothing is refreshed in that case, which is correct:
+ * there is no page to refresh.
+ */
+export function reviewPages(listingUrl: string | null): string[] {
+  return listingUrl === null ? [] : tidy([listingUrl, "/"]);
+}
+
+/**
  * The blog index, plus one post's own page where its slug is known.
  *
  * Both matter and for different reasons: the index lists the posts, and the post page is what a

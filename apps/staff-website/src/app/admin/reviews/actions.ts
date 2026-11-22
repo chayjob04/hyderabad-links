@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { approveReview, rejectReview } from "@/lib/admin-api";
+import { revalidatePublicPages, reviewPages } from "@/lib/revalidate";
 import type { ReviewDecisionState } from "./decision-state";
 
 /**
@@ -11,6 +12,7 @@ import type { ReviewDecisionState } from "./decision-state";
  */
 export async function decideReviewAction(
   reviewId: number,
+  listingUrl: string | null,
   _previous: ReviewDecisionState,
   formData: FormData,
 ): Promise<ReviewDecisionState> {
@@ -32,6 +34,12 @@ export async function decideReviewAction(
           : Object.values(result.fieldErrors)[0] ?? result.message,
     };
   }
+
+  /* The listing's page shows the review list and the rating average, and the homepage's trending
+     shelf counts approved reviews, so both are refreshed rather than left to the 60-second window.
+     The path comes from the API, which composes it with PublicUrl -- deriving one from the listing
+     id here is what produced a dead path everywhere else it was tried. */
+  await revalidatePublicPages(reviewPages(listingUrl));
 
   redirect(`/admin/reviews?decided=${approving ? "approved" : "rejected"}`);
 }

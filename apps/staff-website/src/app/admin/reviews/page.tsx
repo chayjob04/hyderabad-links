@@ -127,7 +127,7 @@ export default async function ReviewModerationPage({ searchParams }: Props) {
                         {review.body}
                       </p>
 
-                      {status === "pending" && mayModerate ? <ReviewDecision reviewId={review.id} /> : null}
+                      {status === "pending" && mayModerate ? <ReviewDecision reviewId={review.id} listingUrl={review.listingUrl} /> : null}
                       {status === "pending" && !mayModerate ? (
                         <p className="text-muted font-size-13 border-top mt-4 pt-3 mb-0">
                           Your account can see this queue but not decide on it.

@@ -1,3 +1,4 @@
+using BusinessDirectory.Api;
 using BusinessDirectory.Api.Endpoints;
 
 namespace BusinessDirectory.UnitTests;
@@ -237,6 +238,61 @@ public class BlogAndSeoValidationTests
         {
             var key = type == "static" ? AdminSeoEndpoints.StaticPageKeys[0] : "1";
             Assert.True(AdminSeoEndpoints.TryAddress(type, key, out _, out _, out _), type);
+        }
+    }
+}
+
+// The API contract the staff site's cache revalidation depends on.
+//
+// Approving a review changes the listing's public page -- the review list and the rating average
+// are both computed over approved reviews -- and the homepage's trending shelf, which counts
+// approved reviews inside its window. The staff site can only refresh those if the API tells it
+// which page to refresh, so `ModerationReviewDto.ListingUrl` is part of the contract rather than a
+// convenience. Dropping it would make the revalidation silently do nothing, which is the failure
+// mode this whole area has produced twice already.
+public class ModerationReviewContractTests
+{
+    private static System.Reflection.ParameterInfo[] Parameters() =>
+        typeof(BusinessDirectory.Api.Endpoints.ReviewEndpoints.ModerationReviewDto)
+            .GetConstructors()
+            .Single()
+            .GetParameters();
+
+    [Fact]
+    public void The_moderation_review_carries_the_listings_public_page()
+    {
+        var listingUrl = Parameters().SingleOrDefault(p => p.Name == "ListingUrl");
+
+        Assert.True(listingUrl is not null, "ModerationReviewDto no longer carries ListingUrl; review revalidation would silently stop working.");
+        Assert.Equal(typeof(string), listingUrl!.ParameterType);
+    }
+
+    [Fact]
+    public void The_public_page_is_nullable_because_a_listing_may_not_have_one()
+    {
+        /* A listing with no primary category has no public page, and the review queue deliberately
+           shows its reviews rather than hiding them -- so the queue must be able to say "no page"
+           rather than invent one. PublicUrl.ForListing returns null for exactly this case. */
+        var listingUrl = Parameters().Single(p => p.Name == "ListingUrl");
+        var context = new System.Reflection.NullabilityInfoContext();
+
+        Assert.Equal(
+            System.Reflection.NullabilityState.Nullable,
+            context.Create(listingUrl).WriteState);
+
+        Assert.Null(BusinessDirectory.Api.Listings.PublicUrl.ForListing(null, "cafes", "garden-cafe"));
+        Assert.Null(BusinessDirectory.Api.Listings.PublicUrl.ForListing("food", null, "garden-cafe"));
+    }
+
+    [Fact]
+    public void The_other_fields_the_queue_renders_are_still_there()
+    {
+        // Guards against the field being added by replacing something the screen needs.
+        var names = Parameters().Select(p => p.Name).ToArray();
+
+        foreach (var expected in new[] { "Id", "ListingId", "ListingName", "Rating", "Body", "ReviewerPhone", "CreatedAt" })
+        {
+            Assert.Contains(expected, names);
         }
     }
 }

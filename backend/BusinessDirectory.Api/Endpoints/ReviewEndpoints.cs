@@ -40,6 +40,12 @@ public static class ReviewEndpoints
         string? ModerationNote,
         DateTimeOffset CreatedAt);
 
+    /// <param name="ListingUrl">
+    /// The listing's public page, so the staff site can refresh it when a decision changes what it
+    /// shows -- an approved review appears in the list and moves the rating average. Null when the
+    /// listing has no primary category and therefore no public page; the queue deliberately shows
+    /// such a review rather than hiding it, so this cannot be made non-null.
+    /// </param>
     public sealed record ModerationReviewDto(
         long Id,
         long ListingId,
@@ -47,7 +53,8 @@ public static class ReviewEndpoints
         short Rating,
         string Body,
         string ReviewerPhone,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        string? ListingUrl);
 
     public sealed record ModerationPage(IReadOnlyList<ModerationReviewDto> Items, int Page, int PageSize, int Total, int TotalPages);
 
@@ -272,14 +279,22 @@ public static class ReviewEndpoints
         }
 
         await using var command = db.CreateCommand(
-            @"SELECT r.id, r.listing_id, li.name, ci.slug, lo.slug, pc.slug, li.slug,
+            /* The parent category, not the city and locality: a listing's page is
+               /[category]/[subcategory]/[slug]. This query used to select ci.slug and lo.slug and
+               build a four-segment path from them, which matches no route -- so every link from a
+               customer's own review list to the listing was a 404. PublicUrl exists to stop exactly
+               that, and its own comment warned about the handler that kept building the path by
+               hand; this was one of the two that still did.
+
+               Inner, like every other listing-URL query here: a write only ever files a listing
+               under a level-2 category, so requiring a parent excludes nothing that can exist. */
+            @"SELECT r.id, r.listing_id, li.name, pcparent.slug, pc.slug, li.slug,
                      r.rating, r.body, r.status, r.moderation_note, r.created_at
               FROM dbo.reviews r
               JOIN dbo.listings li ON li.id = r.listing_id
-              JOIN dbo.localities lo ON lo.id = li.locality_id
-              JOIN dbo.cities ci ON ci.id = lo.city_id
               JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               JOIN dbo.categories pc ON pc.id = lc.category_id
+              JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
               WHERE r.customer_id = @customer
               ORDER BY r.created_at DESC");
         command.Parameters.AddWithValue("customer", customerId);
@@ -292,12 +307,13 @@ public static class ReviewEndpoints
                 reader.GetInt64(0),
                 reader.GetInt64(1),
                 reader.GetString(2),
-                $"/{reader.GetString(3)}/{reader.GetString(4)}/{reader.GetString(5)}/{reader.GetString(6)}",
-                reader.GetInt16(7),
+                // Not null: the parent join above makes both slugs present for every row returned.
+                PublicUrl.ForListing(reader.GetString(3), reader.GetString(4), reader.GetString(5))!,
+                reader.GetInt16(6),
+                reader.GetString(7),
                 reader.GetString(8),
-                reader.GetString(9),
-                reader.IsDBNull(10) ? null : reader.GetString(10),
-                reader.GetFieldValue<DateTimeOffset>(11)));
+                reader.IsDBNull(9) ? null : reader.GetString(9),
+                reader.GetFieldValue<DateTimeOffset>(10)));
         }
 
         return Results.Ok(items);
@@ -333,17 +349,25 @@ public static class ReviewEndpoints
             @"WITH matching AS (
                   -- Reviews are associated with customers after the customer identity migration.
                   SELECT r.id, r.listing_id, li.name AS listing_name, r.rating, r.body,
-                         c.phone_e164 AS phone_e164, r.created_at
+                         c.phone_e164 AS phone_e164, r.created_at,
+                         -- For the listing's public path. Left, not inner, unlike the public
+                         -- queries: a listing with no primary category has no public page, and the
+                         -- queue shows its reviews anyway so they can still be decided.
+                         pcparent.slug AS parent_slug, pc.slug AS category_slug, li.slug AS listing_slug
                   FROM dbo.reviews r
                   JOIN dbo.listings li ON li.id = r.listing_id
                   LEFT JOIN dbo.customers c ON c.id = r.customer_id
+                  LEFT JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+                  LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
+                  LEFT JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
                   WHERE r.status = @status
               ),
               page AS (
                   SELECT * FROM matching ORDER BY created_at OFFSET @offset ROWS FETCH NEXT @size ROWS ONLY
               )
               SELECT (SELECT COUNT_BIG(*) FROM matching),
-                     p.id, p.listing_id, p.listing_name, p.rating, p.body, p.phone_e164, p.created_at
+                     p.id, p.listing_id, p.listing_name, p.rating, p.body, p.phone_e164, p.created_at,
+                     p.parent_slug, p.category_slug, p.listing_slug
               FROM (SELECT 1 AS one) AS always_one_row
               LEFT JOIN page p ON 1 = 1
               ORDER BY p.created_at");
@@ -369,7 +393,12 @@ public static class ReviewEndpoints
                 reader.GetInt16(4),
                 reader.GetString(5),
                 reader.GetString(6),
-                reader.GetFieldValue<DateTimeOffset>(7)));
+                reader.GetFieldValue<DateTimeOffset>(7),
+                // Null for a listing with no primary category, which ForListing returns for itself.
+                PublicUrl.ForListing(
+                    reader.IsDBNull(8) ? null : reader.GetString(8),
+                    reader.IsDBNull(9) ? null : reader.GetString(9),
+                    reader.GetString(10))));
         }
 
         var totalPages = (int)Math.Ceiling(total / (double)ModerationPageSize);

@@ -166,6 +166,8 @@ export type ModerationReview = {
   body: string;
   reviewerPhone: string;
   createdAt: string;
+  /** The listing's public page, or null when it has no primary category and so has no page. */
+  listingUrl: string | null;
 };
 
 export type ModerationReviewPage = {

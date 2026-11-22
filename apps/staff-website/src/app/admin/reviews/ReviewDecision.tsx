@@ -10,9 +10,9 @@ import { initialReviewDecisionState } from "./decision-state";
  * On the theme's form classes now. The two buttons keep `formNoValidate`, because a rejection
  * needs the note and an approval does not, and the server is what decides which.
  */
-export function ReviewDecision({ reviewId }: { reviewId: number }) {
+export function ReviewDecision({ reviewId, listingUrl }: { reviewId: number; listingUrl: string | null }) {
   const [state, formAction, pending] = useActionState(
-    decideReviewAction.bind(null, reviewId),
+    decideReviewAction.bind(null, reviewId, listingUrl),
     initialReviewDecisionState,
   );
 

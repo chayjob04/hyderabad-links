@@ -1,3 +1,4 @@
+using BusinessDirectory.Api.Data;
 using BusinessDirectory.Api.Listings;
 
 namespace BusinessDirectory.UnitTests;
@@ -7,6 +8,50 @@ namespace BusinessDirectory.UnitTests;
 // and would have been the one place still emitting the old shape.
 public class PublicUrlTests
 {
+    /// <summary>
+    /// No handler builds a public path by hand any more.
+    ///
+    /// <para>
+    /// PublicUrl's own comment warned about this: "a path built in seven places is changed in six,
+    /// and the seventh sends somebody to a 404 that nothing fails on." Two handlers were still
+    /// building their own when this test was written -- the customer's saved listings and the
+    /// customer's own reviews -- and both emitted the pre-S0015 four-segment
+    /// <c>/city/locality/category/slug</c> shape. Every link from <c>/my/saved</c> and
+    /// <c>/my/profile</c> to a listing was a 404 in production, and nothing failed on it, exactly as
+    /// predicted. The shape changed; six places were updated; these two were the seventh.
+    /// </para>
+    /// <para>
+    /// Asserted by reading the source, because the defect is the *absence* of a call: a test that
+    /// exercised PublicUrl could never see a handler that declined to use it.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void No_handler_builds_a_public_path_by_hand()
+    {
+        var root = MigrationRunner.FindDirectory(AppContext.BaseDirectory, "backend", "BusinessDirectory.Api");
+        Assert.True(root is not null, "Could not locate the API project from the test assembly.");
+
+        var offenders = new List<string>();
+        foreach (var folder in new[] { "Endpoints", "Listings", "Notifications", "Payments" })
+        {
+            var dir = Path.Combine(root!, folder);
+            if (!Directory.Exists(dir)) continue;
+
+            foreach (var file in Directory.GetFiles(dir, "*.cs"))
+            {
+                if (Path.GetFileName(file) == "PublicUrl.cs") continue;   // the one place allowed to
+                var source = File.ReadAllText(file);
+                // An interpolated string starting with a slash is a path being assembled.
+                if (source.Contains("$\"/{", StringComparison.Ordinal))
+                {
+                    offenders.Add(Path.GetFileName(file));
+                }
+            }
+        }
+
+        Assert.Empty(offenders);
+    }
+
     [Fact]
     public void A_listing_sits_under_its_category_path()
     {

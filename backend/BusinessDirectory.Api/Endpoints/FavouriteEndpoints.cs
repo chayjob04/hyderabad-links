@@ -51,8 +51,12 @@ public static class FavouriteEndpoints
         }
 
         await using var command = db.CreateCommand(
+            /* pcparent.slug, not ci.slug and lo.slug: a listing's page is
+               /[category]/[subcategory]/[slug], and this query used to build a four-segment path
+               from the city and locality, which matches no route -- so every link from a
+               customer's saved list to the listing was a 404. See PublicUrl. */
             @"SELECT li.id, li.name, pc.name, lo.name, li.phone_primary,
-                     ci.slug, lo.slug, pc.slug, li.slug,
+                     pcparent.slug, pc.slug, li.slug,
                      (SELECT m.storage_key FROM dbo.listing_media m
                       WHERE m.listing_id = li.id AND m.kind = 'logo' AND m.is_hidden = 0
                       ORDER BY m.sort_order, m.id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY),
@@ -65,6 +69,7 @@ public static class FavouriteEndpoints
               JOIN dbo.cities ci ON ci.id = lo.city_id
               JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
               JOIN dbo.categories pc ON pc.id = lc.category_id
+              JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
               WHERE f.customer_id = @customer
               ORDER BY f.created_at DESC");
         command.Parameters.AddWithValue("customer", customerId);
@@ -79,10 +84,11 @@ public static class FavouriteEndpoints
                 reader.GetString(2),
                 reader.GetString(3),
                 reader.GetString(4),
-                $"/{reader.GetString(5)}/{reader.GetString(6)}/{reader.GetString(7)}/{reader.GetString(8)}",
-                reader.IsDBNull(9) ? null : storage.PublicUrl(reader.GetString(9)),
-                reader.GetBoolean(10),
-                reader.GetFieldValue<DateTimeOffset>(11)));
+                // Not null: the parent join makes both category slugs present for every row.
+                Listings.PublicUrl.ForListing(reader.GetString(5), reader.GetString(6), reader.GetString(7))!,
+                reader.IsDBNull(8) ? null : storage.PublicUrl(reader.GetString(8)),
+                reader.GetBoolean(9),
+                reader.GetFieldValue<DateTimeOffset>(10)));
         }
         return Results.Ok(items);
     }
