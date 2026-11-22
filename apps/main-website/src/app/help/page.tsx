@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHero } from "@/components/PageHero";
+import { getPageMeta, withPageMeta } from "@/lib/api";
+import { absoluteUrl } from "@/lib/format";
 import { BRAND_NAME, SUPPORT_EMAIL } from "@/lib/brand";
 
-export const metadata: Metadata = {
-  title: "Help & feedback",
-  description: `Get help with your ${BRAND_NAME} listing, or tell us what could be better.`,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const applied = withPageMeta(
+    {
+      title: "Help & feedback",
+      description: `Get help with your ${BRAND_NAME} listing, or tell us what could be better.`,
+    },
+    await getPageMeta("static", "help"),
+  );
+
+  return { ...applied, alternates: { canonical: absoluteUrl("/help") } };
+}
 
 export default function HelpPage() {
   return (

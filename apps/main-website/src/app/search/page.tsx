@@ -7,15 +7,25 @@ import { SearchFilters } from "@/components/SearchFilters";
 import { ActiveFilters, type ActiveFilter } from "@/components/ui/ActiveFilters";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ApiResponseError, getCategories, getLocalities, searchListings } from "@/lib/api";
+import {
+  ApiResponseError,
+  getCategories,
+  getLocalities,
+  getPageMeta,
+  searchListings,
+  withPageMeta,
+} from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { findCategory } from "@/lib/categories";
 import type { SearchCriteria, SearchResults } from "@/lib/types";
 
-export const metadata: Metadata = {
-  title: "Search",
-  robots: { index: false, follow: true }, // filtered result pages are not for search engines
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const applied = withPageMeta({ title: "Search" }, await getPageMeta("static", "search"));
+
+  // Filtered result pages are not for search engines, and an override cannot change that: it may
+  // add noindex but never remove the page's own.
+  return { ...applied, robots: applied.robots ?? { index: false, follow: true } };
+}
 
 type RawParams = {
   q?: string;

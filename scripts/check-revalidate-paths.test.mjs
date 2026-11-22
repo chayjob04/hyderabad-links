@@ -141,8 +141,16 @@ test("the static SEO keys all map to real pages", () => {
     join(repoRoot, "backend", "BusinessDirectory.Api", "Endpoints", "AdminSeoEndpoints.cs"),
     "utf8",
   );
+  /* Comments inside the array are stripped first. The one above the four index keys explains that
+     the website used to read them under an entity type of "page" rather than "static", and reading
+     those two words as keys made this report keys that are not keys. */
   const declared = [...seoSource.matchAll(/StaticPageKeys\s*=\s*\n?\s*\[([^\]]*)\]/g)].flatMap((match) =>
-    [...match[1].matchAll(/"([a-z]+)"/g)].map((key) => key[1]),
+    [
+      ...match[1]
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/.*/g, "")
+        .matchAll(/"([a-z]+)"/g),
+    ].map((key) => key[1]),
   );
 
   assert.ok(declared.length >= 5, "expected to read the static page keys, got " + declared.length);

@@ -21,9 +21,15 @@ export type MetaState = { error?: string; saved?: boolean };
  * so those fall back to the homepage: the nav and footer are the only places such a page's title
  * surfaces sitewide, and the page itself catches up within the cache window.
  */
-function affectedBy(entityType: string, key: string): string[] {
-  const pages = entityType === "static" ? staticPagePages(key) : [];
-  return pages.length > 0 ? pages : ["/"];
+function affectedBy(entityType: string, key: string, publicPath?: string): string[] {
+  if (entityType === "static") {
+    const pages = staticPagePages(key);
+    if (pages.length > 0) return pages;
+  }
+  // A category or area override knows its own page, because the screen that rendered the form
+  // passed the slug along. Only a listing override, cleared from the list below, still has to
+  // settle for the homepage.
+  return publicPath ? [publicPath, "/"] : ["/"];
 }
 
 /**
@@ -51,7 +57,8 @@ export async function saveMetaAction(
     return { error: Object.values(result.fieldErrors)[0] ?? result.message };
   }
 
-  await revalidatePublicPages(affectedBy(entityType, key));
+  const publicPath = String(formData.get("publicPath") ?? "").trim();
+  await revalidatePublicPages(affectedBy(entityType, key, publicPath || undefined));
   revalidatePath("/admin/seo");
   return { saved: true };
 }

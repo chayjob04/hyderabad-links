@@ -4,15 +4,21 @@ import { ListingCard } from "@/components/ListingCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getHighlights, getPageMeta, withPageMeta } from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
+import { absoluteUrl } from "@/lib/format";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return withPageMeta(
+  const applied = withPageMeta(
     {
       title: "Trending businesses",
       description: `The businesses people are contacting most across ${DEFAULT_CITY_NAME} right now.`,
     },
-    await getPageMeta("page", "trending"),
+    // "static", not "page": page_meta's CHECK allows listing, category, locality and
+    // static only, so the "page" lookup that used to be here could never match a row and
+    // the admin panel's override for this screen did nothing.
+    await getPageMeta("static", "trending"),
   );
+
+  return { ...applied, alternates: { canonical: absoluteUrl("/trending") } };
 }
 
 /**

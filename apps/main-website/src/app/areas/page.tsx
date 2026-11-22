@@ -4,15 +4,21 @@ import { PageHero } from "@/components/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getLocalities, getPageMeta, withPageMeta } from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
+import { absoluteUrl } from "@/lib/format";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return withPageMeta(
+  const applied = withPageMeta(
     {
       title: `Areas of ${DEFAULT_CITY_NAME}`,
       description: `Every area of ${DEFAULT_CITY_NAME} covered by Hyderabad Links. Find businesses near you.`,
     },
-    await getPageMeta("page", "areas"),
+    // "static", not "page": page_meta's CHECK allows listing, category, locality and
+    // static only, so the "page" lookup that used to be here could never match a row and
+    // the admin panel's override for this screen did nothing.
+    await getPageMeta("static", "areas"),
   );
+
+  return { ...applied, alternates: { canonical: absoluteUrl("/areas") } };
 }
 
 /**

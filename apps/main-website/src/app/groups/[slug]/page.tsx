@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ListingCard } from "@/components/ListingCard";
 import { PageHero } from "@/components/PageHero";
-import { getHighlights, getPageMeta, withPageMeta } from "@/lib/api";
+import { getHighlights } from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
+import { absoluteUrl } from "@/lib/format";
 import type { FeaturedGroup, SearchListing } from "@/lib/types";
 
 export const revalidate = 300;
@@ -22,14 +23,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const group = await findGroup(slug);
   if (!group) return { title: "Not found" };
 
-  return withPageMeta(
-    {
-      title: group.title,
-      description:
-        group.subtitle ?? `${group.title} — businesses chosen by our team in ${DEFAULT_CITY_NAME}.`,
-    },
-    await getPageMeta("page", `group-${slug}`),
-  );
+  /* No override lookup here. page_meta's CHECK allows entity_type of listing, category, locality
+     or static, so the `page`/`group-<slug>` lookup that used to be here could never match a row --
+     a shelf has no addressable kind. Giving one needs a migration, so this page keeps the title and
+     description the shelf itself carries, which staff already edit on the Featured screen. */
+  return {
+    title: group.title,
+    description:
+      group.subtitle ?? `${group.title} — businesses chosen by our team in ${DEFAULT_CITY_NAME}.`,
+    alternates: { canonical: absoluteUrl(`/groups/${slug}`) },
+  };
 }
 
 /**

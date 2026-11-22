@@ -49,8 +49,13 @@ const CARD_GRID = "grid grid-cols-2 gap-x-5 gap-y-10 sm:gap-x-8 sm:gap-y-12 lg:g
  */
 export async function generateMetadata(): Promise<Metadata> {
   const override = await getPageMeta("static", "home");
-  // No override means no properties set here, so the layout's defaults still apply untouched.
-  return override ? withPageMeta({}, override) : {};
+  /* With no override only the canonical is set here, so the layout's defaults still apply
+     untouched. The canonical is not optional: the front page had none at all, which leaves every
+     tracking-parameter copy of it looking like a separate page. */
+  return {
+    ...(override ? withPageMeta({}, override) : {}),
+    alternates: { canonical: absoluteUrl("/") },
+  };
 }
 
 export default async function HomePage() {

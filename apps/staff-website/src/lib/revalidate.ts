@@ -45,6 +45,12 @@ const STATIC_PAGE_PATHS: Record<string, string> = {
   pricing: "/pricing",
   privacy: "/privacy",
   terms: "/terms",
+  // The four index pages. Without a path here the save fell back to refreshing the home page,
+  // which is not the page whose title just changed.
+  categories: "/categories",
+  areas: "/areas",
+  trending: "/trending",
+  verified: "/verified",
 };
 
 /** Never throws: a failed refresh is not a reason to tell the admin their change did not work. */

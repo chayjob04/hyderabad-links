@@ -5,15 +5,21 @@ import { Pagination } from "@/components/Pagination";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getPageMeta, searchListings, withPageMeta } from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
+import { absoluteUrl } from "@/lib/format";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return withPageMeta(
+  const applied = withPageMeta(
     {
       title: "Verified businesses",
       description: `Businesses in ${DEFAULT_CITY_NAME} that have paid to be verified and had their details checked.`,
     },
-    await getPageMeta("page", "verified"),
+    // "static", not "page": page_meta's CHECK allows listing, category, locality and
+    // static only, so the "page" lookup that used to be here could never match a row and
+    // the admin panel's override for this screen did nothing.
+    await getPageMeta("static", "verified"),
   );
+
+  return { ...applied, alternates: { canonical: absoluteUrl("/verified") } };
 }
 
 type Props = { searchParams: Promise<{ page?: string; category?: string }> };

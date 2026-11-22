@@ -2,14 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHero } from "@/components/PageHero";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getBlogPage } from "@/lib/api";
+import { getBlogPage, getPageMeta, withPageMeta } from "@/lib/api";
 import { absoluteUrl } from "@/lib/format";
 
-export const metadata: Metadata = {
-  title: "Blog",
-  description: "Guides to eating, shopping and getting things done in Hyderabad.",
-  alternates: { canonical: absoluteUrl("/blog") },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const applied = withPageMeta(
+    {
+      title: "Blog",
+      description: "Guides to eating, shopping and getting things done in Hyderabad.",
+    },
+    await getPageMeta("static", "blog"),
+  );
+
+  return { ...applied, alternates: { canonical: absoluteUrl("/blog") } };
+}
 
 /** Revalidated hourly: posts appear when somebody publishes, not continuously. */
 export const revalidate = 3600;

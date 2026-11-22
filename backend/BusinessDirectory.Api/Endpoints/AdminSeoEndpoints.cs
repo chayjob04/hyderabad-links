@@ -20,7 +20,14 @@ public static class AdminSeoEndpoints
     /// <summary>The static pages that may be overridden. A fixed list, so a typo cannot create an
     /// override for a page nothing renders and then puzzle whoever wrote it.</summary>
     public static readonly string[] StaticPageKeys =
-        ["home", "search", "terms", "privacy", "help", "blog", "about", "pricing"];
+    [
+        "home", "search", "terms", "privacy", "help", "blog", "about", "pricing",
+        /* The four index screens. The website was reading an override for each of these under an
+           entity_type of "page", which this table's CHECK does not allow, so the lookup could never
+           match and the panel had no way to address them either. Both sides now say "static".
+           Every key here must be read by a public page: scripts/check-seo-coverage.test.mjs. */
+        "categories", "areas", "trending", "verified",
+    ];
 
     public static readonly string[] EntityTypes = ["listing", "category", "locality", "static"];
 

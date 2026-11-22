@@ -6,7 +6,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { ListingCard } from "@/components/ListingCard";
 import { Pagination } from "@/components/Pagination";
 import { SearchBox } from "@/components/SearchBox";
-import { getCategories, getLocalities, searchListings } from "@/lib/api";
+import { getCategories, getLocalities, getPageMeta, searchListings, withPageMeta } from "@/lib/api";
 import { DEFAULT_CITY, DEFAULT_CITY_NAME } from "@/lib/brand";
 import { findSubCategory, toSearchCategories } from "@/lib/categories";
 import { absoluteUrl } from "@/lib/format";
@@ -54,11 +54,22 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     // A failed lookup must not break metadata; fall back to not indexing.
   }
 
+  /* A subcategory is a row in `categories`, so it is addressable the same way a top-level one is
+     and the override applies here too -- this page was the only category screen not reading it. */
+  const applied = withPageMeta(
+    {
+      title,
+      description: `Find ${page.sub.name.toLowerCase()} across ${DEFAULT_CITY_NAME}. Call or WhatsApp local businesses directly.`,
+    },
+    await getPageMeta("category", page.sub.slug),
+  );
+
   return {
-    title: pageNo > 1 ? `${title} - page ${pageNo}` : title,
-    description: `Find ${page.sub.name.toLowerCase()} across ${DEFAULT_CITY_NAME}. Call or WhatsApp local businesses directly.`,
+    ...applied,
+    // The page number belongs after whatever title won, override or derived.
+    title: pageNo > 1 ? `${applied.title} - page ${pageNo}` : applied.title,
     alternates: { canonical: absoluteUrl(`/${page.parent.slug}/${page.sub.slug}`) },
-    robots: isEmpty || pageNo > 1 ? { index: false, follow: true } : undefined,
+    robots: applied.robots ?? (isEmpty || pageNo > 1 ? { index: false, follow: true } : undefined),
   };
 }
 

@@ -9,6 +9,16 @@ type Props = {
   entityKey: string;
   label: string;
   existing?: PageMeta;
+  /**
+   * The public page this override is about, when the caller knows it.
+   *
+   * A static page's key names its route, so the action can work the path out on its own. A
+   * category or area override is addressed by numeric id, and an id is not a path -- so the only
+   * way to refresh the page whose title just changed is for the screen that already knows the slug
+   * to send it along. Without this the save fell back to refreshing the homepage, which is not the
+   * page that changed.
+   */
+  publicPath?: string;
 };
 
 /**
@@ -25,7 +35,7 @@ type Props = {
  * On the theme's form classes, as a bordered block rather than its own card — there are six of
  * these on the page and six stacked cards would read as six unrelated screens.
  */
-export function MetaForm({ entityType, entityKey, label, existing }: Props) {
+export function MetaForm({ entityType, entityKey, label, existing, publicPath }: Props) {
   const [state, formAction, pending] = useActionState<MetaState, FormData>(
     saveMetaAction.bind(null, entityType, entityKey),
     {},
@@ -33,6 +43,7 @@ export function MetaForm({ entityType, entityKey, label, existing }: Props) {
 
   return (
     <form action={formAction} className="border rounded p-4 mb-4">
+      {publicPath ? <input type="hidden" name="publicPath" value={publicPath} /> : null}
       <h5 className="font-size-16 mb-1">{label}</h5>
       <p className="text-muted font-size-12 mb-4">
         Leave a field empty to keep what the page works out for itself.

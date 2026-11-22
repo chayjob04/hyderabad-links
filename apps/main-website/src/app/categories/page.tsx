@@ -4,16 +4,22 @@ import { PageHero } from "@/components/PageHero";
 import { CategoryThumb } from "@/components/CategoryThumb";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getCategories, getPageMeta, withPageMeta } from "@/lib/api";
+import { absoluteUrl } from "@/lib/format";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return withPageMeta(
+  const applied = withPageMeta(
     {
       title: "All categories",
       description:
         "Every kind of business listed on Hyderabad Links, from restaurants to electricians.",
     },
-    await getPageMeta("page", "categories"),
+    // "static", not "page": page_meta's CHECK allows listing, category, locality and
+    // static only, so the "page" lookup that used to be here could never match a row and
+    // the admin panel's override for this screen did nothing.
+    await getPageMeta("static", "categories"),
   );
+
+  return { ...applied, alternates: { canonical: absoluteUrl("/categories") } };
 }
 
 /**
