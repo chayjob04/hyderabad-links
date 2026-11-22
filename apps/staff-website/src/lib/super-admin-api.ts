@@ -721,3 +721,87 @@ export const changeMyPassword = (input: {
   newPassword: string;
   confirmPassword: string;
 }) => authed<PasswordState>("/api/v1/super-admin/me/password", { method: "POST", body: json(input) });
+
+// ---- subscriptions -----------------------------------------------------------------------------
+/**
+ * Who is paying, what for, and until when.
+ *
+ * Read-only, because the API is: there is no endpoint to grant a plan, extend a period, change a
+ * price or refund a payment. Each of those is money, and nothing in this project changes payment
+ * behaviour without the owner's say-so. `canWrite` comes back false for that reason, and the screen
+ * says so in one place rather than drawing buttons that would be refused.
+ */
+export const PERMISSION_PLANS_MANAGE = "plans.manage";
+
+export type SubscriptionRow = {
+  listingId: number;
+  listingName: string;
+  listingStatus: string;
+  localityName: string;
+  ownerPhone: string | null;
+  /** What is in force now: 'free' the moment a period lapses, worked out against the clock. */
+  effectivePlanSlug: string;
+  effectivePlanName: string;
+  verified: boolean;
+  paidUntil: string | null;
+  /** Whole days left, negative once past, null when nothing was ever bought. */
+  daysRemaining: number | null;
+  /** What was last bought, which is what lets a lapsed listing say which plan it had. */
+  subscribedPlanSlug: string;
+  lastPaymentAt: string | null;
+  lastPaymentStatus: string | null;
+  lastPaymentPaise: number | null;
+  /** The provider's reference, for reconciliation. An identifier, not a credential. */
+  lastPaymentReference: string | null;
+};
+
+export type SubscriptionSummary = {
+  listings: number;
+  verified: number;
+  expiring: number;
+  lapsed: number;
+  neverPaid: number;
+  paidPayments: number;
+  paidPaiseAllTime: number;
+  paidPaiseLast30Days: number;
+  refundedPayments: number;
+  failedPayments: number;
+};
+
+export type PlanRow = {
+  slug: string;
+  name: string;
+  pricePaise: number;
+  photoLimit: number;
+  videoLimit: number;
+  logoLimit: number;
+  faqLimit: number;
+  contentSectionLimit: number;
+  grantsVerifiedBadge: boolean;
+  mediaLimitsConfirmed: boolean;
+  isActive: boolean;
+  listingsOnPlan: number;
+};
+
+export type SubscriptionsPage = {
+  items: SubscriptionRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  state: string;
+  summary: SubscriptionSummary;
+  plans: PlanRow[];
+  canWrite: boolean;
+};
+
+export const listSubscriptions = (input: { state?: string; page?: number }) => {
+  const query = new URLSearchParams();
+  if (input.state) query.set("state", input.state);
+  if (input.page && input.page > 1) query.set("page", String(input.page));
+  const suffix = query.toString();
+  return authed<SubscriptionsPage>("/api/v1/super-admin/subscriptions" + (suffix ? "?" + suffix : ""));
+};
+
+/** Paise to rupees, the way the pricing page does it: no paise are ever shown. */
+export const rupees = (paise: number) => "₹" + Math.round(paise / 100).toLocaleString("en-IN");

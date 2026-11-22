@@ -90,6 +90,9 @@ public static class SuperAdminEndpoints
         group.MapSuperAdminDirectoryEndpoints();  // category counts and business accounts
         group.MapSuperAdminListingEndpoints();   // add, correct, archive and delete listings
         group.MapSuperAdminHomepageGroupEndpoints();  // named shelves for the homepage
+        /* Who is paying and until when. Read-only on purpose: granting a plan or refunding a
+           payment is money, and there is no endpoint here that does either. */
+        group.MapSuperAdminSubscriptionEndpoints();
         return group;
     }
 

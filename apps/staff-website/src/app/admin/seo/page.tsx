@@ -7,6 +7,7 @@ import {
   getAdminLocalities,
   getAdminProfile,
   getPageMetaList,
+  searchSeoListings,
   type AdminCategory,
 } from "@/lib/admin-api";
 import { MetaForm } from "./MetaForm";
@@ -15,7 +16,16 @@ import { clearMetaAction } from "./actions";
 export const metadata: Metadata = { title: "SEO" };
 
 type Props = {
-  searchParams: Promise<{ done?: string; error?: string; category?: string; locality?: string }>;
+  searchParams: Promise<{
+    done?: string;
+    error?: string;
+    category?: string;
+    locality?: string;
+    /** What was typed into the listing search box. */
+    q?: string;
+    /** The id of the listing chosen from those results. */
+    listing?: string;
+  }>;
 };
 
 /** Friendly names for the fixed set of static pages the API accepts. */
@@ -47,9 +57,11 @@ const PAGE_LABELS: Record<string, string> = {
  * one. Picking from a list of the real ones also means the id sent to the API is always an id that
  * exists, which typing one into a box would not guarantee.
  *
- * Listings are still not here. There are thousands and a dropdown is the wrong control for that;
- * an override on one is set by nothing today, which is recorded in the project status rather than
- * half-solved with a picker nobody could use.
+ * Listings are searched rather than listed, for the same reason: there are thousands of them, so
+ * the dropdown is the wrong control and was why this entity type had no panel at all -- although
+ * the table, the API and the public page have supported it since S0021. Typing a name (or an id,
+ * which is what the override list below shows for a listing it cannot name) narrows to at most
+ * twenty, and the id that reaches the API is one that came back from it.
  */
 type Pick = { id: number; label: string; path: string };
 
@@ -74,12 +86,26 @@ function flatten(categories: AdminCategory[]): Pick[] {
 }
 
 export default async function SeoPage({ searchParams }: Props) {
-  const { done, error, category: pickedCategory, locality: pickedLocality } = await searchParams;
-  const [result, me, categories, localities] = await Promise.all([
+  const {
+    done,
+    error,
+    category: pickedCategory,
+    locality: pickedLocality,
+    q: listingQuery,
+    listing: pickedListing,
+  } = await searchParams;
+
+  /* The listing search runs on the server, with the typed text in the address, so a result is
+     linkable and the page stays a server component. `pickedListing` is searched for by id, which is
+     also how a chosen listing survives a reload. */
+  const search = (listingQuery ?? "").trim();
+  const [result, me, categories, localities, listingResults, pickedResults] = await Promise.all([
     getPageMetaList(),
     getAdminProfile(),
     getAdminCategories(),
     getAdminLocalities(),
+    search.length >= 2 ? searchSeoListings(search) : Promise.resolve(null),
+    pickedListing ? searchSeoListings(pickedListing) : Promise.resolve(null),
   ]);
   const mayEdit = me.ok && me.data.permissions.includes(PERMISSION_SEO);
 
@@ -95,8 +121,21 @@ export default async function SeoPage({ searchParams }: Props) {
      the area's id under the category's entity type and write the override onto the wrong row. */
   const asCategory = flatCategories.find((c) => String(c.id) === pickedCategory);
   const asLocality = flatLocalities.find((l) => String(l.id) === pickedLocality);
-  const chosen = asCategory ?? asLocality;
-  const chosenType = asCategory ? "category" : asLocality ? "locality" : null;
+  /* A listing is only "chosen" when the API returned it under exactly that id: the id in the
+     address is as untrusted as any other parameter, and this is what stops a title being written
+     onto a row that does not exist. */
+  const asListingRow =
+    pickedResults?.ok && pickedListing
+      ? pickedResults.data.items.find((item) => String(item.id) === pickedListing)
+      : undefined;
+  /* Only once it has a public page. A listing with no primary category has no page for a title to
+     be about, so the form is not offered -- the panel says what to fix instead. */
+  const asListing =
+    asListingRow && asListingRow.url
+      ? { id: asListingRow.id, label: asListingRow.name, path: asListingRow.url }
+      : undefined;
+  const chosen = asCategory ?? asLocality ?? asListing;
+  const chosenType = asCategory ? "category" : asLocality ? "locality" : asListing ? "listing" : null;
 
   /** An existing override on a category or area, which is addressed by id rather than by key. */
   const existingForEntity = (entityType: string, id: number) =>
@@ -110,7 +149,11 @@ export default async function SeoPage({ searchParams }: Props) {
       ? flatCategories.find((c) => c.id === id)?.label
       : entityType === "locality"
         ? flatLocalities.find((l) => l.id === id)?.label
-        : undefined;
+        : entityType === "listing"
+          ? // Named when this page happens to have it, from the search or the chosen listing.
+            (listingResults?.ok ? listingResults.data.items : []).find((item) => item.id === id)?.name ??
+            (pickedResults?.ok ? pickedResults.data.items : []).find((item) => item.id === id)?.name
+          : undefined;
 
   const existingFor = (entityType: string, key: string) =>
     result.ok
@@ -174,7 +217,7 @@ export default async function SeoPage({ searchParams }: Props) {
           <div className="col-xl-9">
             <div className="card">
               <div className="card-body">
-                <h4 className="card-title mb-1">A category or area page</h4>
+                <h4 className="card-title mb-1">A listing, category or area page</h4>
                 <p className="card-title-desc mb-3">
                   Pick the one you want and its own title and description appear below. Anything
                   left empty keeps what that page works out for itself.
@@ -235,6 +278,85 @@ export default async function SeoPage({ searchParams }: Props) {
                     </form>
                   </div>
                 </div>
+
+                {/* A listing is found by typing, not chosen from a list: there are thousands.
+                    Two characters is the shortest search worth running, and at most twenty come
+                    back -- past that the answer is to type more, which the panel says. */}
+                <form method="get" action="/admin/seo" className="d-flex gap-2 align-items-end mb-3">
+                  <div className="flex-grow-1">
+                    <label htmlFor="pick-listing" className="form-label">
+                      Listing
+                    </label>
+                    <input
+                      id="pick-listing"
+                      name="q"
+                      type="search"
+                      className="form-control"
+                      placeholder="Business name, or its id"
+                      defaultValue={search}
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-outline-secondary">
+                    Search
+                  </button>
+                </form>
+
+                {listingResults && !listingResults.ok ? (
+                  <p role="alert" className="text-danger font-size-13">
+                    {listingResults.message}
+                  </p>
+                ) : null}
+
+                {listingResults?.ok ? (
+                  listingResults.data.items.length === 0 ? (
+                    <p className="text-muted font-size-13">
+                      Nothing matches &ldquo;{search}&rdquo;.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="table-responsive mb-3">
+                        <table className="table table-sm align-middle mb-0">
+                          <tbody>
+                            {listingResults.data.items.map((item) => (
+                              <tr key={item.id}>
+                                <td>
+                                  <span className="fw-medium">{item.name}</span>
+                                  <span className="text-muted font-size-12">
+                                    {" "}
+                                    &middot; {item.categoryName ?? "no category"} &middot;{" "}
+                                    {item.localityName} &middot; {item.status}
+                                  </span>
+                                  {item.hasOverride ? (
+                                    <span className="badge bg-info ms-2">has a title</span>
+                                  ) : null}
+                                </td>
+                                <td className="text-end">
+                                  {item.url ? (
+                                    <a
+                                      href={`/admin/seo?q=${encodeURIComponent(search)}&listing=${item.id}`}
+                                      className="btn btn-sm btn-outline-secondary"
+                                    >
+                                      Open
+                                    </a>
+                                  ) : (
+                                    // No primary category, so no public page to write a title for.
+                                    <span className="text-muted font-size-12">no public page yet</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {listingResults.data.truncated ? (
+                        <p className="text-muted font-size-12">
+                          Showing the first {listingResults.data.items.length} of{" "}
+                          {listingResults.data.total}. Type more of the name to narrow it.
+                        </p>
+                      ) : null}
+                    </>
+                  )
+                ) : null}
 
                 {chosen && chosenType ? (
                   <MetaForm

@@ -24,6 +24,9 @@ public class SuperAdminAccessTests(WebApplicationFactory<Program> factory) : ICl
         "/api/v1/super-admin/listings/1",
         "/api/v1/super-admin/listings/featured",
         "/api/v1/super-admin/listings/1/alerts",
+        // Subscription management: who is paying and until when. Read-only, and super-admin only --
+        // what every business pays is not moderation work.
+        "/api/v1/super-admin/subscriptions",
     ];
 
     [Theory]
@@ -55,6 +58,36 @@ public class SuperAdminAccessTests(WebApplicationFactory<Program> factory) : ICl
         var response = await _client.PutAsJsonAsync("/api/v1/super-admin/admins/1/status", new { status = "disabled" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Subscriptions_are_not_on_the_ordinary_admin_surface()
+    {
+        /* Seeing every business's plan and every payment taken is platform-owner work, gated on
+           plans.manage, which the admin role does not hold. The route must not exist on the admin
+           surface at all: 404 or 405, never 401, because a 401 would mean it is there. */
+        var response = await _client.GetAsync("/api/v1/admin/subscriptions");
+
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
+    }
+
+    [Fact]
+    public async Task Nothing_on_the_subscription_route_writes()
+    {
+        /* The one assertion that keeps this feature honest: there is no way to grant a plan,
+           extend a period or refund a payment, because each of those is money. If one is ever
+           added it will fail here, which is the point at which somebody should be asked. */
+        foreach (var method in new[] { "POST", "PUT", "PATCH", "DELETE" })
+        {
+            using var request = new HttpRequestMessage(new HttpMethod(method), "/api/v1/super-admin/subscriptions");
+            request.Content = JsonContent.Create(new { planSlug = "verified" });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Contains(
+                response.StatusCode,
+                new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
+        }
     }
 
     // ---------------------------------------------------------------- writing listings

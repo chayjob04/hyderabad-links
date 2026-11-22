@@ -1,3 +1,4 @@
+using System.Data;
 using System.Security.Claims;
 using BusinessDirectory.Api.Auth;
 using BusinessDirectory.Api.Data;
@@ -48,10 +49,38 @@ public static class AdminSeoEndpoints
 
     public sealed record MetaListDto(IReadOnlyList<MetaDto> Items, IReadOnlyList<string> StaticPages);
 
+    /// <summary>
+    /// One listing a staff member can pick, for the one entity type this panel could not address.
+    /// </summary>
+    /// <param name="Url">
+    /// The public page, or null when the listing has no primary category yet -- it has no page to
+    /// write a title for until one is set, and the panel says so rather than offering the form.
+    /// </param>
+    /// <param name="HasOverride">Whether a row already exists, so the list can say which are customised.</param>
+    public sealed record SeoListingDto(
+        long Id,
+        string Name,
+        string Status,
+        string LocalityName,
+        string? CategoryName,
+        string? Url,
+        bool HasOverride);
+
+    public sealed record SeoListingSearchDto(IReadOnlyList<SeoListingDto> Items, int Total, bool Truncated);
+
+    /// <summary>How many matches are worth showing before the answer is "type more".</summary>
+    public const int SearchLimit = 20;
+
     public static RouteGroupBuilder MapAdminSeoEndpoints(this RouteGroupBuilder admin)
     {
         var group = admin.MapGroup("/seo");
         group.MapGet("", List);
+        /* Listings are searched rather than listed. There are thousands of them, so the dropdown
+           the categories and areas use is the wrong control -- which is why this entity type had
+           no panel at all, although the table, the API and the public page have always supported
+           it. Gated on seo.manage like everything else here, so finding a listing to write a title
+           for does not require the permissions to review one. */
+        group.MapGet("/listings", SearchListings);
         group.MapGet("/{entityType}/{key}", Get);
         group.MapPut("/{entityType}/{key}", Upsert);
         group.MapDelete("/{entityType}/{key}", Delete);
@@ -96,6 +125,122 @@ public static class AdminSeoEndpoints
 
         return Results.Ok(new MetaListDto(items, StaticPageKeys));
     }
+
+    /// <summary>
+    /// Listings whose name matches, or the one listing whose id was typed.
+    /// </summary>
+    /// <remarks>
+    /// An id is accepted as well as a name because the override list on the panel shows
+    /// "listing #412" for rows whose listing it cannot name, and pasting that number is then the
+    /// quickest way to reach it.
+    ///
+    /// The name match is a parameterised LIKE with the wildcards escaped, so a name containing %
+    /// or [ matches itself rather than everything. There is no full-text index on this path on
+    /// purpose: this is a staff lookup over a few thousand rows, and the search page's index is
+    /// tuned for public queries.
+    /// </remarks>
+    private static async Task<IResult> SearchListings(
+        string? q, ClaimsPrincipal principal, SqlDatabase db, CancellationToken ct)
+    {
+        var (_, refused) = await Gate(principal, db, ct);
+        if (refused is not null)
+        {
+            return refused;
+        }
+
+        var text = Clean(q);
+        if (text is null)
+        {
+            return Results.Ok(new SeoListingSearchDto([], 0, false));
+        }
+
+        var asId = long.TryParse(text, out var id) && id > 0 ? id : (long?)null;
+
+        /* One character is too little to search a name on -- it would return the first twenty
+           listings containing an "a" -- but it is a perfectly good id, and the first few listings
+           in the directory have one. So the length rule belongs to the name match alone: null
+           here means "do not match on the name", and the id still matches.
+
+           This mattered in practice rather than in theory. The panel addresses a chosen listing by
+           putting its id back in the address and looking it up again, so with one rule for both,
+           every listing numbered under ten could be found by name and then not opened. Measured in
+           Chrome. */
+        var nameSearch = text.Length >= 2 ? "%" + Escape(text) + "%" : null;
+        if (asId is null && nameSearch is null)
+        {
+            return Results.Ok(new SeoListingSearchDto([], 0, false));
+        }
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var command = new SqlCommand(
+            @"WITH matches AS (
+                  SELECT li.id, li.name, li.status, li.slug, lo.name AS locality_name,
+                         pc.name AS category_name, pc.slug AS category_slug,
+                         pcparent.slug AS parent_category_slug,
+                         CASE WHEN pm.id IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS has_override
+                  FROM dbo.listings li
+                  JOIN dbo.localities lo ON lo.id = li.locality_id
+                  LEFT JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+                  LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
+                  LEFT JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
+                  LEFT JOIN dbo.page_meta pm ON pm.entity_type = 'listing' AND pm.entity_id = li.id
+                  WHERE (@id IS NOT NULL AND li.id = @id)
+                     OR (@like IS NOT NULL AND li.name LIKE @like ESCAPE '\')
+              )
+              SELECT (SELECT COUNT_BIG(*) FROM matches) AS total,
+                     m.id, m.name, m.status, m.slug, m.locality_name,
+                     m.category_name, m.category_slug, m.parent_category_slug, m.has_override
+              FROM (SELECT 1 AS one) AS always_one_row
+              LEFT JOIN (
+                  SELECT TOP (@limit) * FROM matches ORDER BY name ASC, id ASC
+              ) m ON 1 = 1
+              ORDER BY m.name ASC, m.id ASC", conn);
+        command.Parameters.Add(new SqlParameter("id", SqlDbType.BigInt)
+        {
+            Value = asId is { } value ? value : DBNull.Value,
+        });
+        command.Parameters.Add(new SqlParameter("like", SqlDbType.NVarChar, 200)
+        {
+            Value = nameSearch is null ? DBNull.Value : nameSearch,
+        });
+        command.Parameters.AddWithValue("limit", SearchLimit);
+
+        var items = new List<SeoListingDto>();
+        var total = 0;
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            total = (int)reader.GetInt64(0);
+            if (reader.IsDBNull(1))
+            {
+                break;   // nothing matched, and the total still says so
+            }
+            items.Add(new SeoListingDto(
+                reader.GetInt64(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.GetString(5),
+                reader.IsDBNull(6) ? null : reader.GetString(6),
+                Listings.PublicUrl.ForListing(
+                    reader.IsDBNull(8) ? null : reader.GetString(8),
+                    reader.IsDBNull(7) ? null : reader.GetString(7),
+                    reader.GetString(4)),
+                reader.GetBoolean(9)));
+        }
+
+        return Results.Ok(new SeoListingSearchDto(items, total, total > items.Count));
+    }
+
+    /// <summary>
+    /// Escapes the LIKE wildcards, so a name containing % or [ matches itself.
+    /// </summary>
+    /// <remarks>
+    /// Public so it can be tested without a database. A name like "50% Off Salon" would
+    /// otherwise match every listing, and "[A] Cafe" would match none of itself -- both of which
+    /// look like the search being broken rather than like a quoting mistake.
+    /// </remarks>
+    public static string Escape(string value) =>
+        value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[");
 
     private static async Task<IResult> Get(
         string entityType, string key, ClaimsPrincipal principal, SqlDatabase db, CancellationToken ct)

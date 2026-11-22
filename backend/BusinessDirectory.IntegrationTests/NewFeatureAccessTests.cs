@@ -103,6 +103,9 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
     public static TheoryData<string, string> AdminRoutes() => new()
     {
         { "GET", "/api/v1/admin/seo" },
+        // The listing picker's search. It reads listings, so it must be no more open than
+        // the panel it serves.
+        { "GET", "/api/v1/admin/seo/listings?q=cafe" },
         { "GET", "/api/v1/admin/seo/listing/1" },
         { "PUT", "/api/v1/admin/seo/listing/1" },
         { "DELETE", "/api/v1/admin/seo/listing/1" },

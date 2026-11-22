@@ -457,6 +457,31 @@ export type PageMetaList = { items: PageMeta[]; staticPages: string[] };
 
 export const getPageMetaList = () => authed<PageMetaList>("/api/v1/admin/seo");
 
+/** One listing a title can be written for. `url` is null until it has a primary category. */
+export type SeoListing = {
+  id: number;
+  name: string;
+  status: string;
+  localityName: string;
+  categoryName: string | null;
+  url: string | null;
+  hasOverride: boolean;
+};
+
+/** `truncated` is true when more matched than were returned, so the screen can say "narrow it". */
+export type SeoListingSearch = { items: SeoListing[]; total: number; truncated: boolean };
+
+/**
+ * Listings matching a name, or the one whose id was typed.
+ *
+ * Listings are the one entity type the SEO panel could not address: there are thousands, so the
+ * dropdown the categories and areas use does not work, and a text box that takes an id would let
+ * somebody write a title onto a listing that does not exist. This searches on the SEO permission
+ * rather than on listings.view, so writing a title does not require the right to review listings.
+ */
+export const searchSeoListings = (q: string) =>
+  authed<SeoListingSearch>(`/api/v1/admin/seo/listings?q=${encodeURIComponent(q)}`);
+
 export const savePageMeta = (
   entityType: string,
   key: string,

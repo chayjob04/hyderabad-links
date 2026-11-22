@@ -233,10 +233,15 @@ public class AdminPermissionBindingTests
            functional gain -- but no endpoint may start depending on it, because nothing would then
            be able to set what it guards.
 
-           data.export and plans.manage are dormant rather than obsolete: real features nobody has
-           built. They are named here so that building one is a deliberate act that fails this test
-           and has to update it, rather than a quiet addition nobody reviews. */
-        string[] notToBeGated = [AdminPermissions.ListingsVerify, AdminPermissions.DataExport, AdminPermissions.PlansManage];
+           data.export is dormant rather than obsolete: a real feature nobody has built. It is named
+           here so that building it is a deliberate act that fails this test and has to update it,
+           rather than a quiet addition nobody reviews.
+
+           plans.manage was on this list and has been taken off it, which is the test doing its job:
+           subscription management now reads behind it (SuperAdminSubscriptionEndpoints). It reads
+           and nothing more -- there is no endpoint that grants a plan, extends a period or refunds
+           a payment, because each of those is money. The test below pins where it may be used. */
+        string[] notToBeGated = [AdminPermissions.ListingsVerify, AdminPermissions.DataExport];
 
         var gated = ReadBindings()
             .Where(b => notToBeGated.Contains(CodeFor(b.Permission)))
@@ -245,5 +250,24 @@ public class AdminPermissionBindingTests
             .ToArray();
 
         Assert.Empty(gated);
+    }
+
+    [Fact]
+    public void Plans_manage_gates_subscription_reading_and_only_that()
+    {
+        /* What every business pays is platform-owner work, so it goes through the super gate and
+           lives in one file. Two things would make this fail, and both are worth a conversation
+           before they happen: using the permission somewhere else, or putting it behind the
+           ordinary admin gate, which the admin role would then be one grant away from holding. */
+        var bindings = ReadBindings()
+            .Where(b => CodeFor(b.Permission) == AdminPermissions.PlansManage)
+            .ToArray();
+
+        Assert.NotEmpty(bindings);
+        Assert.All(bindings, binding =>
+        {
+            Assert.Equal("SuperAdminSubscriptionEndpoints.cs", binding.File);
+            Assert.Equal("AuthorizeSuper", binding.Gate);
+        });
     }
 }

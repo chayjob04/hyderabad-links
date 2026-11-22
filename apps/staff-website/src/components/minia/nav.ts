@@ -182,6 +182,14 @@ export const SUPER_ADMIN_NAV: MiniaNavItem[] = [
     ],
   },
   { label: "Business Accounts", href: "/super-admin/accounts", icon: "fas fa-award", permission: PERM.usersView },
+  /* Who is paying and until when. Read-only: the screen says so, because granting a plan or
+     refunding a payment is money and has no endpoint. */
+  {
+    label: "Subscription Management",
+    href: "/super-admin/subscriptions",
+    icon: "fas fa-rupee-sign",
+    permission: PERM.plansManage,
+  },
   { label: "Admin Management", href: "/super-admin/admins", icon: "fas fa-cogs", permission: PERM.adminsManage },
   { label: "Audit Logs", href: "/super-admin/audit", icon: "fas fa-history", permission: PERM.auditView },
   { label: "My Password", href: "/super-admin/password", icon: "fas fa-key" },
