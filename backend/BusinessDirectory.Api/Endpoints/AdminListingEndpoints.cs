@@ -101,18 +101,18 @@ public static class AdminListingEndpoints
                  -- result set is read by position, and inserting a column in the middle silently
                  -- shifts every index after it.
                  pcparent.slug AS parent_category_slug, li.featured_at
-          FROM listings li
+          FROM dbo.listings li
           JOIN dbo.listing_entitlements e ON e.listing_id = li.id
-          JOIN localities lo ON lo.id = li.locality_id
-          JOIN cities ci ON ci.id = lo.city_id
-          LEFT JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-          LEFT JOIN categories pc ON pc.id = lc.category_id
+          JOIN dbo.localities lo ON lo.id = li.locality_id
+          JOIN dbo.cities ci ON ci.id = lo.city_id
+          LEFT JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+          LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
           -- Left, unlike the public queries: a listing with no category still has to reach a
           -- reviewer, and a missing category is exactly the kind of thing to reject it for. It
           -- simply has no public URL until one is set.
-          LEFT JOIN categories pcparent ON pcparent.id = pc.parent_id
-          LEFT JOIN users u ON u.id = li.created_by_user_id
-          LEFT JOIN admin_users ra ON ra.id = li.reviewed_by_admin_id
+          LEFT JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
+          LEFT JOIN dbo.users u ON u.id = li.created_by_user_id
+          LEFT JOIN dbo.admin_users ra ON ra.id = li.reviewed_by_admin_id
           WHERE li.id = @id";
 
     public static RouteGroupBuilder MapAdminListingEndpoints(this RouteGroupBuilder admin)
@@ -167,11 +167,11 @@ public static class AdminListingEndpoints
                   SELECT li.id, li.name, li.status, pc.name AS category_name, lo.name AS locality_name,
                          li.address_line, li.phone_primary, li.created_at, li.updated_at,
                          e.is_verified, e.paid_until
-                  FROM listings li
+                  FROM dbo.listings li
                   JOIN dbo.listing_entitlements e ON e.listing_id = li.id
-                  JOIN localities lo ON lo.id = li.locality_id
-                  LEFT JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-                  LEFT JOIN categories pc ON pc.id = lc.category_id
+                  JOIN dbo.localities lo ON lo.id = li.locality_id
+                  LEFT JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+                  LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
                   WHERE li.status = @status
               ),
               page AS (
@@ -286,7 +286,7 @@ public static class AdminListingEndpoints
 
         // Lock the row so two reviewers cannot both decide on the same listing.
         string currentStatus;
-        await using (var find = new SqlCommand("SELECT status FROM listings WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE id = @id", conn, tx))
+        await using (var find = new SqlCommand("SELECT status FROM dbo.listings WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE id = @id", conn, tx))
         {
             find.Parameters.AddWithValue("id", id);
             if (await find.ExecuteScalarAsync(ct) is not string status)
@@ -305,7 +305,7 @@ public static class AdminListingEndpoints
 
         var sql = approving
             // published_at marks when the listing first went live, so a re-approval after a rejection keeps the original date.
-            ? @"UPDATE listings
+            ? @"UPDATE dbo.listings
                 SET status = 'active',
                     published_at = COALESCE(published_at, SYSDATETIMEOFFSET()),
                     review_note = NULL,
@@ -313,7 +313,7 @@ public static class AdminListingEndpoints
                     reviewed_by_admin_id = @admin,
                     updated_at = SYSDATETIMEOFFSET()
                 WHERE id = @id"
-            : @"UPDATE listings
+            : @"UPDATE dbo.listings
                 SET status = 'rejected',
                     review_note = @reason,
                     reviewed_at = SYSDATETIMEOFFSET(),
@@ -424,7 +424,7 @@ public static class AdminListingEndpoints
         await using var tx = await conn.BeginSqlTransactionAsync(ct);
 
         string currentStatus;
-        await using (var find = new SqlCommand("SELECT status FROM listings WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE id = @id", conn, tx))
+        await using (var find = new SqlCommand("SELECT status FROM dbo.listings WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE id = @id", conn, tx))
         {
             find.Parameters.AddWithValue("id", id);
             if (await find.ExecuteScalarAsync(ct) is not string status)
@@ -446,11 +446,11 @@ public static class AdminListingEndpoints
 
         await using (var update = new SqlCommand(
             suspending
-                ? @"UPDATE listings
+                ? @"UPDATE dbo.listings
                     SET status = 'suspended', review_note = @reason, reviewed_at = SYSDATETIMEOFFSET(),
                         reviewed_by_admin_id = @admin, updated_at = SYSDATETIMEOFFSET()
                     WHERE id = @id"
-                : @"UPDATE listings
+                : @"UPDATE dbo.listings
                     SET status = 'active', review_note = NULL, reviewed_at = SYSDATETIMEOFFSET(),
                         reviewed_by_admin_id = @admin, updated_at = SYSDATETIMEOFFSET()
                     WHERE id = @id", conn, tx))
@@ -543,7 +543,7 @@ public static class AdminListingEndpoints
     {
         IPAddress? ip = http.Connection.RemoteIpAddress;
         await using var command = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
               VALUES ('admin', @admin, @action, 'listing', @entity, @details, @ip)", conn, tx);
         command.Parameters.AddWithValue("admin", adminId);
         command.Parameters.AddWithValue("action", action);

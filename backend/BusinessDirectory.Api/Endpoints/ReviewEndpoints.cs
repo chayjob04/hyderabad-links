@@ -90,18 +90,18 @@ public static class ReviewEndpoints
         await using var command = db.CreateCommand(
             @"WITH target AS (
                   SELECT li.id
-                  FROM listings li
-                  JOIN localities lo ON lo.id = li.locality_id
-                  JOIN cities ci ON ci.id = lo.city_id
+                  FROM dbo.listings li
+                  JOIN dbo.localities lo ON lo.id = li.locality_id
+                  JOIN dbo.cities ci ON ci.id = lo.city_id
                   WHERE ci.slug = @city AND lo.slug = @locality AND li.slug = @slug AND li.status = 'active'
               ),
               approved AS (
                   /* Reviews are associated with customers after the customer identity migration. */
                   SELECT r.id, r.rating, r.body, r.created_at,
                          c.name AS author_name
-                  FROM reviews r
+                  FROM dbo.reviews r
                   JOIN target t ON t.id = r.listing_id
-                  LEFT JOIN customers c ON c.id = r.customer_id
+                  LEFT JOIN dbo.customers c ON c.id = r.customer_id
                   WHERE r.status = 'approved'
               )
               SELECT (SELECT COUNT_BIG(*) FROM approved),
@@ -188,7 +188,7 @@ public static class ReviewEndpoints
         await using (var verified = new SqlCommand(
             // A yes/no answer is a bit in SQL Server, not a bare condition.
             @"SELECT phone_e164, CAST(CASE WHEN phone_verified_at IS NOT NULL THEN 1 ELSE 0 END AS bit)
-              FROM customers WHERE id = @id AND status = 'active'", conn, tx))
+              FROM dbo.customers WHERE id = @id AND status = 'active'", conn, tx))
         {
             verified.Parameters.AddWithValue("id", customerId);
             await using var reader = await verified.ExecuteReaderAsync(ct);
@@ -208,13 +208,13 @@ public static class ReviewEndpoints
                      -- EXISTS is a condition, so reading it as a column means wrapping it in a CASE.
                      -- Matched on the verified phone number, not on an id: a customer id is not a
                      -- business member and never will be. The owner account with the same number is.
-                     CAST(CASE WHEN EXISTS (SELECT 1 FROM business_members bm
-                                            JOIN users ou ON ou.id = bm.user_id
+                     CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.business_members bm
+                                            JOIN dbo.users ou ON ou.id = bm.user_id
                                             WHERE bm.business_id = li.business_id AND ou.phone_e164 = @phone)
                                THEN 1 ELSE 0 END AS bit)
-              FROM listings li
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
+              FROM dbo.listings li
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
               WHERE ci.slug = @city AND lo.slug = @locality AND li.slug = @slug AND li.status = 'active'", conn, tx))
         {
             find.Parameters.AddWithValue("city", citySlug);
@@ -241,7 +241,7 @@ public static class ReviewEndpoints
         try
         {
             await using var insert = new SqlCommand(
-                @"INSERT INTO reviews (listing_id, customer_id, rating, body)
+                @"INSERT INTO dbo.reviews (listing_id, customer_id, rating, body)
                   OUTPUT inserted.id
                   VALUES (@listing, @customer, @rating, @body)", conn, tx);
             insert.Parameters.AddWithValue("listing", listingId);
@@ -274,12 +274,12 @@ public static class ReviewEndpoints
         await using var command = db.CreateCommand(
             @"SELECT r.id, r.listing_id, li.name, ci.slug, lo.slug, pc.slug, li.slug,
                      r.rating, r.body, r.status, r.moderation_note, r.created_at
-              FROM reviews r
-              JOIN listings li ON li.id = r.listing_id
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
-              JOIN listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
-              JOIN categories pc ON pc.id = lc.category_id
+              FROM dbo.reviews r
+              JOIN dbo.listings li ON li.id = r.listing_id
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
+              JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+              JOIN dbo.categories pc ON pc.id = lc.category_id
               WHERE r.customer_id = @customer
               ORDER BY r.created_at DESC");
         command.Parameters.AddWithValue("customer", customerId);
@@ -334,9 +334,9 @@ public static class ReviewEndpoints
                   -- Reviews are associated with customers after the customer identity migration.
                   SELECT r.id, r.listing_id, li.name AS listing_name, r.rating, r.body,
                          c.phone_e164 AS phone_e164, r.created_at
-                  FROM reviews r
-                  JOIN listings li ON li.id = r.listing_id
-                  LEFT JOIN customers c ON c.id = r.customer_id
+                  FROM dbo.reviews r
+                  JOIN dbo.listings li ON li.id = r.listing_id
+                  LEFT JOIN dbo.customers c ON c.id = r.customer_id
                   WHERE r.status = @status
               ),
               page AS (
@@ -431,7 +431,7 @@ public static class ReviewEndpoints
 
         // Only a pending review can be decided, so two moderators cannot both record a decision.
         await using (var update = new SqlCommand(
-            @"UPDATE reviews
+            @"UPDATE dbo.reviews
               SET status = @status, moderation_note = @note, moderated_at = SYSDATETIMEOFFSET(),
                   moderated_by_admin_id = @admin, updated_at = SYSDATETIMEOFFSET()
               OUTPUT inserted.id
@@ -448,7 +448,7 @@ public static class ReviewEndpoints
         }
 
         await using (var audit = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, ip)
               VALUES ('admin', @admin, @action, 'review', @entity, @ip)", conn, tx))
         {
             IPAddress? ip = http.Connection.RemoteIpAddress;

@@ -81,9 +81,9 @@ public static class ReportEndpoints
         // Only a live listing can be reported: anything else has no public page to complain about.
         await using var find = db.CreateCommand(
             @"SELECT li.id
-              FROM listings li
-              JOIN localities lo ON lo.id = li.locality_id
-              JOIN cities ci ON ci.id = lo.city_id
+              FROM dbo.listings li
+              JOIN dbo.localities lo ON lo.id = li.locality_id
+              JOIN dbo.cities ci ON ci.id = lo.city_id
               WHERE ci.slug = @city AND lo.slug = @locality AND li.slug = @slug AND li.status = 'active'");
         find.Parameters.AddWithValue("city", citySlug);
         find.Parameters.AddWithValue("locality", localitySlug);
@@ -106,7 +106,7 @@ public static class ReportEndpoints
     {
         // Only a published review can be reported. A pending or rejected one is not public, so a
         // report about it would be a way of discovering that it exists.
-        await using var find = db.CreateCommand("SELECT id FROM reviews WHERE id = @id AND status = 'approved'");
+        await using var find = db.CreateCommand("SELECT id FROM dbo.reviews WHERE id = @id AND status = 'approved'");
         find.Parameters.AddWithValue("id", id);
         if (await find.ExecuteScalarAsync(ct) is not long reviewId)
         {
@@ -172,9 +172,9 @@ public static class ReportEndpoints
         await using var conn = await db.OpenConnectionAsync(ct);
         await using (var limits = new SqlCommand(
             @"SELECT
-                (SELECT COUNT_BIG(*) FROM reports
+                (SELECT COUNT_BIG(*) FROM dbo.reports
                  WHERE reporter_ip = @ip AND created_at > DATEADD(day, -1, SYSDATETIMEOFFSET())),
-                (SELECT COUNT_BIG(*) FROM reports
+                (SELECT COUNT_BIG(*) FROM dbo.reports
                  WHERE reporter_ip = @ip AND subject_type = @type AND subject_id = @subject)", conn))
         {
             limits.Parameters.Add(new SqlParameter("ip", SqlDbType.VarChar) { Value = (object?)ip?.ToString() ?? DBNull.Value });
@@ -193,7 +193,7 @@ public static class ReportEndpoints
         }
 
         await using (var insert = new SqlCommand(
-            @"INSERT INTO reports (subject_type, subject_id, reason, details,
+            @"INSERT INTO dbo.reports (subject_type, subject_id, reason, details,
                                    reported_by_user_id, reported_by_customer_id, reporter_ip)
               VALUES (@type, @subject, @reason, @details, @user, @customer, @ip)", conn))
         {
@@ -246,10 +246,10 @@ public static class ReportEndpoints
                          r.resolution_note, r.created_at,
                          COALESCE(li.name, rli.name) AS subject_name,
                          rv.body AS review_body
-                  FROM reports r
-                  LEFT JOIN listings li ON r.subject_type = 'listing' AND li.id = r.subject_id
-                  LEFT JOIN reviews rv ON r.subject_type = 'review' AND rv.id = r.subject_id
-                  LEFT JOIN listings rli ON rli.id = rv.listing_id
+                  FROM dbo.reports r
+                  LEFT JOIN dbo.listings li ON r.subject_type = 'listing' AND li.id = r.subject_id
+                  LEFT JOIN dbo.reviews rv ON r.subject_type = 'review' AND rv.id = r.subject_id
+                  LEFT JOIN dbo.listings rli ON rli.id = rv.listing_id
                   WHERE r.status = @status
               ),
               page AS (
@@ -344,7 +344,7 @@ public static class ReportEndpoints
 
         // Only an open report can be closed, so two moderators cannot both record an outcome.
         await using (var update = new SqlCommand(
-            @"UPDATE reports
+            @"UPDATE dbo.reports
               SET status = @status, resolution_note = @note, handled_at = SYSDATETIMEOFFSET(),
                   handled_by_admin_id = @admin, updated_at = SYSDATETIMEOFFSET()
               OUTPUT inserted.id
@@ -361,7 +361,7 @@ public static class ReportEndpoints
         }
 
         await using (var audit = new SqlCommand(
-            @"INSERT INTO audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
+            @"INSERT INTO dbo.audit_logs (actor_type, actor_id, action, entity_type, entity_id, details, ip)
               VALUES ('admin', @admin, @action, 'report', @id, @details, @ip)", conn, tx))
         {
             audit.Parameters.AddWithValue("admin", admin.Id);
