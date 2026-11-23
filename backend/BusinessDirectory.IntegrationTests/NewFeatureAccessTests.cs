@@ -123,6 +123,12 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
         // S0025: curating the homepage.
         // S0030: the tier above categories. Managing the taxonomy is taxonomy.manage work, so these
         // must be no more open than the category routes beside them.
+        // S0031: deciding an edit to a listing that is already published. Same permission as the
+        // listing queue, so these must be no more open than it.
+        { "GET", "/api/v1/admin/listing-changes" },
+        { "GET", "/api/v1/admin/listing-changes/1" },
+        { "POST", "/api/v1/admin/listing-changes/1/approve" },
+        { "POST", "/api/v1/admin/listing-changes/1/reject" },
         { "GET", "/api/v1/admin/segments" },
         { "POST", "/api/v1/admin/segments" },
         { "PUT", "/api/v1/admin/categories/1/segment" },

@@ -1,7 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createListing, logoutSession, updateListing, type ListingFormInput } from "@/lib/owner-api";
+import {
+  createListing,
+  discardPendingChanges,
+  logoutSession,
+  updateListing,
+  type ListingFormInput,
+} from "@/lib/owner-api";
 import { clearSessionCookies, readTokens } from "@/lib/session";
 import type { ListingFormState } from "./form-state";
 
@@ -27,14 +33,22 @@ export async function saveListingAction(listingId: number | null, previous: List
   const result = listingId === null ? await createListing(input) : await updateListing(listingId, input);
   if (!result.ok) return { rev, values, message: result.message, fieldErrors: result.fieldErrors };
 
-  /* What happened, in the owner's words. Submit and Save are different acts and have to read
-     differently, and the status the API returned is the authority on which one took place -- an
-     edit to a listing that is already public goes back through review even on a save. */
+  /* What happened, in the owner's words, decided by what the API says it did rather than by what
+     was asked for.
+
+     A listing that is already on the site is edited aside (S0031): the save comes back with the
+     listing still active and a staged edit attached, and the public page has not changed. A draft
+     is written straight through. Those are four different outcomes and an owner has to be able to
+     tell which one they got -- "Changes saved" over a page that did not change is how somebody
+     ends up pressing Save six times. */
   const submitted = input.submitForReview === true;
-  const message = submitted
-    ? "Sent for review. We will show it on the site once it is approved."
-    : result.data.status === "pending_review"
-      ? "Changes saved and sent for review, because this listing is already on the site."
+  const staged = result.data.pendingChanges ?? null;
+  const message = staged
+    ? staged.status === "pending_review"
+      ? "Sent for review. Your listing stays on the site as it is until we approve the changes."
+      : "Saved. Only you can see these changes \u2014 your listing is still on the site as it was. Press Submit when you want us to review them."
+    : submitted
+      ? "Sent for review. We will show it on the site once it is approved."
       : "Changes saved. It is still a draft until you press Submit.";
 
   /* A new business does not go back into the blank form it was just filled in from.
@@ -54,6 +68,23 @@ export async function saveListingAction(listingId: number | null, previous: List
   return { rev, values, success: true, message, fieldErrors: {} };
 }
 
+
+/**
+ * Throws away a staged edit, so the editor goes back to showing what is published.
+ *
+ * It takes the owner back to the same page rather than returning a message, because the whole page
+ * changes: the form reloads with the live values, the percentages recount, and the banner about
+ * unsent changes goes away. A message above a form that still showed the discarded text would be
+ * the one outcome worth avoiding.
+ */
+export async function discardChangesAction(listingId: number): Promise<void> {
+  const result = await discardPendingChanges(listingId);
+  redirect(
+    result.ok
+      ? `/account/listings/${listingId}/edit?discarded=1`
+      : `/account/listings/${listingId}/edit?error=${encodeURIComponent(result.message)}`,
+  );
+}
 
 export async function signOutAction(): Promise<void> {
   const { refresh } = await readTokens();

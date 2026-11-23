@@ -28,6 +28,10 @@ public static class AdminEndpoints
            keeps it reachable while must_change_password blocks everything else (S0028). */
         group.MapAdminPasswordEndpoints();
         group.MapAdminListingEndpoints();
+        /* Edits to listings that are already published, which are reviewed separately from the
+           listings themselves: approving one publishes the change, and refusing one leaves the live
+           page exactly as it is (S0031). */
+        group.MapAdminPendingChangeEndpoints();
         group.MapAdminTaxonomyEndpoints();   // categories, subcategories and Hyderabad's localities
         group.MapAdminSeoEndpoints();        // page titles, descriptions and indexing
         group.MapAdminBlogEndpoints();       // writing and publishing posts

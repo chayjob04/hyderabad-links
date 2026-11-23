@@ -4,7 +4,12 @@ import { PlanBanner } from "@/components/PlanBanner";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { describeStatus, getSubscriptions, listMyListings } from "@/lib/owner-api";
+import {
+  describePendingChanges,
+  describeStatus,
+  getSubscriptions,
+  listMyListings,
+} from "@/lib/owner-api";
 
 export const metadata: Metadata = { title: "My listings" };
 
@@ -121,6 +126,25 @@ export default async function MyListingsPage({ searchParams }: Props) {
                 </div>
 
                 <p className="mt-3 text-sm text-muted">{describeStatus(listing.status).help}</p>
+
+                {/* A published listing with an edit waiting looks exactly like one nobody has
+                    touched, which is how an owner loses track of whether they sent it (S0031). */}
+                {listing.pendingChanges ? (
+                  <p
+                    className={`mt-3 rounded-lg border px-4 py-3 text-sm ${
+                      listing.pendingChanges.status === "rejected"
+                        ? "border-red-200 bg-red-50 text-red-900"
+                        : listing.pendingChanges.status === "pending_review"
+                          ? "border-amber-300 bg-amber-50 text-amber-900"
+                          : "border-brand-200 bg-brand-50 text-brand-800"
+                    }`}
+                  >
+                    <span className="font-black">
+                      {describePendingChanges(listing.pendingChanges).label}
+                    </span>{" "}
+                    {describePendingChanges(listing.pendingChanges).help}
+                  </p>
+                ) : null}
 
                 {listing.status === "rejected" && listing.reviewNote ? (
                   <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">

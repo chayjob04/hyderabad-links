@@ -57,7 +57,34 @@ public static class OwnerListingEndpoints
         DateTimeOffset? PaidUntil,
 
         /// <summary>Unacknowledged staff requests to fix something (S0017). The card shows a flag per listing.</summary>
-        int OpenAlerts);
+        int OpenAlerts,
+
+        /// <summary>
+        /// The owner's edit to this published listing, waiting to go live (S0031). Null when there
+        /// is none, which is every listing that has never been edited after publication.
+        ///
+        /// The fields above are what the public sees; these are what the owner last typed. The
+        /// editor shows these, so an owner carries on from their own draft rather than from the
+        /// approved text, and the screen says which is which.
+        /// </summary>
+        PendingChangeDto? PendingChanges = null);
+
+    /// <param name="Status">draft (private), pending_review (in the queue) or rejected (with a note).</param>
+    public sealed record PendingChangeDto(
+        string Status,
+        string? Name,
+        string? Description,
+        string? AddressLine,
+        string? Pincode,
+        string? PhonePrimary,
+        string? PhoneWhatsapp,
+        string? WebsiteUrl,
+        string? CategorySlug,
+        string? CategoryName,
+        string? ReviewNote,
+        DateTimeOffset? SubmittedAt,
+        DateTimeOffset? ReviewedAt,
+        DateTimeOffset UpdatedAt);
 
     private const string OwnedListingSelect =
         @"SELECT li.id, li.slug, li.name, li.description, li.address_line, li.pincode, li.phone_primary, li.phone_whatsapp,
@@ -89,6 +116,9 @@ public static class OwnerListingEndpoints
         group.MapGet("/{id:long}", Get);
         group.MapPut("/{id:long}", Update);
         group.MapPost("/{id:long}/submit", Submit);
+        /* Throwing away an edit that has not gone live, so the owner sees the published version
+           again. Theirs to discard: it is their text and nothing public depends on it. */
+        group.MapDelete("/{id:long}/pending-changes", DiscardPendingChanges);
         group.MapOwnerMediaEndpoints();   // photos, logo and video, with the plan allowance enforced
         group.MapOwnerLinkEndpoints();    // website and social links, capped by the plan's allowance
         group.MapOwnerSubscriptionEndpoints();   // buying and renewing the Verified plan, per listing
@@ -107,15 +137,29 @@ public static class OwnerListingEndpoints
             return Results.Unauthorized();
         }
 
-        await using var command = db.CreateCommand(OwnedListingSelect + " ORDER BY li.created_at DESC");
-        command.Parameters.AddWithValue("user", userId);
-        await using var reader = await command.ExecuteReaderAsync(ct);
+        await using var conn = await db.OpenConnectionAsync(ct);
+
         var listings = new List<OwnerListingDto>();
-        while (await reader.ReadAsync(ct))
+        await using (var command = new SqlCommand(OwnedListingSelect + " ORDER BY li.created_at DESC", conn))
         {
-            listings.Add(Read(reader));
+            command.Parameters.AddWithValue("user", userId);
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                listings.Add(Read(reader));
+            }
         }
-        return Results.Ok(listings);
+
+        /* Every staged edit this owner has, in one more query (S0031), so a card can say "changes
+           waiting" instead of looking identical to a listing nobody has touched. */
+        var staged = await PendingChanges.ForOwnerAsync(conn, null, userId, ct);
+        return Results.Ok(staged.Count == 0
+            ? listings
+            : listings
+                .Select(listing => staged.TryGetValue(listing.Id, out var pending)
+                    ? listing with { PendingChanges = ToDto(pending) }
+                    : listing)
+                .ToList());
     }
 
     private static async Task<IResult> Get(long id, ClaimsPrincipal principal, SqlDatabase db, CancellationToken ct)
@@ -308,19 +352,37 @@ public static class OwnerListingEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["categorySlug"] = ["Unknown category."] });
         }
 
+        /* An edit to a listing that is already published does not touch the listing (S0031).
+           It is written aside, the page keeps serving the approved version, and a moderator decides
+           whether it goes live -- which is what this used to do by taking the business off the site
+           for the duration, and the comment here used to say was the only option without somewhere
+           to put the edit.
+
+           Nothing else changes: the owner's own screens read the staged values back, so they
+           continue from where they were rather than from the live text. */
+        if (PendingChanges.IsPublished(currentStatus))
+        {
+            await PendingChanges.UpsertAsync(
+                conn, tx, id, userId, value, categoryId.Value, input.SubmitForReview, ct);
+
+            await WriteAudit(
+                conn, tx, userId,
+                input.SubmitForReview ? "listing.changes_submitted" : "listing.changes_saved",
+                id, http, ct);
+
+            var staged = await LoadOwned(conn, tx, userId, id, ct);
+            await tx.CommitAsync(ct);
+            return Results.Ok(staged);
+        }
+
         await ListingWriter.UpdateListing(conn, tx, id, value, lockResult.Value.Latitude, lockResult.Value.Longitude, ct);
         await ListingWriter.SetPrimaryCategory(conn, tx, id, categoryId.Value, ct);
 
-        /* What a save does to the status.
+        /* What a save does to the status of a listing that is *not* published.
 
            Submit queues it. Save leaves a draft a draft and a rejection a rejection, so an owner
-           can build a listing across several sittings without it being reviewed in between.
-
-           Save on a listing that is already public still goes back through review, and that is
-           deliberate rather than an oversight: the alternative is an approved listing whose text
-           can be rewritten afterwards without a reviewer seeing it, which is the one thing this
-           queue exists to prevent. Holding the edit aside instead -- a live version and a
-           pending one -- needs somewhere to keep it, which is a schema change.
+           can build a listing across several sittings without it being reviewed in between. There
+           is no public version to protect in either case, so the edit is written straight through.
 
            The rejection note is cleared only when the listing actually enters the queue: a save
            that leaves it rejected keeps the note, because the owner is still reading it. */
@@ -438,11 +500,83 @@ public static class OwnerListingEndpoints
 
     private static async Task<OwnerListingDto?> LoadOwned(SqlConnection conn, SqlTransaction? tx, long userId, long listingId, CancellationToken ct)
     {
-        await using var command = new SqlCommand(OwnedListingSelect + " AND li.id = @id", conn, tx);
-        command.Parameters.AddWithValue("user", userId);
-        command.Parameters.AddWithValue("id", listingId);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? Read(reader) : null;
+        OwnerListingDto? dto;
+        await using (var command = new SqlCommand(OwnedListingSelect + " AND li.id = @id", conn, tx))
+        {
+            command.Parameters.AddWithValue("user", userId);
+            command.Parameters.AddWithValue("id", listingId);
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            dto = await reader.ReadAsync(ct) ? Read(reader) : null;
+        }
+
+        if (dto is null)
+        {
+            return null;
+        }
+
+        /* The owner's own edit, if they have one waiting (S0031). A second query rather than a join:
+           the select above is read by position and documented as append-only, and a staged edit has
+           fourteen fields of its own. */
+        var staged = await PendingChanges.ForListingAsync(conn, tx, listingId, ct);
+        return staged is null ? dto : dto with { PendingChanges = ToDto(staged) };
+    }
+
+    /// <summary>The staged edit as the owner's screens read it.</summary>
+    private static PendingChangeDto ToDto(PendingChanges.Staged staged) => new(
+        staged.Status,
+        staged.Name,
+        staged.Description,
+        staged.AddressLine,
+        staged.Pincode,
+        staged.PhonePrimary,
+        staged.PhoneWhatsapp,
+        staged.WebsiteUrl,
+        staged.CategorySlug,
+        staged.CategoryName,
+        staged.ReviewNote,
+        staged.SubmittedAt,
+        staged.ReviewedAt,
+        staged.UpdatedAt);
+
+    /// <summary>
+    /// Throws away the owner's staged edit, so their screens show the published version again.
+    /// </summary>
+    /// <remarks>
+    /// Only their own, and only one that has not been applied -- an applied edit is not a row any
+    /// more, it is the listing. A rejected one may be discarded too: that is an owner deciding the
+    /// moderator was right and they would rather start from what is live.
+    /// </remarks>
+    private static async Task<IResult> DiscardPendingChanges(
+        long id,
+        ClaimsPrincipal principal,
+        HttpContext http,
+        SqlDatabase db,
+        CancellationToken ct)
+    {
+        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginSqlTransactionAsync(ct);
+
+        // Ownership first, through the same lock every other write on this listing takes.
+        var lockResult = await LockOwned(conn, tx, userId, id, ct);
+        if (lockResult is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (!await PendingChanges.DiscardAsync(conn, tx, id, ct))
+        {
+            return Results.NotFound();
+        }
+
+        await WriteAudit(conn, tx, userId, "listing.changes_discarded", id, http, ct);
+        var dto = await LoadOwned(conn, tx, userId, id, ct);
+        await tx.CommitAsync(ct);
+        return Results.Ok(dto);
     }
 
     /// <summary>Locks the row so two edits cannot interleave. Returns null if the listing is not the caller's.</summary>

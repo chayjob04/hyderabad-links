@@ -16,6 +16,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getCategories } from "@/lib/api";
 import {
+  describePendingChanges,
   describeStatus,
   getListingAttributes,
   getListingContent,
@@ -26,7 +27,7 @@ import {
   getOpeningHours,
 } from "@/lib/owner-api";
 import { completionOf, filled, filledTo, overallCompletion } from "@/lib/listing-completion";
-import { saveListingAction } from "../../../actions";
+import { discardChangesAction, saveListingAction } from "../../../actions";
 import { HoursForm } from "../hours/HoursForm";
 import { AddContentForm, AddFaqForm } from "../about/AddForms";
 import { AttributeForm } from "../about/AttributeForm";
@@ -35,8 +36,14 @@ export const metadata: Metadata = { title: "Edit listing" };
 
 type Props = {
   params: Promise<{ id: string }>;
-  /** `created=1` after the listing was saved for the first time, from the add-a-business form. */
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{
+    /** `created=1` after the listing was saved for the first time, from the add-a-business form. */
+    created?: string;
+    /** `discarded=1` after a staged edit was thrown away, so the page can say so. */
+    discarded?: string;
+    /** A message from an action that failed, so it is not swallowed by a redirect. */
+    error?: string;
+  }>;
 };
 
 /** The `<details>` ids, so the action area can open the section a missing field is in. */
@@ -113,7 +120,7 @@ const ATTRIBUTE_KINDS = [
  * each thing rather than two that could drift apart.
  */
 export default async function EditListingPage({ params, searchParams }: Props) {
-  const [{ id: rawId }, { created }] = await Promise.all([params, searchParams]);
+  const [{ id: rawId }, { created, discarded, error: actionError }] = await Promise.all([params, searchParams]);
   if (!/^\d{1,15}$/.test(rawId)) notFound();
   const id = Number(rawId);
 
@@ -144,21 +151,49 @@ export default async function EditListingPage({ params, searchParams }: Props) {
   const listing = result.data;
   const verified = listing.verified;
 
+  /* The owner's own edit to a published listing, if they have one waiting (S0031).
+     Everything below reads `shown` rather than `listing` for the eight fields the details form
+     writes: an owner who comes back to a listing they have edited should find their own text, not
+     the approved version with their work apparently lost. The live values are still on the page --
+     the public link at the top goes to them, and the moderator compares the two. */
+  const staged = listing.pendingChanges ?? null;
+  const shown = staged
+    ? {
+        name: staged.name ?? listing.name,
+        categorySlug: staged.categorySlug ?? listing.categorySlug,
+        addressLine: staged.addressLine,
+        pincode: staged.pincode,
+        phonePrimary: staged.phonePrimary ?? listing.phonePrimary,
+        phoneWhatsapp: staged.phoneWhatsapp,
+        websiteUrl: staged.websiteUrl,
+        description: staged.description,
+      }
+    : {
+        name: listing.name,
+        categorySlug: listing.categorySlug,
+        addressLine: listing.addressLine,
+        pincode: listing.pincode,
+        phonePrimary: listing.phonePrimary,
+        phoneWhatsapp: listing.phoneWhatsapp,
+        websiteUrl: listing.websiteUrl,
+        description: listing.description,
+      };
+
   // ---------------------------------------------------------------- what is filled in
   /* Counted from the values the API returned, never from a constant. The two fields a reviewer
      needs -- an address and a description of at least 20 characters -- are the same two
      `ListingReadiness` gates Submit on, so this section reading 100% and Submit being accepted are
      the same statement. */
   const detailsCompletion = completionOf([
-    { label: "business name", done: filled(listing.name) },
-    { label: "category", done: filled(listing.categorySlug) },
+    { label: "business name", done: filled(shown.name) },
+    { label: "category", done: filled(shown.categorySlug) },
     { label: "area", done: filled(listing.localityName) },
-    { label: "address", done: filled(listing.addressLine) },
-    { label: "phone number", done: filled(listing.phonePrimary) },
-    { label: "a description of at least 20 characters", done: filledTo(listing.description, 20) },
-    { label: "pincode", done: filled(listing.pincode), optional: true },
-    { label: "WhatsApp number", done: filled(listing.phoneWhatsapp), optional: true },
-    { label: "website", done: filled(listing.websiteUrl), optional: true },
+    { label: "address", done: filled(shown.addressLine) },
+    { label: "phone number", done: filled(shown.phonePrimary) },
+    { label: "a description of at least 20 characters", done: filledTo(shown.description, 20) },
+    { label: "pincode", done: filled(shown.pincode), optional: true },
+    { label: "WhatsApp number", done: filled(shown.phoneWhatsapp), optional: true },
+    { label: "website", done: filled(shown.websiteUrl), optional: true },
   ]);
 
   const photos = media.ok ? media.data.items.filter((item) => item.kind === "photo") : [];
@@ -274,6 +309,49 @@ export default async function EditListingPage({ params, searchParams }: Props) {
         </p>
       ) : null}
 
+      {discarded ? (
+        <p role="status" className="mt-5 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+          Those changes are gone. You are editing what is on the site now.
+        </p>
+      ) : null}
+
+      {actionError ? (
+        <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {actionError}
+        </p>
+      ) : null}
+
+      {/* A published listing with an edit waiting. The one thing this has to make unmistakable is
+          that the public page has not changed -- that is the whole point of staging the edit, and an
+          owner who does not realise it will keep pressing Save. */}
+      {staged ? (
+        <div
+          className={`mt-5 rounded-lg border px-4 py-3 text-sm ${
+            staged.status === "rejected"
+              ? "border-red-200 bg-red-50 text-red-900"
+              : staged.status === "pending_review"
+                ? "border-amber-300 bg-amber-50 text-amber-900"
+                : "border-brand-200 bg-brand-50 text-brand-800"
+          }`}
+        >
+          <p className="font-black">{describePendingChanges(staged).label}</p>
+          <p className="mt-1">{describePendingChanges(staged).help}</p>
+          {staged.reviewNote ? (
+            <p className="mt-2">
+              <span className="font-black">What to change:</span> {staged.reviewNote}
+            </p>
+          ) : null}
+          <form action={discardChangesAction.bind(null, listing.id)} className="mt-3">
+            <button
+              type="submit"
+              className="cursor-pointer rounded-full border border-current px-4 py-1.5 text-xs font-black hover:underline"
+            >
+              Discard these changes
+            </button>
+          </form>
+        </div>
+      ) : null}
+
       {created ? (
         <p role="status" className="mt-5 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
           <span className="font-black">Saved as a draft.</span> Nobody else can see it yet. The other
@@ -285,14 +363,14 @@ export default async function EditListingPage({ params, searchParams }: Props) {
       <ListingEditor
         action={saveListingAction.bind(null, listing.id)}
         initialValues={{
-          name: listing.name,
-          categorySlug: listing.categorySlug,
-          addressLine: listing.addressLine ?? "",
-          pincode: listing.pincode ?? "",
-          phonePrimary: listing.phonePrimary,
-          phoneWhatsapp: listing.phoneWhatsapp ?? "",
-          websiteUrl: listing.websiteUrl ?? "",
-          description: listing.description ?? "",
+          name: shown.name,
+          categorySlug: shown.categorySlug,
+          addressLine: shown.addressLine ?? "",
+          pincode: shown.pincode ?? "",
+          phonePrimary: shown.phonePrimary,
+          phoneWhatsapp: shown.phoneWhatsapp ?? "",
+          websiteUrl: shown.websiteUrl ?? "",
+          description: shown.description ?? "",
         }}
         fieldSections={FIELD_SECTIONS}
         outstanding={outstanding}

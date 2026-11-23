@@ -350,6 +350,63 @@ export type AdminSegment = {
   categoryCount: number;
 };
 
+/**
+ * An owner's edit to a listing that is already published, waiting for a decision (S0031).
+ *
+ * The listing itself is untouched while this exists: the public page serves the approved version,
+ * so approving publishes the change and rejecting leaves the site exactly as it is.
+ */
+export type ListingChangeQueueItem = {
+  listingId: number;
+  listingName: string;
+  listingStatus: string;
+  localityName: string;
+  /** `pending_review` is in the queue; `rejected` is waiting on its owner; `draft` is private. */
+  status: "draft" | "pending_review" | "rejected";
+  submittedAt: string | null;
+  updatedAt: string;
+  /** How many fields differ from what is published, so a queue can be triaged. */
+  fieldsChanged: number;
+};
+
+export type ListingChangeField = {
+  field: string;
+  label: string;
+  current: string | null;
+  proposed: string | null;
+  changed: boolean;
+};
+
+export type ListingChangeComparison = {
+  listingId: number;
+  listingName: string;
+  listingStatus: string;
+  url: string | null;
+  status: "draft" | "pending_review" | "rejected";
+  submittedAt: string | null;
+  reviewNote: string | null;
+  fields: ListingChangeField[];
+};
+
+export const PERMISSION_REVIEW_CHANGES = "listings.review";
+
+export const listListingChanges = (status?: string) =>
+  authed<ListingChangeQueueItem[]>(
+    "/api/v1/admin/listing-changes" + (status ? "?status=" + encodeURIComponent(status) : ""),
+  );
+
+export const getListingChanges = (listingId: number) =>
+  authed<ListingChangeComparison>("/api/v1/admin/listing-changes/" + listingId);
+
+export const approveListingChanges = (listingId: number) =>
+  authed<void>("/api/v1/admin/listing-changes/" + listingId + "/approve", { method: "POST" });
+
+export const rejectListingChanges = (listingId: number, reason: string) =>
+  authed<void>("/api/v1/admin/listing-changes/" + listingId + "/reject", {
+    method: "POST",
+    body: json({ reason }),
+  });
+
 export const getAdminCategories = () => authed<AdminCategory[]>("/api/v1/admin/categories");
 export const getAdminSegments = () => authed<AdminSegment[]>("/api/v1/admin/segments");
 

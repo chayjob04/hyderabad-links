@@ -59,11 +59,44 @@ public class OwnerSaveStatusTests
     }
 
     [Fact]
-    public void An_approved_listing_is_never_left_active_by_a_save()
+    public void An_approved_listing_is_never_left_active_by_a_save_through_this_rule()
     {
         /* Stated as its own assertion because the failure would be silent and serious: an edit that
-           kept the listing "active" would publish text no reviewer had seen. */
+           kept the listing "active" *while writing to it* would publish text no reviewer had seen.
+
+           Read this with S0031 in mind. A published listing's edit no longer goes through this rule
+           at all: `OwnerListingEndpoints.Update` writes it to `listing_pending_changes` and leaves
+           the listing alone, so the live page keeps serving the approved version until a moderator
+           approves the change. The rule is still here, still says what it said, and is still what
+           decides the status of a listing that is *not* published -- and it is still the right
+           answer for the one path that does write to a published listing, if one is ever added. */
         Assert.NotEqual("active", ListingReadiness.StatusAfterOwnerSave("active", submitForReview: false));
+    }
+
+    [Fact]
+    public void A_published_listing_is_the_one_whose_edit_is_staged()
+    {
+        /* The question the update handler asks to decide where a save goes. Getting it wrong in
+           either direction is bad in a different way: staging a draft's edit would leave the draft
+           empty while the owner thought they had saved it, and writing a published listing's edit
+           straight through is the behaviour S0031 exists to replace. */
+        Assert.True(PendingChanges.IsPublished("active"));
+
+        foreach (var status in new[] { "draft", "rejected", "pending_review", "suspended", "archived" })
+        {
+            Assert.False(PendingChanges.IsPublished(status), $"{status} is not published");
+        }
+    }
+
+    [Fact]
+    public void A_staged_edit_is_in_exactly_one_of_three_states()
+    {
+        /* The same three the table's CHECK allows (S0031). A fourth state in the code would be a
+           row the database refuses to store; a fourth in the database would be a row no screen
+           knows how to describe. */
+        Assert.Equal("draft", PendingChanges.Draft);
+        Assert.Equal("pending_review", PendingChanges.PendingReview);
+        Assert.Equal("rejected", PendingChanges.Rejected);
     }
 
     [Theory]

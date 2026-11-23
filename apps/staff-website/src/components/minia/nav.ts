@@ -100,6 +100,9 @@ export const ADMIN_NAV: MiniaNavItem[] = [
     children: [
       { label: "Reviews", href: "/admin/reviews", permission: PERM.listingsReview },
       { label: "Reports", href: "/admin/reports", permission: PERM.reportsHandle },
+      /* Edits to listings that are already on the site. The same permission as the listing queue:
+         it is the same judgement about the same content (S0031). */
+      { label: "Listing Changes", href: "/admin/listing-changes", permission: PERM.listingsReview },
     ],
   },
   {
@@ -156,6 +159,7 @@ export const SUPER_ADMIN_NAV: MiniaNavItem[] = [
     children: [
       { label: "Reviews", href: "/admin/reviews", permission: PERM.listingsReview },
       { label: "Reports", href: "/admin/reports", permission: PERM.reportsHandle },
+      { label: "Listing Changes", href: "/admin/listing-changes", permission: PERM.listingsReview },
     ],
   },
   {

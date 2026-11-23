@@ -44,7 +44,58 @@ export type OwnerListing = {
 
   /** Staff requests to correct something that the owner has not marked read yet. */
   openAlerts: number;
+
+  /**
+   * The owner's edit to this listing, waiting to go live (S0031). Null when there is none.
+   *
+   * Everything above is what the public sees. This is what the owner last typed: saving a listing
+   * that is already published no longer takes it off the site, it puts the edit aside until a
+   * moderator approves it. The editor shows these values, because an owner should carry on from
+   * their own work rather than from the approved text.
+   */
+  pendingChanges?: PendingChanges | null;
 };
+
+/** An edit to a published listing, held aside until it is approved (S0031). */
+export type PendingChanges = {
+  /** `draft` saved privately, `pending_review` in the queue, `rejected` with a note to read. */
+  status: "draft" | "pending_review" | "rejected";
+  name: string | null;
+  description: string | null;
+  addressLine: string | null;
+  pincode: string | null;
+  phonePrimary: string | null;
+  phoneWhatsapp: string | null;
+  websiteUrl: string | null;
+  categorySlug: string | null;
+  categoryName: string | null;
+  /** Why a moderator refused it. The owner reads this and changes something. */
+  reviewNote: string | null;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  updatedAt: string;
+};
+
+/** What the owner's screens say about a staged edit, in one place so they cannot disagree. */
+export function describePendingChanges(pending: PendingChanges): { label: string; help: string } {
+  switch (pending.status) {
+    case "pending_review":
+      return {
+        label: "Changes in review",
+        help: "We are checking the changes you sent. Your listing stays on the site as it is until they are approved.",
+      };
+    case "rejected":
+      return {
+        label: "Changes need work",
+        help: "We could not publish these changes. Your listing is still on the site as it was; change what is below and send it again.",
+      };
+    default:
+      return {
+        label: "Unsent changes",
+        help: "These changes are saved and only you can see them. Your listing is on the site as it was. Press Submit when you want us to review them.",
+      };
+  }
+}
 
 /** A staff request to correct something on a listing. */
 export type ListingAlert = {
@@ -234,6 +285,15 @@ export const updateListing = (id: number, input: ListingFormInput) =>
 /* The /submit endpoint is still there and still serves an older client; nothing on this site
    calls it, because Submit is a button on the listing form now and goes through the same
    create/update call as Save with the intent set. */
+
+/**
+ * Throws away a staged edit, so the editor shows the published version again.
+ *
+ * Only the owner's own, and only one that has not been applied -- an approved edit is not a staged
+ * row any more, it is the listing.
+ */
+export const discardPendingChanges = (id: number) =>
+  authed<OwnerListing>(`/api/v1/me/listings/${id}/pending-changes`, { method: "DELETE" });
 
 export const listListingAlerts = (id: number) => authed<ListingAlert[]>(`/api/v1/me/listings/${id}/alerts`);
 export const acknowledgeListingAlert = (id: number, alertId: number) =>
