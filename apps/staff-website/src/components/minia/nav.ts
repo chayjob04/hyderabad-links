@@ -113,6 +113,7 @@ export const ADMIN_NAV: MiniaNavItem[] = [
       // pointing at the same screen.
       { label: "Categories & Subcategories", href: "/admin/categories", permission: PERM.taxonomyManage },
       { label: "Areas / Locations", href: "/admin/locations", permission: PERM.taxonomyManage },
+      { label: "Requests", href: "/admin/suggestions", permission: PERM.taxonomyManage },
       { label: "Listing Groups", href: "/super-admin/featured", permission: PERM.listingsFeature },
     ],
   },
@@ -168,6 +169,9 @@ export const SUPER_ADMIN_NAV: MiniaNavItem[] = [
     children: [
       { label: "Categories & Subcategories", href: "/admin/categories", permission: PERM.taxonomyManage },
       { label: "Areas / Locations", href: "/admin/locations", permission: PERM.taxonomyManage },
+      /* Owners asking for an area or a category we do not have. Same permission as the two rows
+         above, because approving one creates exactly what they create (S0032). */
+      { label: "Requests", href: "/admin/suggestions", permission: PERM.taxonomyManage },
       { label: "Listing Groups", href: "/super-admin/featured", permission: PERM.listingsFeature },
       // Counts per category and per subcategory, each drilling in to the listings filed under it.
       { label: "Listings by Category", href: "/super-admin/listings/by-category", permission: PERM.listingsEdit },

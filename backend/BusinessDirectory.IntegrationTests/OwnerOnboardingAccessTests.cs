@@ -39,7 +39,15 @@ public class OwnerOnboardingAccessTests(WebApplicationFactory<Program> factory) 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /* S0032: asking for an area or a category that does not exist. It writes a row keyed to the
+       caller, so it is behind the owner token like everything else under /api/v1/me. */
     [Fact]
-    public async Task Reading_the_profile_requires_sign_in() =>
-        Assert.Equal(HttpStatusCode.Unauthorized, (await _client.GetAsync("/api/v1/me")).StatusCode);
+    public async Task Asking_for_an_area_refuses_an_anonymous_caller()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/me/taxonomy-suggestions",
+            new { kind = "locality", name = "Nallagandla" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 }

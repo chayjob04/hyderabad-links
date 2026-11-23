@@ -138,12 +138,15 @@ export function OnboardingForm({ phone, categories, localities }: Props) {
         />
       </Field>
 
-      {/* Nothing was created from "not in the list", so the request has to leave by a door that
-          exists. One click, with the name already in the message. */}
+      {/* The request itself is recorded when the form is submitted (S0032), and the answer appears
+          on the field above -- whether it is now in the queue, or already in the directory under a
+          name the owner did not expect. This is only the door to a person, for anything that needs
+          one. */}
       {state.values.localityOther || state.values.categoryOther ? (
         <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Your request is with our team. If there is anything else we should know about it, you can{" "}
           <a
-            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Please add an area or category")}&body=${encodeURIComponent(
+            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("About the area or category I asked for")}&body=${encodeURIComponent(
               [
                 state.values.localityOther ? `Area: ${state.values.localityOther}` : null,
                 state.values.categoryOther ? `Category: ${state.values.categoryOther}` : null,
@@ -155,10 +158,9 @@ export function OnboardingForm({ phone, categories, localities }: Props) {
             )}`}
             className="font-black underline"
           >
-            Send us the name
-          </a>{" "}
-          and we will add it, usually within a working day. Pick the nearest option above so you can
-          finish signing up now.
+            write to us
+          </a>
+          . Pick the nearest option above so you can finish signing up now.
         </p>
       ) : null}
 

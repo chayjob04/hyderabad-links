@@ -124,13 +124,31 @@ test("the admin screen can reach all three tiers", () => {
   assert.match(endpoints, /segments\.MapPost\("", CreateSegment\)/);
   assert.match(endpoints, /categories\.MapPut\("\/\{id:int\}\/segment", AssignSegment\)/);
 
-  // A new row's tier comes from its parent's tier rather than from a hard-coded 1 or 2.
-  assert.match(endpoints, /CategoryTree\.ParentLevelFor\(level\)/);
+  /* A new row's tier comes from its parent's tier rather than from a hard-coded 1 or 2 -- the
+     endpoint reads the parent's level, and the one INSERT that every path goes through derives
+     parent_level from it. The INSERT moved to TaxonomyWriter when approving an owner's request
+     became a second way to add a category (S0032), so the rule is asserted where it now lives. */
+  assert.match(endpoints, /parentLevel == CategoryTree\.SegmentLevel/);
   assert.doesNotMatch(
     endpoints,
     /level = 2;/,
     "the tier of a new row is decided by what it is created under, not assigned",
   );
+
+  const writer = code(read(api, "Listings", "TaxonomyWriter.cs"));
+  assert.match(writer, /CategoryTree\.ParentLevelFor\(level\)/);
+
+  // And there is one INSERT per table, not one per screen.
+  for (const [table, source] of [
+    ["dbo.categories", endpoints],
+    ["dbo.localities", endpoints],
+  ]) {
+    assert.doesNotMatch(
+      source,
+      new RegExp(`INSERT INTO ${table.replace(".", "\\.")}`),
+      `${table} is written through TaxonomyWriter, so this file should not insert into it`,
+    );
+  }
 });
 
 test("the owner's pickers show the segment a category belongs to", () => {

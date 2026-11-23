@@ -250,33 +250,12 @@ public static class AdminTaxonomyEndpoints
                 : CategoryTree.SubcategoryLevel;
         }
 
-        int id;
-        try
+        /* One INSERT for every path that adds to the taxonomy, including approving an owner's
+           request for a category (S0032). See TaxonomyWriter. */
+        if (await TaxonomyWriter.InsertCategoryAsync(
+                conn, tx, level, request.ParentId, slug, name, request.SortOrder ?? 0, ct) is not int id)
         {
-            await using var insert = new SqlCommand(
-                @"INSERT INTO dbo.categories (level, parent_id, parent_level, slug, name, sort_order)
-                  OUTPUT INSERTED.id
-                  VALUES (@level, @parent, @parentLevel, @slug, @name, @sort)", conn, tx);
-            insert.Parameters.AddWithValue("level", level);
-            insert.Parameters.Add(new SqlParameter("parent", SqlDbType.Int)
-            {
-                Value = (object?)request.ParentId ?? DBNull.Value,
-            });
-            insert.Parameters.Add(new SqlParameter("parentLevel", SqlDbType.SmallInt)
-            {
-                // Null when nothing is above it, which is a category with no segment yet.
-                Value = request.ParentId is null
-                    ? DBNull.Value
-                    : (object?)CategoryTree.ParentLevelFor(level) ?? DBNull.Value,
-            });
-            insert.Parameters.Add(new SqlParameter("slug", SqlDbType.NVarChar) { Value = slug });
-            insert.Parameters.Add(new SqlParameter("name", SqlDbType.NVarChar) { Value = name });
-            insert.Parameters.AddWithValue("sort", request.SortOrder ?? 0);
-            id = (int)(await insert.ExecuteScalarAsync(ct))!;
-        }
-        catch (SqlException ex) when (SqlErrors.IsUniqueViolation(ex))
-        {
-            /* Slugs are unique across both levels, so "Dentists" as a subcategory of Health
+            /* Slugs are unique across all three tiers, so "Dentists" as a subcategory of Health
                collides with a top-level "Dentists" too. Say which name, because the admin typed a
                name and the clash is on something derived from it. */
             return Results.Problem(
@@ -511,19 +490,9 @@ public static class AdminTaxonomyEndpoints
         await using var conn = await db.OpenConnectionAsync(ct);
         await using var tx = await conn.BeginSqlTransactionAsync(ct);
 
-        int id;
-        try
-        {
-            await using var insert = new SqlCommand(
-                @"INSERT INTO dbo.categories (level, parent_id, parent_level, slug, name, sort_order)
-                  OUTPUT INSERTED.id
-                  VALUES (0, NULL, NULL, @slug, @name, @sort)", conn, tx);
-            insert.Parameters.Add(new SqlParameter("slug", SqlDbType.NVarChar) { Value = slug });
-            insert.Parameters.Add(new SqlParameter("name", SqlDbType.NVarChar) { Value = name });
-            insert.Parameters.AddWithValue("sort", request.SortOrder ?? 0);
-            id = (int)(await insert.ExecuteScalarAsync(ct))!;
-        }
-        catch (SqlException ex) when (SqlErrors.IsUniqueViolation(ex))
+        if (await TaxonomyWriter.InsertCategoryAsync(
+                conn, tx, CategoryTree.SegmentLevel, null, slug, name, request.SortOrder ?? 0, ct)
+            is not int id)
         {
             return Results.Problem(
                 $"Something already uses the web address '{slug}'. Slugs are unique across segments, categories and subcategories, so a page can be one segment deep. Use a different name.",
@@ -742,24 +711,8 @@ public static class AdminTaxonomyEndpoints
             cityId = found;
         }
 
-        int id;
-        try
-        {
-            /* 4326 is WGS 84 -- the same SRID the rest of the schema uses, and the one latitude and
-               longitude from a map are expressed in. Point() takes latitude first. */
-            await using var insert = new SqlCommand(
-                @"INSERT INTO dbo.localities (city_id, slug, name, center, pincode)
-                  OUTPUT INSERTED.id
-                  VALUES (@city, @slug, @name, geography::Point(@lat, @long, 4326), @pincode)", conn, tx);
-            insert.Parameters.AddWithValue("city", cityId);
-            insert.Parameters.Add(new SqlParameter("slug", SqlDbType.NVarChar) { Value = slug });
-            insert.Parameters.Add(new SqlParameter("name", SqlDbType.NVarChar) { Value = name });
-            insert.Parameters.AddWithValue("lat", latitude);
-            insert.Parameters.AddWithValue("long", longitude);
-            insert.Parameters.Add(new SqlParameter("pincode", SqlDbType.NVarChar) { Value = (object?)pincode ?? DBNull.Value });
-            id = (int)(await insert.ExecuteScalarAsync(ct))!;
-        }
-        catch (SqlException ex) when (SqlErrors.IsUniqueViolation(ex))
+        if (await TaxonomyWriter.InsertLocalityAsync(
+                conn, tx, cityId, slug, name, latitude, longitude, pincode, ct) is not int id)
         {
             return Results.Problem(
                 $"This city already has an area with the web address '{slug}'. Use a different name.",
@@ -923,7 +876,7 @@ public static class AdminTaxonomyEndpoints
     // ---- shared validation ---------------------------------------------------------------------
     private const int NameMaxLength = 200;
 
-    private static bool TryReadName(string? value, out string name, out string error)
+    internal static bool TryReadName(string? value, out string name, out string error)
     {
         name = (value ?? string.Empty).Trim();
         if (name.Length < 2)
@@ -946,7 +899,7 @@ public static class AdminTaxonomyEndpoints
     /// category, where it would silently create "business" and then collide with the next one. So
     /// the name is checked first and such a name is refused.
     /// </summary>
-    private static bool TryReadSlug(string name, out string slug, out string error)
+    internal static bool TryReadSlug(string name, out string slug, out string error)
     {
         if (!name.Any(char.IsAsciiLetterOrDigit))
         {
@@ -974,7 +927,7 @@ public static class AdminTaxonomyEndpoints
     /// A centre point, checked against the real ranges rather than only for presence: a swapped pair
     /// (17.4 typed as the longitude) lands in the sea and every "near me" result goes with it.
     /// </summary>
-    private static bool TryReadPoint(
+    internal static bool TryReadPoint(
         double? latitude, double? longitude, out double lat, out double lng, out string error)
     {
         lat = latitude ?? 0;
@@ -995,7 +948,7 @@ public static class AdminTaxonomyEndpoints
     }
 
     /// <summary>Null stays null (the column is optional); an empty string means "clear it".</summary>
-    private static bool TryReadPincode(string? value, out string? pincode, out string error)
+    internal static bool TryReadPincode(string? value, out string? pincode, out string error)
     {
         pincode = null;
         error = string.Empty;

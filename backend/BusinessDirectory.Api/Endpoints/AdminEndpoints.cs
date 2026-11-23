@@ -32,6 +32,9 @@ public static class AdminEndpoints
            listings themselves: approving one publishes the change, and refusing one leaves the live
            page exactly as it is (S0031). */
         group.MapAdminPendingChangeEndpoints();
+        /* Owners' requests for an area or a category that does not exist yet (S0032). Approving one
+           creates it, through the same INSERT the taxonomy screens use. */
+        group.MapAdminSuggestionEndpoints();
         group.MapAdminTaxonomyEndpoints();   // categories, subcategories and Hyderabad's localities
         group.MapAdminSeoEndpoints();        // page titles, descriptions and indexing
         group.MapAdminBlogEndpoints();       // writing and publishing posts

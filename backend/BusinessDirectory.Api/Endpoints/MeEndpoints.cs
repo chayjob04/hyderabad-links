@@ -34,6 +34,8 @@ public static class MeEndpoints
            writing a review does it as a customer, on the customer sign-in. */
         group.MapOwnerListingEndpoints();
         group.MapOwnerSubscriptionOverview();   // every listing's plan in one request
+        /* "My area is not listed": a request staff can work, rather than an email nobody sent. */
+        group.MapOwnerSuggestionEndpoints();
         return group;
     }
 

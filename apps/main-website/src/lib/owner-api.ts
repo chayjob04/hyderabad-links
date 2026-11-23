@@ -235,6 +235,36 @@ export async function getMeIfSignedIn(): Promise<OwnerProfile | null> {
  */
 export const getMeWithToken = (accessToken: string) => send<OwnerProfile>("/api/v1/me", {}, accessToken);
 
+/**
+ * What came back from asking for an area or a category that is not in the list (S0032).
+ *
+ * `pending` means it is now in the staff queue. `already_exists` means the directory has it under
+ * `existingName` and nothing was stored -- which is the useful answer, not a failure.
+ */
+export type SuggestionResult = {
+  id: number | null;
+  kind: "locality" | "category";
+  suggestedName: string;
+  status: "pending" | "already_exists";
+  existingName: string | null;
+  /** True when somebody had already asked for this. The same answer, not a second request. */
+  alreadyRequested: boolean;
+};
+
+/**
+ * Records a request for an area or a category that does not exist yet.
+ *
+ * Nothing public is created by this: an area decides a listing's web address and a category decides
+ * where it is filed, so both are added by a person through the admin screens. What this changes is
+ * that the request is in a queue instead of in an email somebody may not have sent.
+ */
+export const suggestTaxonomy = (input: {
+  kind: "locality" | "category";
+  name: string;
+  listingId?: number;
+}) =>
+  authed<SuggestionResult>("/api/v1/me/taxonomy-suggestions", { method: "POST", body: json(input) });
+
 export const onboard = (input: OnboardingInput) =>
   authed<OnboardingResult>("/api/v1/me/onboarding", { method: "POST", body: json(input) });
 /** One customer enquiry as its owner sees it. The phone is private customer data. */

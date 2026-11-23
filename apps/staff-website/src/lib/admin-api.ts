@@ -407,6 +407,59 @@ export const rejectListingChanges = (listingId: number, reason: string) =>
     body: json({ reason }),
   });
 
+/**
+ * An owner's request for an area or a category that does not exist yet (S0032).
+ *
+ * Approving one creates the row, through the same INSERT the taxonomy screens use, with the facts
+ * only a person has: where an area is on the map, and which category a new subcategory belongs
+ * under. `already_exists` is not a rejection -- the owner was right to ask and the note names what
+ * to use instead.
+ */
+export type TaxonomySuggestion = {
+  id: number;
+  kind: "locality" | "category";
+  suggestedName: string;
+  status: "pending" | "approved" | "rejected" | "already_exists";
+  note: string | null;
+  requestedByPhone: string | null;
+  requestedByName: string | null;
+  listingId: number | null;
+  listingName: string | null;
+  /** What it became, once approved. */
+  resolvedName: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+};
+
+export const listSuggestions = (status?: string) =>
+  authed<TaxonomySuggestion[]>(
+    "/api/v1/admin/suggestions" + (status ? "?status=" + encodeURIComponent(status) : ""),
+  );
+
+/** For an area: citySlug, latitude, longitude and an optional pincode. For a category: parentId. */
+export const approveSuggestion = (
+  id: number,
+  input: {
+    name?: string;
+    citySlug?: string;
+    latitude?: number;
+    longitude?: number;
+    pincode?: string;
+    parentId?: number;
+    sortOrder?: number;
+  },
+) => authed<void>("/api/v1/admin/suggestions/" + id + "/approve", { method: "POST", body: json(input) });
+
+export const rejectSuggestion = (id: number, note: string) =>
+  authed<void>("/api/v1/admin/suggestions/" + id + "/reject", { method: "POST", body: json({ note }) });
+
+export const markSuggestionExists = (id: number, note: string) =>
+  authed<void>("/api/v1/admin/suggestions/" + id + "/already-exists", {
+    method: "POST",
+    body: json({ note }),
+  });
+
 export const getAdminCategories = () => authed<AdminCategory[]>("/api/v1/admin/categories");
 export const getAdminSegments = () => authed<AdminSegment[]>("/api/v1/admin/segments");
 

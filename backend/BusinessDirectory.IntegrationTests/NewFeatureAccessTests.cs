@@ -129,6 +129,12 @@ public class NewFeatureAccessTests(WebApplicationFactory<Program> factory)
         { "GET", "/api/v1/admin/listing-changes/1" },
         { "POST", "/api/v1/admin/listing-changes/1/approve" },
         { "POST", "/api/v1/admin/listing-changes/1/reject" },
+        // S0032: owners' requests for an area or a category. Approving one creates it, so these
+        // sit behind the same permission as the taxonomy screens.
+        { "GET", "/api/v1/admin/suggestions" },
+        { "POST", "/api/v1/admin/suggestions/1/approve" },
+        { "POST", "/api/v1/admin/suggestions/1/reject" },
+        { "POST", "/api/v1/admin/suggestions/1/already-exists" },
         { "GET", "/api/v1/admin/segments" },
         { "POST", "/api/v1/admin/segments" },
         { "PUT", "/api/v1/admin/categories/1/segment" },
