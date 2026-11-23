@@ -184,8 +184,13 @@ public static class AdminSeoEndpoints
                   LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
                   LEFT JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
                   LEFT JOIN dbo.page_meta pm ON pm.entity_type = 'listing' AND pm.entity_id = li.id
-                  WHERE (@id IS NOT NULL AND li.id = @id)
-                     OR (@like IS NOT NULL AND li.name LIKE @like ESCAPE '\')
+                  /* Staged edits and unsaved new listings have no public page to write a
+                     title for (S0034): a staged row may never be active, which is the condition
+                     every public query requires. */
+                  WHERE li.staged_for_listing_id IS NULL
+                    AND li.is_placeholder = 0
+                    AND ((@id IS NOT NULL AND li.id = @id)
+                         OR (@like IS NOT NULL AND li.name LIKE @like ESCAPE '\'))
               )
               SELECT (SELECT COUNT_BIG(*) FROM matches) AS total,
                      m.id, m.name, m.status, m.slug, m.locality_name,

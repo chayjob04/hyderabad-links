@@ -74,29 +74,21 @@ public class OwnerSaveStatusTests
     }
 
     [Fact]
-    public void A_published_listing_is_the_one_whose_edit_is_staged()
+    public void A_published_listing_is_edited_through_a_staged_copy()
     {
-        /* The question the update handler asks to decide where a save goes. Getting it wrong in
-           either direction is bad in a different way: staging a draft's edit would leave the draft
-           empty while the owner thought they had saved it, and writing a published listing's edit
-           straight through is the behaviour S0031 exists to replace. */
-        Assert.True(PendingChanges.IsPublished("active"));
+        /* The rule the update handler enforces, after S0034 replaced the eight staged columns with a
+           complete staged listing. A published listing is never written to directly: its editor
+           opens a copy, and this endpoint refuses the published id rather than quietly redirecting
+           the write, because an owner's save must land where their screen says it landed.
 
-        foreach (var status in new[] { "draft", "rejected", "pending_review", "suspended", "archived" })
+           The three statuses that are not public go straight through: there is no live version to
+           protect, which is what lets an owner build a listing over several sittings. */
+        Assert.Equal("pending_review", ListingReadiness.StatusAfterOwnerSave("active", submitForReview: false));
+
+        foreach (var status in new[] { "draft", "rejected" })
         {
-            Assert.False(PendingChanges.IsPublished(status), $"{status} is not published");
+            Assert.Equal(status, ListingReadiness.StatusAfterOwnerSave(status, submitForReview: false));
         }
-    }
-
-    [Fact]
-    public void A_staged_edit_is_in_exactly_one_of_three_states()
-    {
-        /* The same three the table's CHECK allows (S0031). A fourth state in the code would be a
-           row the database refuses to store; a fourth in the database would be a row no screen
-           knows how to describe. */
-        Assert.Equal("draft", PendingChanges.Draft);
-        Assert.Equal("pending_review", PendingChanges.PendingReview);
-        Assert.Equal("rejected", PendingChanges.Rejected);
     }
 
     [Theory]

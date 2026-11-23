@@ -46,32 +46,41 @@ export type OwnerListing = {
   openAlerts: number;
 
   /**
-   * The owner's edit to this listing, waiting to go live (S0031). Null when there is none.
+   * The owner's edit to this listing, waiting to go live (S0034). Null when there is none.
    *
-   * Everything above is what the public sees. This is what the owner last typed: saving a listing
-   * that is already published no longer takes it off the site, it puts the edit aside until a
-   * moderator approves it. The editor shows these values, because an owner should carry on from
-   * their own work rather than from the approved text.
+   * Everything above is what the public sees. The edit is a listing of its own -- a complete copy,
+   * with its own photos, opening hours, questions and links -- and `listingId` is the one the
+   * editor opens. Saving a published listing no longer takes it off the site; the copy is reviewed
+   * and published in one go.
    */
   pendingChanges?: PendingChanges | null;
+
+  /**
+   * The published listing this row is a staged copy of, or null for an ordinary listing.
+   *
+   * Set on the copy itself, so a screen handed one knows it is looking at a proposal: the editor
+   * says so, Submit sends it for review, and nothing it contains is public.
+   */
+  stagedForListingId?: number | null;
+
+  /**
+   * True for a new listing that has been started and never saved (S0034).
+   *
+   * It exists so photos, opening times and questions -- all of which belong to a listing -- can be
+   * added before anything is saved. It is kept out of the five-listing limit, and the first save
+   * clears it.
+   */
+  isPlaceholder?: boolean;
 };
 
-/** An edit to a published listing, held aside until it is approved (S0031). */
+/** An edit to a published listing, held aside until it is approved (S0034). */
 export type PendingChanges = {
+  /** The staged copy's own listing id: what the editor opens. */
+  listingId: number;
   /** `draft` saved privately, `pending_review` in the queue, `rejected` with a note to read. */
   status: "draft" | "pending_review" | "rejected";
-  name: string | null;
-  description: string | null;
-  addressLine: string | null;
-  pincode: string | null;
-  phonePrimary: string | null;
-  phoneWhatsapp: string | null;
-  websiteUrl: string | null;
-  categorySlug: string | null;
-  categoryName: string | null;
   /** Why a moderator refused it. The owner reads this and changes something. */
   reviewNote: string | null;
-  submittedAt: string | null;
   reviewedAt: string | null;
   updatedAt: string;
 };
@@ -82,17 +91,17 @@ export function describePendingChanges(pending: PendingChanges): { label: string
     case "pending_review":
       return {
         label: "Changes in review",
-        help: "We are checking the changes you sent. Your listing stays on the site as it is until they are approved.",
+        help: "We are checking every section you changed. Your listing stays on the site exactly as it is until they are approved.",
       };
     case "rejected":
       return {
         label: "Changes need work",
-        help: "We could not publish these changes. Your listing is still on the site as it was; change what is below and send it again.",
+        help: "We could not publish these changes. Your listing is still on the site as it was; change what you need to and send it again.",
       };
     default:
       return {
         label: "Unsent changes",
-        help: "These changes are saved and only you can see them. Your listing is on the site as it was. Press Submit when you want us to review them.",
+        help: "Your changes are saved in a copy only you can see, across every section. Your listing is on the site as it was. Press Submit when you want us to review them.",
       };
   }
 }
@@ -317,13 +326,34 @@ export const updateListing = (id: number, input: ListingFormInput) =>
    create/update call as Save with the intent set. */
 
 /**
- * Throws away a staged edit, so the editor shows the published version again.
+ * Takes a copy of a published listing for its owner to edit (S0034).
  *
- * Only the owner's own, and only one that has not been applied -- an approved edit is not a staged
- * row any more, it is the listing.
+ * The copy includes every section -- photos, opening hours, questions, content, amenities, links --
+ * so the whole listing is edited and reviewed together, and the published one keeps serving every
+ * part of itself in the meantime. Returns the copy, whose `id` is what the editor opens.
+ *
+ * Idempotent: called twice, it returns the copy that already exists.
+ */
+export const startPendingChanges = (id: number) =>
+  authed<OwnerListing>(`/api/v1/me/listings/${id}/pending-changes`, { method: "POST" });
+
+/**
+ * Throws away a staged edit, so the editor shows the published version again. Takes the published
+ * listing's id, because that is what the owner is looking at.
  */
 export const discardPendingChanges = (id: number) =>
   authed<OwnerListing>(`/api/v1/me/listings/${id}/pending-changes`, { method: "DELETE" });
+
+/**
+ * The owner's unsaved new listing, created if they do not have one (S0034).
+ *
+ * This is what lets somebody fill all five sections of a new business before saving anything: a
+ * photo, an opening time and a question all belong to a listing, so the listing exists from the
+ * moment they press Add. It is a draft, so nobody else can see it, and pressing Add twice returns
+ * the same one rather than leaving a trail of empty drafts.
+ */
+export const startNewListing = () =>
+  authed<OwnerListing>("/api/v1/me/listings/placeholder", { method: "POST" });
 
 export const listListingAlerts = (id: number) => authed<ListingAlert[]>(`/api/v1/me/listings/${id}/alerts`);
 export const acknowledgeListingAlert = (id: number, alertId: number) =>

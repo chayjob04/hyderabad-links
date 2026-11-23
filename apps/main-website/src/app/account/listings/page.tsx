@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PlanBanner } from "@/components/PlanBanner";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ButtonLink } from "@/components/ui/Button";
+import { startNewListingAction } from "../actions";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   describePendingChanges,
@@ -15,14 +16,14 @@ export const metadata: Metadata = { title: "My listings" };
 
 const MAX_LISTINGS = 5; // same limit the API enforces
 
-type Props = { searchParams: Promise<{ submitted?: string; welcome?: string }> };
+type Props = { searchParams: Promise<{ submitted?: string; welcome?: string; error?: string }> };
 
 /* The four counters that used to sit across the top -- Live, In review, Drafts, Needs changes --
    are gone. Each card already carries its own status badge, so with five listings at most the
    counters were restating what was visible a few pixels below. */
 
 export default async function MyListingsPage({ searchParams }: Props) {
-  const { submitted, welcome } = await searchParams;
+  const { submitted, welcome, error } = await searchParams;
 
   /* Two requests, in parallel. The listings carry each one's plan; this adds the paid plan's price,
      which lives in the `plans` table, so the banner can say "₹399/year" without the figure being
@@ -54,7 +55,20 @@ export default async function MyListingsPage({ searchParams }: Props) {
           <p className="text-[11px] font-black tracking-[0.22em] text-muted">BUSINESS OWNER</p>
           <h1 className="mt-1 text-3xl font-black tracking-tight text-brand-800">My listings</h1>
         </div>
-        {canAddMore ? <ButtonLink href="/account/listings/new">Add a business</ButtonLink> : null}
+        {/* A form, not a link: pressing this creates the draft listing the editor opens, so that
+            photos, opening times and questions have something to belong to from the start (S0034).
+            Pressing it twice returns the same draft rather than making two. A link would also be
+            prefetched on hover, which would create one by pointing at it. */}
+        {canAddMore ? (
+          <form action={startNewListingAction}>
+            <button
+              type="submit"
+              className="cursor-pointer rounded-full bg-brand-700 px-6 py-2.5 text-sm font-black text-white hover:bg-brand-800"
+            >
+              Add a business
+            </button>
+          </form>
+        ) : null}
       </div>
 
       {welcome ? (
@@ -69,6 +83,12 @@ export default async function MyListingsPage({ searchParams }: Props) {
         </div>
       ) : null}
 
+      {error ? (
+        <p role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">
+          {error}
+        </p>
+      ) : null}
+
       {submitted ? (
         <p role="status" className="mt-6 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 text-sm text-brand-800">
           Submitted for review. We will show your listing on the site once it is approved.
@@ -81,9 +101,14 @@ export default async function MyListingsPage({ searchParams }: Props) {
             mark="&#8962;"
             title="You have not added a business yet"
             action={
-              <ButtonLink tone="cta" href="/account/listings/new">
-                Add your business <span aria-hidden="true">&rarr;</span>
-              </ButtonLink>
+              <form action={startNewListingAction}>
+                <button
+                  type="submit"
+                  className="cursor-pointer rounded-full bg-brand-700 px-6 py-3 text-base font-black text-white hover:bg-brand-800"
+                >
+                  Add your business <span aria-hidden="true">&rarr;</span>
+                </button>
+              </form>
             }
           >
             <p>It takes a few minutes. Customers nearby will be able to call or WhatsApp you.</p>
@@ -127,10 +152,21 @@ export default async function MyListingsPage({ searchParams }: Props) {
 
                 <p className="mt-3 text-sm text-muted">{describeStatus(listing.status).help}</p>
 
+                {/* A new listing nobody has saved yet. It is in this list so its owner can get
+                    back to it, and labelled so it does not read as a business they have forgotten
+                    about (S0034). */}
+                {listing.isPlaceholder ? (
+                  <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <span className="font-black">Not saved yet.</span> You started this and have not
+                    saved it. It does not count towards your five listings.
+                  </p>
+                ) : null}
+
                 {/* A published listing with an edit waiting looks exactly like one nobody has
-                    touched, which is how an owner loses track of whether they sent it (S0031). */}
+                    touched, which is how an owner loses track of whether they sent it (S0034). The
+                    link goes to the copy, which is where the work is. */}
                 {listing.pendingChanges ? (
-                  <p
+                  <div
                     className={`mt-3 rounded-lg border px-4 py-3 text-sm ${
                       listing.pendingChanges.status === "rejected"
                         ? "border-red-200 bg-red-50 text-red-900"
@@ -139,11 +175,22 @@ export default async function MyListingsPage({ searchParams }: Props) {
                           : "border-brand-200 bg-brand-50 text-brand-800"
                     }`}
                   >
-                    <span className="font-black">
-                      {describePendingChanges(listing.pendingChanges).label}
-                    </span>{" "}
-                    {describePendingChanges(listing.pendingChanges).help}
-                  </p>
+                    <p>
+                      <span className="font-black">
+                        {describePendingChanges(listing.pendingChanges).label}
+                      </span>{" "}
+                      {describePendingChanges(listing.pendingChanges).help}
+                    </p>
+                    <Link
+                      href={`/account/listings/${listing.pendingChanges.listingId}/edit`}
+                      className="mt-2 inline-block text-xs font-black underline"
+                    >
+                      {listing.pendingChanges.status === "pending_review"
+                        ? "See what you sent"
+                        : "Carry on editing"}{" "}
+                      <span aria-hidden="true">&rarr;</span>
+                    </Link>
+                  </div>
                 ) : null}
 
                 {listing.status === "rejected" && listing.reviewNote ? (
@@ -175,7 +222,11 @@ export default async function MyListingsPage({ searchParams }: Props) {
                     href={`/account/listings/${listing.id}/edit`}
                     className="rounded-full border border-brand-200 px-5 py-2 text-sm font-bold text-brand-700 hover:border-brand-700 hover:bg-brand-50"
                   >
-                    {listing.status === "draft" || listing.status === "rejected" ? "Finish and send for review" : "Edit"}
+                    {listing.isPlaceholder
+                      ? "Finish this listing"
+                      : listing.status === "draft" || listing.status === "rejected"
+                        ? "Finish and send for review"
+                        : "Edit"}
                   </Link>
                   {/* Opening hours and About & FAQs were separate links from here. They are
                       sections of the listing editor now, so the card has one way in. */}

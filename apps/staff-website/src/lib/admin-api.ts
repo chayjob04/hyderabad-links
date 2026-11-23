@@ -365,8 +365,32 @@ export type ListingChangeQueueItem = {
   status: "draft" | "pending_review" | "rejected";
   submittedAt: string | null;
   updatedAt: string;
-  /** How many fields differ from what is published, so a queue can be triaged. */
+  /** How many detail fields differ from what is published, so a queue can be triaged. */
   fieldsChanged: number;
+  /** How many of the four other sections differ: photos, hours, about, links (S0034). */
+  sectionsChanged: number;
+};
+
+/** One item within a section, and what the proposed version does to it. */
+export type ListingChangeSectionItem = {
+  label: string;
+  detail: string | null;
+  /** `same`, `added`, `removed` or `moved`. Only the first means nothing happens to it. */
+  state: "same" | "added" | "removed" | "moved";
+};
+
+/**
+ * One section of the listing, compared.
+ *
+ * `changes` counts the items added, removed or moved; zero means the section is untouched and the
+ * screen can collapse it. The items are the proposed version plus anything that would stop being
+ * there -- a moderator has to be able to see what an approval would remove.
+ */
+export type ListingChangeSection = {
+  section: string;
+  label: string;
+  changes: number;
+  items: ListingChangeSectionItem[];
 };
 
 export type ListingChangeField = {
@@ -386,6 +410,8 @@ export type ListingChangeComparison = {
   submittedAt: string | null;
   reviewNote: string | null;
   fields: ListingChangeField[];
+  /** Photos and video, opening hours, about, and links -- every section, every time (S0034). */
+  sections: ListingChangeSection[];
 };
 
 export const PERMISSION_REVIEW_CHANGES = "listings.review";

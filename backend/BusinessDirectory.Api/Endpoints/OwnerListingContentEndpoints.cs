@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BusinessDirectory.Api.Data;
+using BusinessDirectory.Api.Listings;
 using Microsoft.Data.SqlClient;
 
 namespace BusinessDirectory.Api.Endpoints;
@@ -40,13 +41,17 @@ public static class OwnerListingContentEndpoints
 
     public static RouteGroupBuilder MapOwnerListingContentEndpoints(this RouteGroupBuilder listings)
     {
+        /* Every write below is refused for a listing that is on the site: its sections are
+           edited through a staged copy (S0034), so that nothing an owner changes reaches the public
+           page before a moderator approves it. Reads are untouched -- the owner's screens and the
+           moderator's comparison both read the published version. */
         listings.MapGet("/{id:long}/faqs", ListFaqs);
-        listings.MapPost("/{id:long}/faqs", AddFaq);
-        listings.MapDelete("/{id:long}/faqs/{faqId:long}", DeleteFaq);
+        listings.MapPost("/{id:long}/faqs", AddFaq).RefuseWritesToPublishedListings();
+        listings.MapDelete("/{id:long}/faqs/{faqId:long}", DeleteFaq).RefuseWritesToPublishedListings();
 
         listings.MapGet("/{id:long}/content", ListContent);
-        listings.MapPost("/{id:long}/content", AddContent);
-        listings.MapDelete("/{id:long}/content/{sectionId:long}", DeleteContent);
+        listings.MapPost("/{id:long}/content", AddContent).RefuseWritesToPublishedListings();
+        listings.MapDelete("/{id:long}/content/{sectionId:long}", DeleteContent).RefuseWritesToPublishedListings();
         return listings;
     }
 

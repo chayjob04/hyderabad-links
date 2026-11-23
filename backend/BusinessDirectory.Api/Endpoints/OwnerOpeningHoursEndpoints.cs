@@ -24,8 +24,12 @@ public static class OwnerOpeningHoursEndpoints
 
     public static RouteGroupBuilder MapOwnerOpeningHoursEndpoints(this RouteGroupBuilder listings)
     {
+        /* Every write below is refused for a listing that is on the site: its sections are
+           edited through a staged copy (S0034), so that nothing an owner changes reaches the public
+           page before a moderator approves it. Reads are untouched -- the owner's screens and the
+           moderator's comparison both read the published version. */
         listings.MapGet("/{id:long}/hours", Get);
-        listings.MapPut("/{id:long}/hours", Replace);
+        listings.MapPut("/{id:long}/hours", Replace).RefuseWritesToPublishedListings();
         return listings;
     }
 

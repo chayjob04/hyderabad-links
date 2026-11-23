@@ -120,7 +120,12 @@ public static class OwnerSubscriptionEndpoints
               FROM dbo.listings li
               JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
               JOIN dbo.listing_entitlements e ON e.listing_id = li.id
+              /* A staged copy inherits its parent's plan (S0034 alters the entitlements view to
+                 look it up), so listing one here would show the same subscription twice. An unsaved
+                 new listing has no plan decision to make yet. */
               WHERE li.status <> 'archived'
+                AND li.staged_for_listing_id IS NULL
+                AND li.is_placeholder = 0
               ORDER BY e.is_verified DESC, li.name", conn))
         {
             command.Parameters.AddWithValue("user", userId);

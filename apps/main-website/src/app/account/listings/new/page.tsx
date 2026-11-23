@@ -1,79 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ListingForm } from "@/components/ListingForm";
-import { ListingEditor, type SectionOutstanding } from "@/components/account/ListingEditor";
-import { ListingSection } from "@/components/account/ListingSection";
-import { getCategories, getLocalities } from "@/lib/api";
-import { DEFAULT_CITY } from "@/lib/brand";
-import { completionOf } from "@/lib/listing-completion";
-import { saveListingAction } from "../../actions";
+import { startNewListingAction } from "../../actions";
 
 export const metadata: Metadata = { title: "Add your business" };
 
-/** The same section ids the editor uses, so the action area behaves identically on both screens. */
-const SECTION = { details: "section-details" } as const;
-
-const FIELD_SECTIONS: Record<string, string> = {
-  name: SECTION.details,
-  categorySlug: SECTION.details,
-  localitySlug: SECTION.details,
-  addressLine: SECTION.details,
-  pincode: SECTION.details,
-  phonePrimary: SECTION.details,
-  phoneWhatsapp: SECTION.details,
-  websiteUrl: SECTION.details,
-  description: SECTION.details,
-};
-
 /**
- * A new listing, in the same sections the editor uses, with the same two buttons at the foot.
+ * Starting a new listing.
  *
- * Only the first section can be filled in here, and that is a fact about the data rather than a
- * shortcut: a photo, a question and answer, an opening time and a link all belong to a listing, and
- * there is no listing to attach them to until this form has been saved once. Inventing somewhere to
- * keep them in the meantime would mean a second place where a half-made listing lives, and a second
- * copy of four sections' worth of forms.
+ * It used to be the form itself, with four of its five sections closed and labelled "after
+ * saving" — a photo, an opening time, a question and a link all belong to a listing, and there was
+ * no listing until the form had been saved once. So the owner had to save, then come back for the
+ * rest.
  *
- * So the other four are listed, closed, saying when they open. Save creates the draft and carries
- * on in the editor with all five live and a line saying so; Submit creates it and sends it for
- * review in one step. Either way it is the same server action and the same endpoint as every later
- * edit.
+ * Now the listing exists from the moment they press the button below (S0034): a draft nobody else
+ * can see, marked as unsaved, which the editor opens with all five sections usable. One Save at the
+ * end puts the whole thing away.
+ *
+ * <b>Why a button on a page rather than the editor itself.</b> This route is a GET, and creating a
+ * row on a GET means creating one whenever a link to it is prefetched or a crawler follows it. The
+ * button is a POST. Most owners never see this page -- "Add a business" on their listings screen is
+ * the same POST -- and it is here so that a bookmark or a typed address still works.
  */
-export default async function NewListingPage() {
-  const [categories, localities] = await Promise.all([getCategories(), getLocalities(DEFAULT_CITY)]);
-
-  /* Nothing is filled in yet, so this is 0% of the fields a reviewer needs -- counted from the same
-     list the editor counts, not written here as a number. */
-  const detailsFields = [
-    { label: "business name", done: false },
-    { label: "category", done: false },
-    { label: "area", done: false },
-    { label: "address", done: false },
-    { label: "phone number", done: false },
-    { label: "a description of at least 20 characters", done: false },
-  ];
-  const detailsCompletion = completionOf(detailsFields);
-
-  const later = [
-    { title: "Photos and video", why: "Uploads attach to a saved listing." },
-    { title: "Opening hours", why: "Set the days and times once the listing exists." },
-    { title: "About, questions and amenities", why: "Questions and answers attach to a saved listing." },
-    { title: "Website and social links", why: "Links attach to a saved listing." },
-  ];
-
-  /* Only the one section exists to be outstanding on this screen. The four that open after saving
-     are not listed as missing, because nothing an owner can do here would fill them. */
-  const outstanding: SectionOutstanding[] = [
-    {
-      id: SECTION.details,
-      title: "Business details",
-      missing: detailsCompletion.missing,
-      blocksReview: true,
-    },
-  ];
-
+export default function NewListingPage() {
   return (
-    <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
+    <main className="mx-auto max-w-2xl px-5 py-10 sm:px-8">
       <Link href="/account/listings" className="text-sm font-bold text-brand-700 hover:underline">
         <span aria-hidden="true">&larr;</span> Back to my listings
       </Link>
@@ -82,40 +32,24 @@ export default async function NewListingPage() {
         <p className="text-[11px] font-black tracking-[0.22em] text-muted">BUSINESS OWNER</p>
         <h1 className="mt-1 text-3xl font-black tracking-tight text-brand-800">Add your business</h1>
         <p className="mt-2 text-muted">
-          Save keeps it private as a draft, so you can come back and finish it. Submit asks us to
-          review it.
+          Everything in one go: your details, photos, opening hours, questions and links. Nothing is
+          saved until you say so, and nothing is public until we have reviewed it.
         </p>
       </div>
 
-      <ListingEditor
-        action={saveListingAction.bind(null, null)}
-        initialValues={{}}
-        fieldSections={FIELD_SECTIONS}
-        outstanding={outstanding}
-      >
-        <div className="mt-6 space-y-4">
-          <ListingSection
-            id={SECTION.details}
-            title="Business details"
-            blurb="Where you are, how to reach you, and what you do. An address and a description of at least 20 characters are what we need before we can review it."
-            completion={detailsCompletion}
-            defaultOpen
-          >
-            <ListingForm categories={categories} localities={localities ?? []} />
-          </ListingSection>
+      <form action={startNewListingAction} className="mt-6">
+        <button
+          type="submit"
+          className="cursor-pointer rounded-full bg-brand-700 px-7 py-3 text-base font-extrabold text-white hover:bg-brand-800"
+        >
+          Start
+        </button>
+      </form>
 
-          {later.map((section) => (
-            <ListingSection
-              key={section.title}
-              title={section.title}
-              completion={completionOf([])}
-              badge="After saving"
-            >
-              <p className="text-sm text-muted">{section.why} Save this form and it opens here.</p>
-            </ListingSection>
-          ))}
-        </div>
-      </ListingEditor>
+      <p className="mt-4 text-sm text-muted">
+        You can leave and come back &mdash; an unfinished listing waits in My listings and does not
+        count towards your five.
+      </p>
     </main>
   );
 }

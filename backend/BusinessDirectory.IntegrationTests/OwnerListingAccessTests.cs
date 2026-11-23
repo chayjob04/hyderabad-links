@@ -29,13 +29,26 @@ public class OwnerListingAccessTests(WebApplicationFactory<Program> factory) : I
     public async Task Submitting_a_listing_requires_sign_in() =>
         Assert.Equal(HttpStatusCode.Unauthorized, (await _client.PostAsync("/api/v1/me/listings/1/submit", null)).StatusCode);
 
-    /* S0031. Discarding a staged edit deletes an owner's own work, so it is authenticated like
-       every other write on a listing -- and the handler takes the same ownership lock first. */
+    /* S0034. Taking a staged copy of a published listing, discarding one, and starting a new
+       listing all write rows keyed to the caller, so each is behind the owner token like every
+       other write under /api/v1/me. The handlers take the same ownership lock first. */
+    [Fact]
+    public async Task Starting_a_staged_edit_requires_sign_in() =>
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.PostAsync("/api/v1/me/listings/1/pending-changes", null)).StatusCode);
+
     [Fact]
     public async Task Discarding_a_staged_edit_requires_sign_in() =>
         Assert.Equal(
             HttpStatusCode.Unauthorized,
             (await _client.DeleteAsync("/api/v1/me/listings/1/pending-changes")).StatusCode);
+
+    [Fact]
+    public async Task Starting_a_new_listing_requires_sign_in() =>
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.PostAsync("/api/v1/me/listings/placeholder", null)).StatusCode);
 
     [Fact]
     public async Task Reading_the_alerts_on_a_listing_requires_sign_in() =>

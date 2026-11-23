@@ -5,6 +5,8 @@ import {
   createListing,
   discardPendingChanges,
   logoutSession,
+  startNewListing,
+  startPendingChanges,
   updateListing,
   type ListingFormInput,
 } from "@/lib/owner-api";
@@ -36,15 +38,15 @@ export async function saveListingAction(listingId: number | null, previous: List
   /* What happened, in the owner's words, decided by what the API says it did rather than by what
      was asked for.
 
-     A listing that is already on the site is edited aside (S0031): the save comes back with the
-     listing still active and a staged edit attached, and the public page has not changed. A draft
-     is written straight through. Those are four different outcomes and an owner has to be able to
-     tell which one they got -- "Changes saved" over a page that did not change is how somebody
-     ends up pressing Save six times. */
+     An edit to a published listing is made on a staged copy (S0034), so the row that comes back is
+     that copy: `stagedForListingId` is set, the public page has not changed, and the two outcomes
+     to tell apart are "saved privately" and "sent for review". A draft is written straight through
+     and has its own two. "Changes saved" over a page that did not change is how somebody ends up
+     pressing Save six times. */
   const submitted = input.submitForReview === true;
-  const staged = result.data.pendingChanges ?? null;
-  const message = staged
-    ? staged.status === "pending_review"
+  const isStagedCopy = (result.data.stagedForListingId ?? null) !== null;
+  const message = isStagedCopy
+    ? submitted
       ? "Sent for review. Your listing stays on the site as it is until we approve the changes."
       : "Saved. Only you can see these changes \u2014 your listing is still on the site as it was. Press Submit when you want us to review them."
     : submitted
@@ -83,6 +85,38 @@ export async function discardChangesAction(listingId: number): Promise<void> {
     result.ok
       ? `/account/listings/${listingId}/edit?discarded=1`
       : `/account/listings/${listingId}/edit?error=${encodeURIComponent(result.message)}`,
+  );
+}
+
+/**
+ * Starts editing a listing that is on the site, and takes the owner to the copy.
+ *
+ * The copy is a complete listing of its own (S0034), so from there every section is editable and
+ * nothing they do reaches the public page until it is approved. Idempotent on the API's side, so a
+ * double click lands on the same copy rather than making two.
+ */
+export async function startChangesAction(listingId: number): Promise<void> {
+  const result = await startPendingChanges(listingId);
+  redirect(
+    result.ok
+      ? `/account/listings/${result.data.id}/edit?editing=1`
+      : `/account/listings/${listingId}/edit?error=${encodeURIComponent(result.message)}`,
+  );
+}
+
+/**
+ * Starts a new listing and takes the owner straight into the editor.
+ *
+ * A listing row exists from this moment, which is what makes all five sections usable before
+ * anything is saved -- a photo, an opening time and a question all belong to a listing. It is a
+ * draft nobody else can see, and pressing the button twice returns the same one.
+ */
+export async function startNewListingAction(): Promise<void> {
+  const result = await startNewListing();
+  redirect(
+    result.ok
+      ? `/account/listings/${result.data.id}/edit?started=1`
+      : `/account/listings?error=${encodeURIComponent(result.message)}`,
   );
 }
 

@@ -1,4 +1,6 @@
+using System.Data;
 using BusinessDirectory.Api.Data;
+using BusinessDirectory.Api.Listings;
 using System.Security.Claims;
 using BusinessDirectory.Api.Media;
 using Microsoft.Data.SqlClient;
@@ -60,7 +62,10 @@ public static class OwnerMediaEndpoints
 
     public static RouteGroupBuilder MapOwnerMediaEndpoints(this RouteGroupBuilder listings)
     {
-        var group = listings.MapGroup("/{id:long}/media");
+        /* Uploading, moving and deleting media is refused for a listing that is on the site:
+           it is edited through a staged copy (S0034). On the group, so a route added here later is
+           covered without anybody remembering. */
+        var group = listings.MapGroup("/{id:long}/media").RefuseWritesToPublishedListings();
         group.MapGet("", List);
         // The form is read from HttpRequest by hand, which also keeps the endpoint clear of minimal-API
         // antiforgery metadata: this API is authenticated by a bearer token, not by a cookie, so a
@@ -374,13 +379,36 @@ public static class OwnerMediaEndpoints
             return Results.NotFound();
         }
 
-        // The row is already gone. If removing the bytes fails, the only consequence is a blob nobody
-        // references, which is better than a listing still showing a photo the owner deleted.
-        if (storage.IsConfigured)
+        /* The bytes go only when no row points at them any more (S0034).
+        
+           A staged copy of a published listing shares each photo's storage key with the published
+           row -- copying the files to open an editor would be the wrong trade, and sharing is what
+           makes "keep the live photo, drop it from my draft" mean anything. So deleting the staged
+           row's photo must not delete the file the live page is serving.
+
+           The row is already gone either way. If removing the bytes fails, the consequence is a file
+           nobody references, which is better than a listing still showing a photo its owner
+           deleted. */
+        if (storage.IsConfigured && !await StillReferenced(db, storageKey, ct))
         {
             await storage.DeleteAsync(storageKey, ct);
         }
         return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Whether any media row still points at this file.
+    /// </summary>
+    /// <remarks>
+    /// Asked after the row has been deleted, so "yes" means another row -- a staged copy, or the
+    /// published listing a staged copy was made from -- is still serving it.
+    /// </remarks>
+    private static async Task<bool> StillReferenced(SqlDatabase db, string storageKey, CancellationToken ct)
+    {
+        await using var command = db.CreateCommand(
+            "SELECT TOP (1) 1 FROM dbo.listing_media WHERE storage_key = @key");
+        command.Parameters.Add(new SqlParameter("key", SqlDbType.NVarChar) { Value = storageKey });
+        return await command.ExecuteScalarAsync(ct) is not null;
     }
 
     // ------------------------------------------------------------------ shared reads

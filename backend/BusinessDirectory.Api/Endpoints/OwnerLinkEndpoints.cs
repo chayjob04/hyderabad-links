@@ -1,4 +1,5 @@
 using BusinessDirectory.Api.Data;
+using BusinessDirectory.Api.Listings;
 using Microsoft.Data.SqlClient;
 using System.Security.Claims;
 
@@ -216,7 +217,9 @@ public static class OwnerLinkEndpoints
 
     public static RouteGroupBuilder MapOwnerLinkEndpoints(this RouteGroupBuilder listings)
     {
-        var group = listings.MapGroup("/{id:long}/links");
+        /* Adding, renaming and removing a link is refused for a listing that is on the site:
+           it is edited through a staged copy (S0034). */
+        var group = listings.MapGroup("/{id:long}/links").RefuseWritesToPublishedListings();
         group.MapGet("", List);
         group.MapPost("", Add);
         // Renaming is the paid feature, so it is a route of its own rather than a flag on the add.

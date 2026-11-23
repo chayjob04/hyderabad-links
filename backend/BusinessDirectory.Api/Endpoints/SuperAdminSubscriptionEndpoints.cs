@@ -279,7 +279,13 @@ public static class SuperAdminSubscriptionEndpoints
                       WHERE p.listing_id = li.id
                       ORDER BY p.created_at DESC, p.id DESC
                   ) pay
-                  WHERE " + filter + @"
+                  /* Staged edits and unsaved new listings are not businesses with a
+                     subscription (S0034). A staged copy inherits its parent's period through the
+                     entitlements view, so listing one here would show the same subscription twice
+                     and the figures above would count it twice. */
+                  WHERE li.staged_for_listing_id IS NULL
+                    AND li.is_placeholder = 0
+                    AND (" + filter + @")
               ),
               page AS (
                   SELECT * FROM rows
@@ -347,18 +353,29 @@ public static class SuperAdminSubscriptionEndpoints
     {
         await using var command = new SqlCommand(
             @"SELECT
-                  (SELECT COUNT_BIG(*) FROM dbo.listings) AS listings,
+                  /* Every count here is over real listings. A staged edit is a row in
+                     `listings` that inherits its parent's period (S0034), so counting the view on
+                     its own would report one paid listing as two -- which is the figure this screen
+                     exists to get right. */
+                  (SELECT COUNT_BIG(*) FROM dbo.listings
+                   WHERE staged_for_listing_id IS NULL AND is_placeholder = 0) AS listings,
                   (SELECT COUNT_BIG(*) FROM dbo.listing_entitlements e
-                   WHERE e.is_verified = 1 AND e.paid_until > SYSDATETIMEOFFSET()) AS verified,
+                   JOIN dbo.listings li ON li.id = e.listing_id
+                   WHERE li.staged_for_listing_id IS NULL AND li.is_placeholder = 0
+                     AND e.is_verified = 1 AND e.paid_until > SYSDATETIMEOFFSET()) AS verified,
                   (SELECT COUNT_BIG(*) FROM dbo.listing_entitlements e
-                   WHERE e.is_verified = 1 AND e.paid_until > SYSDATETIMEOFFSET()
+                   JOIN dbo.listings li ON li.id = e.listing_id
+                   WHERE li.staged_for_listing_id IS NULL AND li.is_placeholder = 0
+                     AND e.is_verified = 1 AND e.paid_until > SYSDATETIMEOFFSET()
                      AND e.paid_until <= DATEADD(day, @window, SYSDATETIMEOFFSET())) AS expiring,
                   (SELECT COUNT_BIG(*) FROM dbo.listings li
                    JOIN dbo.listing_entitlements e ON e.listing_id = li.id
-                   WHERE EXISTS (SELECT 1 FROM dbo.subscriptions s WHERE s.listing_id = li.id)
+                   WHERE li.staged_for_listing_id IS NULL AND li.is_placeholder = 0
+                     AND EXISTS (SELECT 1 FROM dbo.subscriptions s WHERE s.listing_id = li.id)
                      AND (e.paid_until IS NULL OR e.paid_until <= SYSDATETIMEOFFSET())) AS lapsed,
                   (SELECT COUNT_BIG(*) FROM dbo.listings li
-                   WHERE NOT EXISTS (SELECT 1 FROM dbo.subscriptions s WHERE s.listing_id = li.id)) AS never_paid,
+                   WHERE li.staged_for_listing_id IS NULL AND li.is_placeholder = 0
+                     AND NOT EXISTS (SELECT 1 FROM dbo.subscriptions s WHERE s.listing_id = li.id)) AS never_paid,
                   (SELECT COUNT_BIG(*) FROM dbo.subscription_payments WHERE status = 'paid') AS paid_payments,
                   (SELECT COALESCE(SUM(amount_paise), 0) FROM dbo.subscription_payments
                    WHERE status = 'paid') AS paid_all_time,
@@ -409,7 +426,9 @@ public static class SuperAdminSubscriptionEndpoints
                      p.faq_limit, p.content_section_limit, p.grants_verified_badge,
                      p.media_limits_confirmed, p.is_active,
                      (SELECT COUNT_BIG(*) FROM dbo.listing_entitlements e
-                      WHERE e.effective_plan_slug = p.slug) AS listings_on_plan
+                      JOIN dbo.listings li ON li.id = e.listing_id
+                      WHERE li.staged_for_listing_id IS NULL AND li.is_placeholder = 0
+                        AND e.effective_plan_slug = p.slug) AS listings_on_plan
               FROM dbo.plans p
               ORDER BY p.sort_order, p.slug", conn);
 

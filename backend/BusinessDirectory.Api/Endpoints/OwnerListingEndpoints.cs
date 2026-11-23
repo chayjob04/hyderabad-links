@@ -3,6 +3,7 @@ using System.Data;
 using System.Net;
 using System.Security.Claims;
 using BusinessDirectory.Api.Listings;
+using BusinessDirectory.Api.Media;
 using Microsoft.Data.SqlClient;
 
 namespace BusinessDirectory.Api.Endpoints;
@@ -60,29 +61,39 @@ public static class OwnerListingEndpoints
         int OpenAlerts,
 
         /// <summary>
-        /// The owner's edit to this published listing, waiting to go live (S0031). Null when there
-        /// is none, which is every listing that has never been edited after publication.
+        /// The owner's edit to this published listing, waiting to go live (S0034). Null when there
+        /// is none, which is every listing nobody has edited since it was published.
         ///
-        /// The fields above are what the public sees; these are what the owner last typed. The
-        /// editor shows these, so an owner carries on from their own draft rather than from the
-        /// approved text, and the screen says which is which.
+        /// The fields above are what the public sees. This says where the proposed version is: it is
+        /// a listing of its own, with its own photos, hours, questions and links, and
+        /// <c>listingId</c> is the id the editor opens.
         /// </summary>
-        PendingChangeDto? PendingChanges = null);
+        PendingChangeDto? PendingChanges = null,
 
+        /// <summary>
+        /// The published listing this row is a staged copy of, or null for an ordinary listing.
+        ///
+        /// Set on the copy itself, so a screen that has been handed one knows it is looking at a
+        /// proposal rather than at a business: the editor says so, and Submit sends it for review
+        /// rather than publishing it.
+        /// </summary>
+        long? StagedForListingId = null,
+
+        /// <summary>
+        /// True for a new listing that has been started and never saved (S0034).
+        ///
+        /// It exists so that photos, opening times and questions -- all of which belong to a listing
+        /// -- can be added before anything is saved. It is kept out of the five-listing limit and
+        /// labelled in the owner's list, and the first save clears it.
+        /// </summary>
+        bool IsPlaceholder = false);
+
+    /// <param name="ListingId">The staged copy's own id. This is what the editor opens.</param>
     /// <param name="Status">draft (private), pending_review (in the queue) or rejected (with a note).</param>
     public sealed record PendingChangeDto(
+        long ListingId,
         string Status,
-        string? Name,
-        string? Description,
-        string? AddressLine,
-        string? Pincode,
-        string? PhonePrimary,
-        string? PhoneWhatsapp,
-        string? WebsiteUrl,
-        string? CategorySlug,
-        string? CategoryName,
         string? ReviewNote,
-        DateTimeOffset? SubmittedAt,
         DateTimeOffset? ReviewedAt,
         DateTimeOffset UpdatedAt);
 
@@ -96,7 +107,8 @@ public static class OwnerListingEndpoints
                  pcparent.slug AS parent_category_slug,
                  e.effective_plan_slug, e.effective_plan_name, e.is_verified, e.paid_until,
                  (SELECT COUNT_BIG(*) FROM dbo.listing_alerts a
-                  WHERE a.listing_id = li.id AND a.acknowledged_at IS NULL) AS open_alerts
+                  WHERE a.listing_id = li.id AND a.acknowledged_at IS NULL) AS open_alerts,
+                 li.staged_for_listing_id, li.is_placeholder
           FROM dbo.listings li
           JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
           JOIN dbo.listing_entitlements e ON e.listing_id = li.id
@@ -106,7 +118,14 @@ public static class OwnerListingEndpoints
           JOIN dbo.categories pc ON pc.id = lc.category_id
           -- A public path is /parent/category/slug, so the parent travels with every listing.
           JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
-          WHERE li.status <> 'archived'";
+          /* Not the staged copies (S0034). A staged listing is a real row in this table -- the
+             owner's proposed next version of a published listing -- and it belongs to the same
+             business, so without this it would appear in My Listings as a second business. It is
+             reachable by its own id, which is how the editor opens it.
+
+             A placeholder *is* listed: it is an unsaved new listing, and the card is how its owner
+             gets back to it. It is kept out of the five-listing limit instead. */
+          WHERE li.status <> 'archived' AND li.staged_for_listing_id IS NULL";
 
     public static RouteGroupBuilder MapOwnerListingEndpoints(this RouteGroupBuilder me)
     {
@@ -116,9 +135,15 @@ public static class OwnerListingEndpoints
         group.MapGet("/{id:long}", Get);
         group.MapPut("/{id:long}", Update);
         group.MapPost("/{id:long}/submit", Submit);
+        /* Editing a listing that is on the site: this takes the copy, and everything after it is an
+           ordinary draft listing that happens to be a proposal (S0034). */
+        group.MapPost("/{id:long}/pending-changes", StartPendingChanges);
         /* Throwing away an edit that has not gone live, so the owner sees the published version
-           again. Theirs to discard: it is their text and nothing public depends on it. */
+           again. Theirs to discard: it is their work and nothing public depends on it. */
         group.MapDelete("/{id:long}/pending-changes", DiscardPendingChanges);
+        /* A new listing, before anything has been typed into it. See StagedListings for why a row
+           exists this early: a photo, an opening time and a question all belong to a listing. */
+        group.MapPost("/placeholder", StartNewListing);
         group.MapOwnerMediaEndpoints();   // photos, logo and video, with the plan allowance enforced
         group.MapOwnerLinkEndpoints();    // website and social links, capped by the plan's allowance
         group.MapOwnerSubscriptionEndpoints();   // buying and renewing the Verified plan, per listing
@@ -150,9 +175,9 @@ public static class OwnerListingEndpoints
             }
         }
 
-        /* Every staged edit this owner has, in one more query (S0031), so a card can say "changes
+        /* Every staged edit this owner has, in one more query (S0034), so a card can say "changes
            waiting" instead of looking identical to a listing nobody has touched. */
-        var staged = await PendingChanges.ForOwnerAsync(conn, null, userId, ct);
+        var staged = await StagedListings.ForOwnerAsync(conn, null, userId, ct);
         return Results.Ok(staged.Count == 0
             ? listings
             : listings
@@ -204,9 +229,14 @@ public static class OwnerListingEndpoints
 
         long existing;
         await using (var count = new SqlCommand(
+            /* Real listings only. A staged edit is a copy of one that already counts, and a
+               placeholder is a new listing that has not been saved -- counting either would tell an
+               owner they are at the limit when they are not. */
             @"SELECT COUNT_BIG(*) FROM dbo.listings li
               JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
-              WHERE li.status <> 'archived'", conn, tx))
+              WHERE li.status <> 'archived'
+                AND li.staged_for_listing_id IS NULL
+                AND li.is_placeholder = 0", conn, tx))
         {
             count.Parameters.AddWithValue("user", userId);
             existing = (long)(await count.ExecuteScalarAsync(ct))!;
@@ -352,27 +382,19 @@ public static class OwnerListingEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["categorySlug"] = ["Unknown category."] });
         }
 
-        /* An edit to a listing that is already published does not touch the listing (S0031).
-           It is written aside, the page keeps serving the approved version, and a moderator decides
-           whether it goes live -- which is what this used to do by taking the business off the site
-           for the duration, and the comment here used to say was the only option without somewhere
-           to put the edit.
+        /* A published listing is never written to here (S0034). Its editor opens a staged copy
+           -- a listing of its own, with its own photos, hours, questions and links -- and this
+           endpoint is then called with *that* id, which is a draft and takes the ordinary path
+           below. Refusing it rather than quietly redirecting the write is the point: an owner's
+           save must land where their screen says it landed, and a client that has not been told
+           about staging should be told, not silently redirected.
 
-           Nothing else changes: the owner's own screens read the staged values back, so they
-           continue from where they were rather than from the live text. */
-        if (PendingChanges.IsPublished(currentStatus))
+           POST /me/listings/{id}/pending-changes is how the copy is made. */
+        if (currentStatus == "active")
         {
-            await PendingChanges.UpsertAsync(
-                conn, tx, id, userId, value, categoryId.Value, input.SubmitForReview, ct);
-
-            await WriteAudit(
-                conn, tx, userId,
-                input.SubmitForReview ? "listing.changes_submitted" : "listing.changes_saved",
-                id, http, ct);
-
-            var staged = await LoadOwned(conn, tx, userId, id, ct);
-            await tx.CommitAsync(ct);
-            return Results.Ok(staged);
+            return Results.Problem(
+                "This listing is on the site. Start a pending change first and edit that copy, so the live page keeps working until we approve it.",
+                statusCode: StatusCodes.Status409Conflict);
         }
 
         await ListingWriter.UpdateListing(conn, tx, id, value, lockResult.Value.Latitude, lockResult.Value.Longitude, ct);
@@ -401,6 +423,10 @@ public static class OwnerListingEndpoints
             requeue.Parameters.AddWithValue("entersQueue", entersQueue);
             await requeue.ExecuteNonQueryAsync(ct);
         }
+
+        /* The first real save turns an unsaved new listing into an ordinary draft. A no-op for
+           anything else, which is why it is called without asking. */
+        await StagedListings.ClearPlaceholderAsync(conn, tx, id, ct);
 
         await WriteAudit(conn, tx, userId, "listing.updated", id, http, ct);
         var dto = await LoadOwned(conn, tx, userId, id, ct);
@@ -495,7 +521,13 @@ public static class OwnerListingEndpoints
             r.GetBoolean(22),
             r.IsDBNull(23) ? null : r.GetFieldValue<DateTimeOffset>(23),
             // COUNT_BIG returns bigint; the count of open alerts on one listing fits an int easily.
-            (int)r.GetInt64(24));
+            (int)r.GetInt64(24),
+            /* The staged edit itself is read separately (LoadOwned), so this stays null here and is
+               filled in there. These two say what *this* row is: a staged copy, or a new listing
+               nobody has saved yet. */
+            PendingChanges: null,
+            StagedForListingId: r.IsDBNull(25) ? null : r.GetInt64(25),
+            IsPlaceholder: r.GetBoolean(26));
     }
 
     private static async Task<OwnerListingDto?> LoadOwned(SqlConnection conn, SqlTransaction? tx, long userId, long listingId, CancellationToken ct)
@@ -514,27 +546,17 @@ public static class OwnerListingEndpoints
             return null;
         }
 
-        /* The owner's own edit, if they have one waiting (S0031). A second query rather than a join:
-           the select above is read by position and documented as append-only, and a staged edit has
-           fourteen fields of its own. */
-        var staged = await PendingChanges.ForListingAsync(conn, tx, listingId, ct);
+        /* The owner's own edit, if they have one waiting (S0034). A second query rather than a
+           join: the select above is read by position and documented as append-only. */
+        var staged = await StagedListings.ForListingAsync(conn, tx, listingId, ct);
         return staged is null ? dto : dto with { PendingChanges = ToDto(staged) };
     }
 
     /// <summary>The staged edit as the owner's screens read it.</summary>
-    private static PendingChangeDto ToDto(PendingChanges.Staged staged) => new(
+    private static PendingChangeDto ToDto(StagedListings.Staged staged) => new(
+        staged.ListingId,
         staged.Status,
-        staged.Name,
-        staged.Description,
-        staged.AddressLine,
-        staged.Pincode,
-        staged.PhonePrimary,
-        staged.PhoneWhatsapp,
-        staged.WebsiteUrl,
-        staged.CategorySlug,
-        staged.CategoryName,
         staged.ReviewNote,
-        staged.SubmittedAt,
         staged.ReviewedAt,
         staged.UpdatedAt);
 
@@ -546,7 +568,23 @@ public static class OwnerListingEndpoints
     /// more, it is the listing. A rejected one may be discarded too: that is an owner deciding the
     /// moderator was right and they would rather start from what is live.
     /// </remarks>
-    private static async Task<IResult> DiscardPendingChanges(
+    /// <summary>
+    /// Takes a copy of a published listing for its owner to edit (S0034).
+    /// </summary>
+    /// <remarks>
+    /// The copy includes every section -- photos, opening hours, questions, content, amenities,
+    /// links -- so the owner edits their own version of the whole listing and the published one
+    /// keeps serving every part of it until a moderator approves the change.
+    ///
+    /// Idempotent: a second call returns the copy that already exists rather than a second one, and
+    /// the filtered unique index on <c>staged_for_listing_id</c> makes that true even under two
+    /// requests at once. The listing row is locked first, so the two queue instead of racing.
+    ///
+    /// Only a published listing has anything to stage. A draft, a rejection or a listing already in
+    /// the review queue is edited in place: there is no public version to protect, which is the same
+    /// rule the update handler applies.
+    /// </remarks>
+    private static async Task<IResult> StartPendingChanges(
         long id,
         ClaimsPrincipal principal,
         HttpContext http,
@@ -567,16 +605,173 @@ public static class OwnerListingEndpoints
         {
             return Results.NotFound();
         }
+        if (lockResult.Value.Status != "active")
+        {
+            return Results.Problem(
+                "This listing is not on the site, so there is nothing to protect while you edit it. Edit it directly.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
 
-        if (!await PendingChanges.DiscardAsync(conn, tx, id, ct))
+        var existing = await StagedListings.ForListingAsync(conn, tx, id, ct);
+        if (existing is not null)
+        {
+            await tx.CommitAsync(ct);
+            return Results.Ok(await Load(db, userId, existing.ListingId, ct));
+        }
+
+        var stagedId = await StagedListings.CreateAsync(conn, tx, id, userId, ct);
+        await WriteAudit(conn, tx, userId, "listing.changes_started", id, http, ct);
+        var dto = await LoadOwned(conn, tx, userId, stagedId, ct);
+        await tx.CommitAsync(ct);
+        return Results.Ok(dto);
+    }
+
+    /// <summary>
+    /// Throws a staged copy away, so the owner's screens show the published listing again.
+    /// </summary>
+    /// <remarks>
+    /// Takes the published listing's id, because that is what the owner is looking at. Files are
+    /// deleted after the transaction commits, and only the ones no row references any anymore -- a
+    /// photo copied from the published listing is still that listing's photo, and deleting its file
+    /// would blank the live page. See <c>StagedListings.DiscardAsync</c>.
+    /// </remarks>
+    private static async Task<IResult> DiscardPendingChanges(
+        long id,
+        ClaimsPrincipal principal,
+        HttpContext http,
+        SqlDatabase db,
+        IMediaStorage storage,
+        CancellationToken ct)
+    {
+        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginSqlTransactionAsync(ct);
+
+        var lockResult = await LockOwned(conn, tx, userId, id, ct);
+        if (lockResult is null)
         {
             return Results.NotFound();
         }
 
+        var staged = await StagedListings.ForListingAsync(conn, tx, id, ct);
+        if (staged is null)
+        {
+            return Results.NotFound();
+        }
+
+        var orphaned = await StagedListings.DiscardAsync(conn, tx, staged.ListingId, ct);
         await WriteAudit(conn, tx, userId, "listing.changes_discarded", id, http, ct);
         var dto = await LoadOwned(conn, tx, userId, id, ct);
         await tx.CommitAsync(ct);
+
+        /* After the commit, never before: a rolled-back discard that had already deleted the files
+           would leave rows pointing at nothing. A failure here leaves a file nobody references,
+           which costs pence and is cleaned up by the script in database/sqlserver/manual. */
+        foreach (var key in orphaned)
+        {
+            await storage.DeleteAsync(key, CancellationToken.None);
+        }
+
         return Results.Ok(dto);
+    }
+
+    /// <summary>
+    /// The owner's unsaved new listing, created if they do not have one (S0034).
+    /// </summary>
+    /// <remarks>
+    /// This is what lets somebody fill all five sections of a new listing before saving anything: a
+    /// photo, an opening time and a question all belong to a listing, so the listing exists from the
+    /// moment they press Add. It is a draft, so the public never sees it, and it is marked as a
+    /// placeholder, which keeps it out of the five-listing limit and labels it in their list.
+    ///
+    /// Pressing Add twice returns the same listing. That is enforced by a unique filtered index
+    /// rather than by this check alone, so two requests at once cannot both create one.
+    ///
+    /// It needs a business and an area. The business is the owner's own (registration creates it);
+    /// the area is their first listing's, because a new listing's area is chosen on the form and
+    /// the row needs something until then -- it is saved with whatever the form says.
+    /// </remarks>
+    private static async Task<IResult> StartNewListing(
+        ClaimsPrincipal principal,
+        HttpContext http,
+        SqlDatabase db,
+        CancellationToken ct)
+    {
+        if (!MeEndpoints.TryGetUserId(principal, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginSqlTransactionAsync(ct);
+
+        var ownerPhone = await GetOwnerPhone(conn, tx, userId, ct);
+        if (ownerPhone is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        long businessId;
+        int localityId;
+        await using (var owned = new SqlCommand(
+            /* The owner's business, and an area to start the row in. Ordered so the answer does not
+               change between calls. A registered owner always has both: onboarding creates the
+               business and the first listing. */
+            @"SELECT TOP (1) bm.business_id, li.locality_id
+              FROM dbo.business_members bm
+              JOIN dbo.listings li ON li.business_id = bm.business_id
+              WHERE bm.user_id = @user
+              ORDER BY li.created_at, li.id", conn, tx))
+        {
+            owned.Parameters.AddWithValue("user", userId);
+            await using var reader = await owned.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
+            {
+                return Results.Problem(
+                    "Finish registering your business first.",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+            businessId = reader.GetInt64(0);
+            localityId = reader.GetInt32(1);
+        }
+
+        /* The limit is checked here as well as on create: a placeholder does not count towards it,
+           but somebody at the limit should be told now rather than after filling in five sections. */
+        await using (var count = new SqlCommand(
+            @"SELECT COUNT_BIG(*) FROM dbo.listings li
+              JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              WHERE li.status <> 'archived'
+                AND li.staged_for_listing_id IS NULL
+                AND li.is_placeholder = 0", conn, tx))
+        {
+            count.Parameters.AddWithValue("user", userId);
+            if ((long)(await count.ExecuteScalarAsync(ct))! >= MaxListingsPerOwner)
+            {
+                return Results.Problem(
+                    $"You have reached the limit of {MaxListingsPerOwner} listings.",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+        }
+
+        var listingId = await StagedListings.GetOrCreatePlaceholderAsync(
+            conn, tx, userId, businessId, localityId, ownerPhone, ct);
+
+        await WriteAudit(conn, tx, userId, "listing.started", listingId, http, ct);
+        var dto = await LoadOwned(conn, tx, userId, listingId, ct);
+        await tx.CommitAsync(ct);
+        return Results.Ok(dto);
+    }
+
+    /// <summary>One listing, on its own connection. For the paths that have already committed.</summary>
+    private static async Task<OwnerListingDto?> Load(
+        SqlDatabase db, long userId, long listingId, CancellationToken ct)
+    {
+        await using var conn = await db.OpenConnectionAsync(ct);
+        return await LoadOwned(conn, null, userId, listingId, ct);
     }
 
     /// <summary>Locks the row so two edits cannot interleave. Returns null if the listing is not the caller's.</summary>

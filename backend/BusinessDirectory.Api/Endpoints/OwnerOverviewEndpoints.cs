@@ -45,7 +45,12 @@ public static class OwnerOverviewEndpoints
               SELECT li.id, li.status, li.description, li.address_line
               FROM dbo.listings li
               JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              /* Real listings only: not a staged copy of one (S0034), and not a new listing that
+                 has been started and never saved. Counting either would make the dashboard
+                 disagree with the list below it. */
               WHERE li.status <> 'archived'
+                AND li.staged_for_listing_id IS NULL
+                AND li.is_placeholder = 0
           )
           SELECT (SELECT COUNT_BIG(*) FROM owned),
                  (SELECT COUNT_BIG(*) FROM owned WHERE status = 'active'),

@@ -141,7 +141,12 @@ public static class SuperAdminListingEndpoints
                 JOIN dbo.localities lo ON lo.id = li.locality_id
                 LEFT JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
                 LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
-                WHERE (@status IS NULL OR li.status = @status)
+                /* Staged edits and unsaved new listings are not businesses (S0034): one is
+                   somebody's proposed next version of a listing that is already here, the other has
+                   never been saved. Neither belongs in a list of the directory. */
+                WHERE li.staged_for_listing_id IS NULL
+                  AND li.is_placeholder = 0
+                  AND (@status IS NULL OR li.status = @status)
                   AND (@q IS NULL OR li.name LIKE '%' + @q + '%' OR li.slug LIKE '%' + @q + '%')
                   AND (@category IS NULL OR pc.slug = @category)
                   AND (@verified IS NULL OR e.is_verified = @verified)
@@ -454,6 +459,18 @@ public static class SuperAdminListingEndpoints
         await AuditLog.WriteAsync(
             conn, tx, admin.Id, "listing.deleted_by_super_admin", "listing",
             id.ToString(System.Globalization.CultureInfo.InvariantCulture), http, new { slug, name }, ct);
+
+        /* A staged copy of this listing goes with it (S0034). `staged_for_listing_id` carries no
+           foreign key -- SQL Server cannot cascade a self-reference, and a delete that failed in
+           production would be worse -- so the relationship is kept here, in the one place that
+           deletes a listing. Without this the copy would survive as a draft nothing points at,
+           invisible to every screen because every screen skips staged rows. */
+        await using (var staged = new SqlCommand(
+            "DELETE FROM dbo.listings WHERE staged_for_listing_id = @id", conn, tx))
+        {
+            staged.Parameters.AddWithValue("id", id);
+            await staged.ExecuteNonQueryAsync(ct);
+        }
 
         await using (var delete = new SqlCommand("DELETE FROM dbo.listings WHERE id = @id", conn, tx))
         {

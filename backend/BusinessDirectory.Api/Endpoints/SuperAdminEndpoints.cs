@@ -158,7 +158,14 @@ public static class SuperAdminEndpoints
         var newEnquiries = (int)reader.GetInt64(5);
         await reader.CloseAsync();
 
-        var byStatus = await CountRows(db, "SELECT status, COUNT_BIG(*) FROM dbo.listings GROUP BY status ORDER BY status", ct);
+        /* Staged edits and unsaved new listings excluded (S0034): both are draft rows in this
+           table, and counting them would report more drafts than the directory has. */
+        var byStatus = await CountRows(
+            db,
+            @"SELECT status, COUNT_BIG(*) FROM dbo.listings
+              WHERE staged_for_listing_id IS NULL AND is_placeholder = 0
+              GROUP BY status ORDER BY status",
+            ct);
         var byPlan = await CountRows(
             db,
             /* Grouped by the *effective* plan, from dbo.listing_entitlements, not by listings.plan_slug.

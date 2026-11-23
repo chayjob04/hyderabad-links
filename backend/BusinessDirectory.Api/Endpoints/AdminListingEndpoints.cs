@@ -177,7 +177,14 @@ public static class AdminListingEndpoints
                      null here rather than as a status no listing holds; Free and Verified Listings
                      send a plan, matched against the entitlement view so a lapsed subscription
                      counts as free immediately. */
-                  WHERE (@status IS NULL OR li.status = @status)
+                  /* Not a staged edit and not an unsaved new listing (S0034). A staged
+                     listing awaiting review is an *edit* to something already on the site, and it
+                     is decided on its own screen -- /admin/listing-changes -- where the proposed
+                     version can be read beside the published one. Leaving it here as well would
+                     put the same decision in two queues with different information. */
+                  WHERE li.staged_for_listing_id IS NULL
+                    AND li.is_placeholder = 0
+                    AND (@status IS NULL OR li.status = @status)
                     AND (@verified IS NULL OR e.is_verified = @verified)
               ),
               page AS (

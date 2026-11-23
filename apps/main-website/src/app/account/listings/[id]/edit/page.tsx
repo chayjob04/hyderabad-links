@@ -27,7 +27,7 @@ import {
   getOpeningHours,
 } from "@/lib/owner-api";
 import { completionOf, filled, filledTo, overallCompletion } from "@/lib/listing-completion";
-import { discardChangesAction, saveListingAction } from "../../../actions";
+import { discardChangesAction, saveListingAction, startChangesAction } from "../../../actions";
 import { HoursForm } from "../hours/HoursForm";
 import { AddContentForm, AddFaqForm } from "../about/AddForms";
 import { AttributeForm } from "../about/AttributeForm";
@@ -41,6 +41,10 @@ type Props = {
     created?: string;
     /** `discarded=1` after a staged edit was thrown away, so the page can say so. */
     discarded?: string;
+    /** `editing=1` after a copy was taken, so the first thing the owner reads is what that means. */
+    editing?: string;
+    /** `started=1` after a new listing was begun, so the page says what to do with it. */
+    started?: string;
     /** A message from an action that failed, so it is not swallowed by a redirect. */
     error?: string;
   }>;
@@ -120,7 +124,8 @@ const ATTRIBUTE_KINDS = [
  * each thing rather than two that could drift apart.
  */
 export default async function EditListingPage({ params, searchParams }: Props) {
-  const [{ id: rawId }, { created, discarded, error: actionError }] = await Promise.all([params, searchParams]);
+  const [{ id: rawId }, { created, discarded, editing, started, error: actionError }] =
+    await Promise.all([params, searchParams]);
   if (!/^\d{1,15}$/.test(rawId)) notFound();
   const id = Number(rawId);
 
@@ -151,33 +156,29 @@ export default async function EditListingPage({ params, searchParams }: Props) {
   const listing = result.data;
   const verified = listing.verified;
 
-  /* The owner's own edit to a published listing, if they have one waiting (S0031).
-     Everything below reads `shown` rather than `listing` for the eight fields the details form
-     writes: an owner who comes back to a listing they have edited should find their own text, not
-     the approved version with their work apparently lost. The live values are still on the page --
-     the public link at the top goes to them, and the moderator compares the two. */
+  /* Which of three things this page is looking at (S0034).
+
+     `published`  a listing on the site. It is not edited here: its sections are edited on a
+                  complete copy, so that nothing reaches the public page until a moderator approves
+                  all of it together. This page then offers to take that copy, or to continue the
+                  one that exists.
+     `isCopy`     that copy. Everything is editable, nothing is public, and Submit sends the whole
+                  listing -- every section -- for review.
+     otherwise    a draft, a rejection, or a new listing nobody has saved yet: edited in place, as
+                  it always has been, because there is no public version to protect. */
   const staged = listing.pendingChanges ?? null;
-  const shown = staged
-    ? {
-        name: staged.name ?? listing.name,
-        categorySlug: staged.categorySlug ?? listing.categorySlug,
-        addressLine: staged.addressLine,
-        pincode: staged.pincode,
-        phonePrimary: staged.phonePrimary ?? listing.phonePrimary,
-        phoneWhatsapp: staged.phoneWhatsapp,
-        websiteUrl: staged.websiteUrl,
-        description: staged.description,
-      }
-    : {
-        name: listing.name,
-        categorySlug: listing.categorySlug,
-        addressLine: listing.addressLine,
-        pincode: listing.pincode,
-        phonePrimary: listing.phonePrimary,
-        phoneWhatsapp: listing.phoneWhatsapp,
-        websiteUrl: listing.websiteUrl,
-        description: listing.description,
-      };
+  const published = listing.status === "active";
+  const isCopy = (listing.stagedForListingId ?? null) !== null;
+  const shown = {
+    name: listing.name,
+    categorySlug: listing.categorySlug,
+    addressLine: listing.addressLine,
+    pincode: listing.pincode,
+    phonePrimary: listing.phonePrimary,
+    phoneWhatsapp: listing.phoneWhatsapp,
+    websiteUrl: listing.websiteUrl,
+    description: listing.description,
+  };
 
   // ---------------------------------------------------------------- what is filled in
   /* Counted from the values the API returned, never from a constant. The two fields a reviewer
@@ -263,6 +264,115 @@ export default async function EditListingPage({ params, searchParams }: Props) {
   const canNameLinks = links.ok ? (links.data.allowance.canNameLinks ?? links.data.allowance.verified) : false;
   const linksUsed = links.ok ? links.data.allowance.used : 0;
 
+  /* A listing on the site, with no editor on the page. The alternative -- showing the forms and
+     refusing each save -- would let an owner type for ten minutes before finding out. The API
+     refuses those writes as well (StagedWrites), so this is the honest screen rather than the
+     control. */
+  if (published) {
+    const counts = [
+      media.ok ? `${media.data.items.length} photo${media.data.items.length === 1 ? "" : "s"} and videos` : null,
+      hours.ok ? `${intervals.length} opening time${intervals.length === 1 ? "" : "s"}` : null,
+      faqs.ok ? `${faqs.data.items.length} question${faqs.data.items.length === 1 ? "" : "s"}` : null,
+      content.ok ? `${content.data.items.length} paragraph${content.data.items.length === 1 ? "" : "s"}` : null,
+      attributes.ok ? `${attributes.data.items.length} amenit${attributes.data.items.length === 1 ? "y" : "ies"}` : null,
+      links.ok ? `${linkItems.length} link${linkItems.length === 1 ? "" : "s"}` : null,
+    ].filter(Boolean);
+
+    return (
+      <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
+        <Link href="/account/listings" className="text-sm font-bold text-brand-700 hover:underline">
+          <span aria-hidden="true">&larr;</span> Back to my listings
+        </Link>
+
+        <div className="mt-4 border-b border-line pb-5">
+          <p className="text-[11px] font-black tracking-[0.22em] text-muted">
+            {listing.categoryName.toUpperCase()} &middot; {listing.localityName.toUpperCase()}
+          </p>
+          <h1 className="mt-1 text-3xl leading-tight font-black tracking-tight text-brand-800">
+            {listing.name}
+          </h1>
+          <p className="mt-2 text-muted">{describeStatus(listing.status).help}</p>
+          <ListingNav listingId={listing.id} current="edit" verified={verified} />
+          <p className="mt-2">
+            <Link href={listing.url} className="text-sm font-black text-brand-700 hover:underline">
+              View public page <span aria-hidden="true">&rarr;</span>
+            </Link>
+          </p>
+        </div>
+
+        {actionError ? (
+          <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {actionError}
+          </p>
+        ) : null}
+
+        {discarded ? (
+          <p role="status" className="mt-5 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+            Those changes are gone. Your listing on the site is unchanged.
+          </p>
+        ) : null}
+
+        <div className="mt-6 rounded-2xl border border-line bg-white p-6 shadow-[0_8px_28px_#002a3410]">
+          <h2 className="text-lg font-black text-brand-800">This listing is on the site</h2>
+          <p className="mt-2 text-sm text-muted">
+            It holds {counts.length > 0 ? counts.join(", ") : "nothing yet"}. To change any of that,
+            we take a copy for you to work on. Your page keeps working exactly as it is, and when you
+            send the copy for review we publish every change together.
+          </p>
+
+          {staged ? (
+            <div
+              className={`mt-5 rounded-lg border px-4 py-3 text-sm ${
+                staged.status === "rejected"
+                  ? "border-red-200 bg-red-50 text-red-900"
+                  : staged.status === "pending_review"
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-brand-200 bg-brand-50 text-brand-800"
+              }`}
+            >
+              <p className="font-black">{describePendingChanges(staged).label}</p>
+              <p className="mt-1">{describePendingChanges(staged).help}</p>
+              {staged.reviewNote ? (
+                <p className="mt-2">
+                  <span className="font-black">What to change:</span> {staged.reviewNote}
+                </p>
+              ) : null}
+
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/account/listings/${staged.listingId}/edit`}
+                  className="rounded-full bg-brand-700 px-5 py-2 text-sm font-black text-white hover:bg-brand-800"
+                >
+                  {staged.status === "pending_review" ? "See what you sent" : "Carry on editing"}
+                </Link>
+                <form action={discardChangesAction.bind(null, listing.id)}>
+                  <button
+                    type="submit"
+                    className="cursor-pointer rounded-full border border-current px-4 py-1.5 text-xs font-black hover:underline"
+                  >
+                    Discard these changes
+                  </button>
+                </form>
+              </div>
+            </div>
+          ) : (
+            <form action={startChangesAction.bind(null, listing.id)} className="mt-5">
+              <button
+                type="submit"
+                className="cursor-pointer rounded-full bg-brand-700 px-7 py-3 text-base font-extrabold text-white hover:bg-brand-800"
+              >
+                Edit this listing
+              </button>
+              <p className="mt-2 text-sm text-muted">
+                Nothing changes on the site until you send the copy to us and we approve it.
+              </p>
+            </form>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-3xl px-5 py-10 sm:px-8">
       <Link href="/account/listings" className="text-sm font-bold text-brand-700 hover:underline">
@@ -321,35 +431,81 @@ export default async function EditListingPage({ params, searchParams }: Props) {
         </p>
       ) : null}
 
-      {/* A published listing with an edit waiting. The one thing this has to make unmistakable is
-          that the public page has not changed -- that is the whole point of staging the edit, and an
-          owner who does not realise it will keep pressing Save. */}
-      {staged ? (
+      {/* This page *is* the copy. The one thing it has to make unmistakable is that the live page
+          has not changed -- that is the whole point of editing a copy, and an owner who does not
+          realise it will keep pressing Save. Every section below is editable and none of it is
+          public. */}
+      {isCopy ? (
         <div
           className={`mt-5 rounded-lg border px-4 py-3 text-sm ${
-            staged.status === "rejected"
+            listing.status === "rejected"
               ? "border-red-200 bg-red-50 text-red-900"
-              : staged.status === "pending_review"
+              : listing.status === "pending_review"
                 ? "border-amber-300 bg-amber-50 text-amber-900"
                 : "border-brand-200 bg-brand-50 text-brand-800"
           }`}
         >
-          <p className="font-black">{describePendingChanges(staged).label}</p>
-          <p className="mt-1">{describePendingChanges(staged).help}</p>
-          {staged.reviewNote ? (
+          <p className="font-black">
+            {listing.status === "pending_review"
+              ? "These changes are with us"
+              : listing.status === "rejected"
+                ? "These changes need work"
+                : "You are editing a copy"}
+          </p>
+          <p className="mt-1">
+            {listing.status === "pending_review"
+              ? "We are checking every section you changed. Your listing stays on the site exactly as it is until they are approved."
+              : listing.status === "rejected"
+                ? "We could not publish these changes. Your listing is still on the site as it was; change what you need to and send it again."
+                : "Change anything here \u2014 photos, hours, questions, links. None of it is on the site until you press Submit and we approve it, and then all of it goes together."}
+          </p>
+          {listing.reviewNote ? (
             <p className="mt-2">
-              <span className="font-black">What to change:</span> {staged.reviewNote}
+              <span className="font-black">What to change:</span> {listing.reviewNote}
             </p>
           ) : null}
-          <form action={discardChangesAction.bind(null, listing.id)} className="mt-3">
-            <button
-              type="submit"
-              className="cursor-pointer rounded-full border border-current px-4 py-1.5 text-xs font-black hover:underline"
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Link
+              href={`/account/listings/${listing.stagedForListingId}/edit`}
+              className="text-xs font-black underline"
             >
-              Discard these changes
-            </button>
-          </form>
+              See the listing that is on the site
+            </Link>
+            <form action={discardChangesAction.bind(null, listing.stagedForListingId ?? 0)}>
+              <button
+                type="submit"
+                className="cursor-pointer rounded-full border border-current px-4 py-1.5 text-xs font-black hover:underline"
+              >
+                Discard these changes
+              </button>
+            </form>
+          </div>
         </div>
+      ) : null}
+
+      {/* A new listing nobody has saved yet. It exists so that a photo, an opening time and a
+          question have something to belong to; saying so is better than an owner wondering why
+          their unsaved listing is already in the list. */}
+      {listing.isPlaceholder ? (
+        <p role="status" className="mt-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span className="font-black">Not saved yet.</span> Fill in as much as you like across all
+          five sections \u2014 photos, hours, questions and links are all ready to use \u2014 then press
+          Save changes or Submit for review at the bottom.
+        </p>
+      ) : null}
+
+      {editing ? (
+        <p role="status" className="mt-5 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+          This is your copy of the listing, with everything that is on the site now. Change whatever
+          you need to; the live page stays as it is until we approve it.
+        </p>
+      ) : null}
+
+      {started ? (
+        <p role="status" className="mt-5 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+          Started. Every section is ready to use, including photos \u2014 nothing is saved until you
+          press Save changes.
+        </p>
       ) : null}
 
       {created ? (

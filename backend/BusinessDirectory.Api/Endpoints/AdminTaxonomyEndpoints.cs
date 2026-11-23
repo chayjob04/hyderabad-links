@@ -155,7 +155,14 @@ public static class AdminTaxonomyEndpoints
            button in the UI as well as the refusal below, so it is read here rather than guessed. */
         await using var command = db.CreateCommand(
             @"SELECT c.id, c.level, c.parent_id, c.slug, c.name, c.sort_order, c.is_active,
-                     (SELECT COUNT_BIG(*) FROM dbo.listing_categories lc WHERE lc.category_id = c.id)
+                     /* Real listings only. A staged edit carries a copy of its parent's categories
+                        (S0034), so counting the join table alone would double every count and make
+                        a category look undeletable when nothing real points at it. */
+                     (SELECT COUNT_BIG(*) FROM dbo.listing_categories lc
+                      JOIN dbo.listings li ON li.id = lc.listing_id
+                      WHERE lc.category_id = c.id
+                        AND li.staged_for_listing_id IS NULL
+                        AND li.is_placeholder = 0)
               FROM dbo.categories c
               ORDER BY c.level, c.sort_order, c.name");
 

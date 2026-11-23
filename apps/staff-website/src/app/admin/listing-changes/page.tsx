@@ -8,6 +8,7 @@ import {
   getAdminProfile,
   getListingChanges,
   listListingChanges,
+  type ListingChangeSection,
 } from "@/lib/admin-api";
 import { ChangeDecision } from "./ChangeDecision";
 
@@ -25,6 +26,65 @@ const TABS = [
 ] as const;
 
 /**
+ * One section of the listing, compared item by item.
+ *
+ * Collapsed when nothing in it changed, because a moderator reading six sections needs the two that
+ * did to stand out. Open, it lists the proposed contents with each item marked: added, removed,
+ * moved, or unchanged. Removed items are the ones worth the colour -- an approval that quietly
+ * dropped six photos would otherwise look like one that corrected a phone number.
+ */
+function SectionCompare({ section }: { section: ListingChangeSection }) {
+  const badge =
+    section.changes === 0
+      ? "bg-secondary-subtle text-secondary"
+      : "bg-warning-subtle text-warning";
+
+  return (
+    <details className="border rounded mt-3" open={section.changes > 0}>
+      <summary className="px-3 py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <span className="fw-semibold">{section.label}</span>
+        <span className={`badge ${badge}`}>
+          {section.changes === 0
+            ? "unchanged"
+            : `${section.changes} change${section.changes === 1 ? "" : "s"}`}
+        </span>
+      </summary>
+
+      <div className="border-top px-3 py-2">
+        {section.items.length === 0 ? (
+          <p className="text-muted font-size-13 mb-0">Nothing in this section, before or after.</p>
+        ) : (
+          <ul className="list-unstyled mb-0">
+            {section.items.map((item, index) => (
+              <li
+                key={`${item.label}-${index}`}
+                className={`py-1 ${item.state === "removed" ? "text-danger" : ""}`}
+              >
+                <span className="font-size-13">
+                  {item.state === "added" ? (
+                    <span className="badge bg-success-subtle text-success me-2">added</span>
+                  ) : item.state === "removed" ? (
+                    <span className="badge bg-danger-subtle text-danger me-2">removed</span>
+                  ) : item.state === "moved" ? (
+                    <span className="badge bg-info-subtle text-info me-2">moved</span>
+                  ) : null}
+                  <span className={item.state === "same" ? "text-muted" : "fw-medium"}>
+                    {item.label}
+                  </span>
+                  {item.detail ? (
+                    <span className="text-muted font-size-12"> &middot; {item.detail}</span>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/**
  * Edits to listings that are already on the site — the half of moderation that could not exist
  * before S0031.
  *
@@ -34,9 +94,13 @@ const TABS = [
  * either answer. So the edit is staged and this screen decides it: the published values on the left,
  * the proposed ones on the right, changed rows marked.
  *
- * <b>Approving publishes it; rejecting changes nothing public.</b> The owner keeps their staged edit
- * and the note, so they open their own text with the objection attached rather than the live version
- * with their work apparently lost.
+ * <b>Every section, one decision.</b> The proposed version is a complete listing of its own
+ * (S0034), so the detail fields are compared field by field and the other four sections item by
+ * item: a photo added, an opening time removed, a question reworded. Approving publishes all of it
+ * together; rejecting changes nothing public at all.
+ *
+ * The owner keeps their staged copy and the note either way, so they open their own work with the
+ * objection attached rather than the live version with their changes apparently lost.
  */
 export default async function ListingChangesPage({ searchParams }: Props) {
   const { status, listing, decided } = await searchParams;
@@ -178,6 +242,13 @@ export default async function ListingChangesPage({ searchParams }: Props) {
                       </table>
                     </div>
 
+                    {/* The other four sections. Each one says how much it changed, and an
+                        untouched section still appears -- "nothing changed here" is information a
+                        moderator needs in order to approve the rest. */}
+                    {comparison.data.sections.map((section) => (
+                      <SectionCompare key={section.section} section={section} />
+                    ))}
+
                     {comparison.data.status === "draft" ? (
                       <p className="alert alert-light border mt-3 mb-0 font-size-13">
                         The owner has not submitted these changes. There is nothing to decide yet —
@@ -263,7 +334,15 @@ export default async function ListingChangesPage({ searchParams }: Props) {
                               {item.status.replace("_", " ")}
                             </span>
                           </td>
-                          <td className="py-3 text-end">{item.fieldsChanged}</td>
+                          <td className="py-3 text-end">
+                            {item.fieldsChanged}
+                            {item.sectionsChanged > 0 ? (
+                              <span className="d-block text-muted font-size-12">
+                                +{item.sectionsChanged} section
+                                {item.sectionsChanged === 1 ? "" : "s"}
+                              </span>
+                            ) : null}
+                          </td>
                           <td className="py-3 text-muted font-size-13 text-nowrap">
                             {formatWhen(item.submittedAt ?? item.updatedAt)}
                           </td>

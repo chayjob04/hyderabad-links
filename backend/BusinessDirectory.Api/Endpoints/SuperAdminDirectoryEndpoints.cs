@@ -201,15 +201,19 @@ public static class SuperAdminDirectoryEndpoints
             @"WITH owners AS (
                 SELECT u.id, u.phone_e164, u.name, u.email, u.status, u.phone_verified_at,
                        u.created_at,
+                       /* Real listings only: a staged edit is a copy of one that is already
+                          counted, and an unsaved new listing is not a business yet (S0034). */
                        (SELECT COUNT(*)
                         FROM dbo.business_members bm
                         JOIN dbo.listings li ON li.business_id = bm.business_id
-                        WHERE bm.user_id = u.id) AS listing_count
+                        WHERE bm.user_id = u.id
+                          AND li.staged_for_listing_id IS NULL AND li.is_placeholder = 0) AS listing_count
                 FROM dbo.users u
                 WHERE EXISTS (
                     SELECT 1 FROM dbo.business_members bm
                     JOIN dbo.listings li ON li.business_id = bm.business_id
                     WHERE bm.user_id = u.id
+                      AND li.staged_for_listing_id IS NULL AND li.is_placeholder = 0
                 )
               ),
               matched AS (
@@ -263,7 +267,9 @@ public static class SuperAdminDirectoryEndpoints
                      (SELECT COUNT(*)
                       FROM dbo.business_members bm
                       JOIN dbo.listings li ON li.business_id = bm.business_id
-                      WHERE bm.user_id = u.id) AS listing_count,
+                      WHERE bm.user_id = u.id
+                        AND li.staged_for_listing_id IS NULL
+                        AND li.is_placeholder = 0) AS listing_count,
                      u.created_at
               FROM dbo.users u
               WHERE u.id = @id", conn))
