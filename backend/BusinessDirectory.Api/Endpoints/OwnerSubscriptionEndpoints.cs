@@ -1,4 +1,5 @@
 using BusinessDirectory.Api.Data;
+using BusinessDirectory.Api.Listings;
 using BusinessDirectory.Api.Payments;
 using Microsoft.Data.SqlClient;
 using System.Security.Claims;
@@ -82,7 +83,10 @@ public static class OwnerSubscriptionEndpoints
 
     public static RouteGroupBuilder MapOwnerSubscriptionEndpoints(this RouteGroupBuilder listings)
     {
-        var group = listings.MapGroup("/{id:long}/subscription");
+        /* Not on a staged copy (S0034): it is a proposed version of a listing, it is deleted when
+           the edit is approved, and its entitlement is read from the listing it stands in for.
+           Taking money for it would be taking money for a row that is about to disappear. */
+        var group = listings.MapGroup("/{id:long}/subscription").RefuseStagedListings();
         group.MapGet("", Get);
         group.MapPost("/order", CreateOrder);
         group.MapPost("/verify", Verify);

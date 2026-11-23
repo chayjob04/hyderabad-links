@@ -345,7 +345,8 @@ public static class OwnerListingEndpoints
             return Results.Problem("This listing is archived and can no longer be edited.", statusCode: StatusCodes.Status409Conflict);
         }
 
-        // The area (and so the URL) cannot be changed here; it is ignored on edit.
+        /* The area is not required on a save: an edit that leaves it out keeps the one the
+           listing has. Whether a supplied one is acted on is decided below, by what the listing is. */
         var validation = ListingValidator.Validate(input, requireLocality: false, fallbackPhone: ownerPhone);
         if (validation.Value is not { } value)
         {
@@ -397,7 +398,35 @@ public static class OwnerListingEndpoints
                 statusCode: StatusCodes.Status409Conflict);
         }
 
-        await ListingWriter.UpdateListing(conn, tx, id, value, lockResult.Value.Latitude, lockResult.Value.Longitude, ct);
+        /* The area may still be chosen while a listing has never been public (S0034).
+           A new listing is started as a draft before the owner has said anything, so it has to
+           begin in *some* area -- the one their first listing is in -- and this is where they
+           correct it. Once a listing has been on the site the area is fixed: it is part of what a
+           moderator approved, and a staged copy must keep the area of the listing it stands in for,
+           which is why a copy is excluded even though it is a draft.
+
+           Moving it also moves the map point, because the point it has is the old area's centre:
+           an owner who has set no point of their own would otherwise keep a pin in the area they
+           just moved out of. An explicit point in the request still wins. */
+        var latitude = lockResult.Value.Latitude;
+        var longitude = lockResult.Value.Longitude;
+        var mayChooseArea = neverPublic && !lockResult.Value.Staged;
+        if (mayChooseArea
+            && value.LocalitySlug is { Length: > 0 } chosenArea
+            && !string.Equals(chosenArea, lockResult.Value.LocalitySlug, StringComparison.Ordinal))
+        {
+            var moved = await ListingWriter.FindLocality(conn, tx, value.CitySlug, chosenArea, ct);
+            if (moved is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["localitySlug"] = ["Unknown area."] });
+            }
+
+            await ListingWriter.MoveToLocality(conn, tx, id, moved.Id, ct);
+            latitude = value.Latitude ?? moved.Latitude;
+            longitude = value.Longitude ?? moved.Longitude;
+        }
+
+        await ListingWriter.UpdateListing(conn, tx, id, value, latitude, longitude, ct);
         await ListingWriter.SetPrimaryCategory(conn, tx, id, categoryId.Value, ct);
 
         /* What a save does to the status of a listing that is *not* published.
@@ -775,7 +804,7 @@ public static class OwnerListingEndpoints
     }
 
     /// <summary>Locks the row so two edits cannot interleave. Returns null if the listing is not the caller's.</summary>
-    private static async Task<(string Status, double Latitude, double Longitude)?> LockOwned(
+    private static async Task<(string Status, double Latitude, double Longitude, string LocalitySlug, bool Staged)?> LockOwned(
         SqlConnection conn, SqlTransaction tx, long userId, long listingId, CancellationToken ct)
     {
         await using var command = new SqlCommand(
@@ -783,14 +812,18 @@ public static class OwnerListingEndpoints
                both acting on what they saw. PostgreSQL wrote that as FOR UPDATE after the query;
                SQL Server puts it on the table as a hint. HOLDLOCK keeps it to the end of the
                transaction, which is what FOR UPDATE did. */
-            @"SELECT li.status, li.location.Lat, li.location.Long
+            @"SELECT li.status, li.location.Lat, li.location.Long, lo.slug,
+                     CASE WHEN li.staged_for_listing_id IS NULL THEN 0 ELSE 1 END
               FROM dbo.listings li WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
               JOIN dbo.business_members bm ON bm.business_id = li.business_id AND bm.user_id = @user
+              JOIN dbo.localities lo ON lo.id = li.locality_id
               WHERE li.id = @id AND li.status <> 'archived'", conn, tx);
         command.Parameters.AddWithValue("user", userId);
         command.Parameters.AddWithValue("id", listingId);
         await using var reader = await command.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? (reader.GetString(0), reader.GetDouble(1), reader.GetDouble(2)) : null;
+        return await reader.ReadAsync(ct)
+            ? (reader.GetString(0), reader.GetDouble(1), reader.GetDouble(2), reader.GetString(3), reader.GetInt32(4) == 1)
+            : null;
     }
 
     private static async Task<string?> GetOwnerPhone(SqlConnection conn, SqlTransaction tx, long userId, CancellationToken ct)

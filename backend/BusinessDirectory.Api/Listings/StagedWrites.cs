@@ -79,6 +79,54 @@ public static class StagedWrites
         return route;
     }
 
+    /// <summary>
+    /// Refuses anything at all on a staged copy, in both directions.
+    /// </summary>
+    /// <remarks>
+    /// For the subscription routes. A staged copy is not a business: it is somebody's proposed next
+    /// version of one, it is deleted when the edit is approved, and its entitlement is read from the
+    /// listing it stands in for. So buying a plan for it would take money for a row that is about to
+    /// disappear, and reading one would show a plan screen for something that cannot hold a plan.
+    ///
+    /// Refused rather than redirected to the parent, for the same reason the update handler refuses
+    /// rather than redirecting: a payment must go where the screen says it is going.
+    /// </remarks>
+    public static RouteGroupBuilder RefuseStagedListings(this RouteGroupBuilder group)
+    {
+        group.AddEndpointFilter(async (context, next) =>
+        {
+            if (context.HttpContext.Request.RouteValues.TryGetValue(RouteValue, out var raw)
+                && long.TryParse(
+                    raw?.ToString(),
+                    System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var listingId))
+            {
+                var db = context.HttpContext.RequestServices.GetRequiredService<SqlDatabase>();
+                var ct = context.HttpContext.RequestAborted;
+
+                await using var command = db.CreateCommand(StagedSql);
+                command.Parameters.AddWithValue("id", listingId);
+                if (await command.ExecuteScalarAsync(ct) is not null)
+                {
+                    return Results.Problem(StagedRefusal, statusCode: StatusCodes.Status409Conflict);
+                }
+            }
+
+            return await next(context);
+        });
+
+        return group;
+    }
+
+    /// <summary>Is this a staged copy of another listing?</summary>
+    public const string StagedSql =
+        "SELECT TOP (1) 1 FROM dbo.listings WHERE id = @id AND staged_for_listing_id IS NOT NULL";
+
+    public const string StagedRefusal =
+        "These are proposed changes to a listing, not a listing of its own. "
+        + "Open the listing itself for its plan and payments.";
+
     private static async ValueTask<object?> FilterAsync(
         EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {

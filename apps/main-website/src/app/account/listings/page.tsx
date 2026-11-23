@@ -46,7 +46,12 @@ export default async function MyListingsPage({ searchParams }: Props) {
   }
 
   const listings = result.data;
-  const canAddMore = listings.length > 0 && listings.length < MAX_LISTINGS;
+  /* The limit counts businesses, not attempts. A new listing that has been started and never saved
+     is in this list so its owner can get back to it (S0034), and the API leaves it out of the
+     limit -- so counting it here would hide "Add a business" while the API would still allow one,
+     which is the kind of disagreement nobody can debug from the outside. */
+  const saved = listings.filter((listing) => !listing.isPlaceholder);
+  const canAddMore = saved.length > 0 && saved.length < MAX_LISTINGS;
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
@@ -242,7 +247,7 @@ export default async function MyListingsPage({ searchParams }: Props) {
         </>
       )}
 
-      {listings.length >= MAX_LISTINGS ? (
+      {saved.length >= MAX_LISTINGS ? (
         <p className="mt-5 text-sm text-muted">You have reached the limit of {MAX_LISTINGS} listings.</p>
       ) : null}
     </main>

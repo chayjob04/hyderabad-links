@@ -195,6 +195,8 @@ after any gap in the record, and before assuming a feature is dark.
 | `S0027` (finalise: drop the legacy `user_id` columns) | **manual, never DbUp** | **Not run** | Nothing records it running, and it is run by hand. It owns the number `S0027` from `database/sqlserver/manual/`, which is why the DbUp sequence skips it and why `check-migrations.mjs` has a rule teaching it that the gap is deliberate |
 | `S0026_down` (rollback) | manual | **Not run**, and the reason the rollback window is open | — |
 | `S0028` (`admin_users.must_change_password`) | DbUp | **Applied to production** | Direct SQL inspection of production. This **supersedes `ecd4530`'s "not run: `S0028` against any database"**, which was true on the day it was written |
+| `S0029` (Verified limits, unlimited links) | DbUp | **Unknown here** | It is on `main` (`8da0491`) and came after the 2026-11-20 inspection, which stopped at `S0028`. Nothing in this file records it running. Run `npm run db:migrate -- --what-if` before assuming either way |
+| `S0030`–`S0034` (segments, staging, suggestions, granted subscriptions, whole-listing staging) | DbUp | **Not run anywhere** | They are on `feature/schema-dependent-features` only, which is not merged and not deployed. None has been executed against any database: there is no SQL Server outside production in this environment |
 
 Three consequences worth stating plainly. **No screen is dark for want of a migration**, which is a
 change from the previous version of this file. **Admin account management has its column**, so what
@@ -504,6 +506,77 @@ screen counts granted periods apart from paid ones so a gift is never read as re
 production builds, 0 warnings. Browser: 40 assertions across the four new staff screens against the
 stub API, plus 260 re-run on the existing staff suites with no regressions. That proves the screens
 and the requests they send, and nothing about the SQL.
+
+### 2026-11-23 — a whole listing is staged, and a new one is filled in before it is saved (branch `feature/schema-dependent-features`)
+
+**Not on `main`, and not deployed. `S0034` has not been run, and neither has any migration in this
+branch.** `main` is unchanged at `f000dad`.
+
+Two gaps closed, and one design closes both.
+
+**The gap.** `S0031` staged the Business details form and nothing else. An owner who changed a
+photo, an opening time, a question or a link on a published listing changed the **live page**,
+immediately, with no moderator in between — four of the five sections were not staged at all. And a
+new listing could not be filled in: four of its five sections were locked behind "AFTER SAVING",
+because every child row needs a listing id.
+
+**The design: a staged listing is a listing.** `S0034` adds
+`listings.staged_for_listing_id` — a row that stands in for another one — and
+`listings.is_placeholder`, a started-but-never-saved row. Pressing *Edit this listing* copies the
+published row and all seven of its child tables into a staged row; the owner edits **that**, through
+the same endpoints, the same validation, the same ownership checks and the same screens, because it
+is an ordinary listing as far as every one of them is concerned. Approving moves the children back
+onto the published row and deletes the copy; rejecting touches only the copy.
+
+That is the whole reason for the shape. Five parallel staging tables would need five parallel
+endpoints, five validators and a second definition of what a valid listing is; this needs none. The
+cost is that a staged row is a real row in `listings`, so every query that lists, counts or serves a
+listing has to exclude it — ten of them did, they are fixed, and
+`scripts/check-staged-listings.test.mjs` keeps the list so the eleventh is caught when it is written.
+
+One CHECK constraint carries the safety: `staged_for_listing_id IS NULL OR status <> 'active'`. A
+staged row cannot be active, and every public query selects on `status = 'active'`, so staged content
+cannot reach the public site through a query nobody remembered to change. Uploaded photos share the
+blob key with the published row, and a blob is deleted only when no row still references it.
+
+**Writes to a published listing are refused, not redirected.** `StagedWrites.RefuseWritesToPublishedListings()`
+is one endpoint filter applied to the five section route groups, so a PUT or POST against a live
+listing returns 409 with the reason, rather than each of the thirteen handlers remembering. The
+subscription routes refuse the *opposite* — a staged copy cannot buy a plan, because it is deleted
+on approval and its entitlement is read from the listing it stands in for.
+
+**A new listing.** *Add a business* is a POST, not a link: it creates one placeholder draft per
+owner (a filtered unique index enforces the "one"), opens the real editor on it, and every section
+works at once. A placeholder is not counted against the listing limit, does not appear in the
+owner's list as a business, and the first real save clears the flag. The button is a form rather
+than a link because a link would create a row on prefetch.
+
+**The area, which this nearly lost.** A placeholder has to be created in *some* area before its
+owner has said anything, so it starts in the area of their first listing — and the editor had no
+area field, because an existing listing's area was fixed and the client stripped it out of every
+save. Left there, every second business an owner added would have been filed under the first one's
+area permanently. The area is now a choice for as long as no moderator has seen the listing: the
+API moves it (and the map point, which was the old area's centre) and refuses the change on a
+published listing or a staged copy, and the editor draws the select only where the change is
+allowed. Suite 9 asserts both halves. It was a browser test that found it, not a build.
+
+| Migration | What it does | Rollback |
+|---|---|---|
+| `S0034__listing_staging.sql` | `staged_for_listing_id` and `is_placeholder` on `listings`, two CHECKs, two filtered unique indexes, `listing_entitlements` resolving a staged row to its parent, and `listing_pending_changes` dropped | `manual/S0034_down.sql` — deletes staged and placeholder rows, restores the `S0009` view. It does **not** recreate `S0031`'s table and does not delete blobs |
+
+`S0034` drops `listing_pending_changes`, which `S0031` created in this same unapplied branch, so on
+a database where neither has run the pair is a no-op. The DROP is marked `-- approved-destructive:`
+and is guarded: it THROWs rather than dropping if the table holds a row, which is what would happen
+if `S0031` had been applied somewhere and used.
+
+**Verification.** `npm run verify` exit 0 on 2026-11-23: 111 script tests, 842 unit, 359
+integration, three production builds, 0 warnings. Browser: suite 12 (39 assertions) drives both
+journeys in Chrome against the owner stub — take a copy, change three sections, submit, see the published
+listing unmoved, discard; then start a business, set hours and a question before any save, and save
+once. Suites 9 (57 assertions) and 11 (40) were re-run with it, both green. **Every browser assertion here is against a stub API, not
+the real one**, and **no migration in this branch has ever been executed**, because there is no SQL
+Server outside production in this environment. `database/sqlserver/checks/staged_listings_smoke.sql`
+is written and has never run; it is the first thing to run once `S0034` is applied somewhere safe.
 
 ## Verification
 

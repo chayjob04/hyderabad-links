@@ -319,8 +319,13 @@ export const listMyListings = () => authed<OwnerListing[]>("/api/v1/me/listings"
 export const getMyListing = (id: number) => authed<OwnerListing>(`/api/v1/me/listings/${id}`);
 export const createListing = (input: ListingFormInput) =>
   authed<OwnerListing>("/api/v1/me/listings", { method: "POST", body: json(toPayload(input)) });
+/* The area goes with the save now. It used to be stripped here, because an existing listing's
+   area was fixed and sending it could only confuse the request. A new listing is started as a
+   draft before its owner has said where it is (S0034), so the area has to be changeable for as
+   long as no moderator has seen it -- the API decides that, and refuses the change on anything
+   else, so this call sends what the form holds and lets it answer. */
 export const updateListing = (id: number, input: ListingFormInput) =>
-  authed<OwnerListing>(`/api/v1/me/listings/${id}`, { method: "PUT", body: json(toPayload({ ...input, localitySlug: undefined })) });
+  authed<OwnerListing>(`/api/v1/me/listings/${id}`, { method: "PUT", body: json(toPayload(input)) });
 /* The /submit endpoint is still there and still serves an older client; nothing on this site
    calls it, because Submit is a button on the listing form now and goes through the same
    create/update call as Save with the intent set. */

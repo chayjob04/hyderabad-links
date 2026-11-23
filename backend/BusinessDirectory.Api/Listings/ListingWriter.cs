@@ -159,6 +159,24 @@ public static class ListingWriter
         await command.ExecuteNonQueryAsync(ct);
     }
 
+    /// <summary>
+    /// Moves a listing to another area.
+    /// </summary>
+    /// <remarks>
+    /// Only the area: the slug is unique across the whole directory rather than within an area
+    /// (see the note on the slug helper), so moving a listing cannot collide with anything and the
+    /// public URL, which has no area in it, does not change either.
+    /// </remarks>
+    public static async Task MoveToLocality(
+        SqlConnection conn, SqlTransaction tx, long listingId, int localityId, CancellationToken ct)
+    {
+        await using var command = new SqlCommand(
+            "UPDATE dbo.listings SET locality_id = @locality WHERE id = @id", conn, tx);
+        command.Parameters.AddWithValue("id", listingId);
+        command.Parameters.AddWithValue("locality", localityId);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
     public static async Task AddPrimaryCategory(SqlConnection conn, SqlTransaction tx, long listingId, int categoryId, CancellationToken ct)
     {
         await using var command = new SqlCommand(

@@ -14,7 +14,7 @@ import { LockIcon } from "@/components/account/VerifiedFeatures";
 import { ListingForm } from "@/components/ListingForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getCategories } from "@/lib/api";
+import { getCategories, getLocalities } from "@/lib/api";
 import {
   describePendingChanges,
   describeStatus,
@@ -131,9 +131,14 @@ export default async function EditListingPage({ params, searchParams }: Props) {
 
   /* One round of requests for the whole screen. Each section used to fetch its own on a page of
      its own; gathering them here is what lets a heading say "40%" before it is opened. */
-  const [result, categories, hours, faqs, content, attributes, links, media] = await Promise.all([
+  const [result, categories, localities, hours, faqs, content, attributes, links, media] = await Promise.all([
     getMyListing(id),
     getCategories(),
+    /* The areas, for a listing that has never been public. A new one is started in the area of the
+       owner's first listing -- a row needs one before anybody has said which -- so the field below
+       is where they put it right. Loaded unconditionally because it is cached for 300s and shared
+       with the public pages. */
+    getLocalities("hyderabad"),
     getOpeningHours(id),
     getListingFaqs(id),
     getListingContent(id),
@@ -169,9 +174,13 @@ export default async function EditListingPage({ params, searchParams }: Props) {
   const staged = listing.pendingChanges ?? null;
   const published = listing.status === "active";
   const isCopy = (listing.stagedForListingId ?? null) !== null;
+  /* The area is still a choice while no moderator has seen the listing. The API applies the same
+     rule, and refuses the change otherwise; this only decides which control is drawn. */
+  const mayChooseArea = !isCopy && (listing.status === "draft" || listing.status === "rejected");
   const shown = {
     name: listing.name,
     categorySlug: listing.categorySlug,
+    localitySlug: listing.localitySlug,
     addressLine: listing.addressLine,
     pincode: listing.pincode,
     phonePrimary: listing.phonePrimary,
@@ -402,7 +411,14 @@ export default async function EditListingPage({ params, searchParams }: Props) {
           ) : null}
         </p>
 
-        <ListingNav listingId={listing.id} current="edit" verified={verified} />
+        {/* Promote, Ads and Plan belong to the listing, not to a copy of it: a staged copy is
+            deleted when the edit is approved, and the API refuses a payment for one. So the nav
+            points at the published listing whenever this page is showing its copy. */}
+        <ListingNav
+          listingId={listing.stagedForListingId ?? listing.id}
+          current="edit"
+          verified={verified}
+        />
 
         {listing.status === "active" ? (
           <p className="mt-2">
@@ -521,6 +537,7 @@ export default async function EditListingPage({ params, searchParams }: Props) {
         initialValues={{
           name: shown.name,
           categorySlug: shown.categorySlug,
+          localitySlug: shown.localitySlug,
           addressLine: shown.addressLine ?? "",
           pincode: shown.pincode ?? "",
           phonePrimary: shown.phonePrimary,
@@ -540,7 +557,13 @@ export default async function EditListingPage({ params, searchParams }: Props) {
           completion={detailsCompletion}
           defaultOpen={firstIncomplete === "details" || firstIncomplete === undefined}
         >
-          <ListingForm categories={categories} lockedLocalityName={listing.localityName} />
+          {/* The area is a choice until a moderator has seen the listing, and fixed afterwards.
+              A staged copy keeps the area of the listing it stands in for, so it is fixed too. */}
+          {mayChooseArea && localities ? (
+            <ListingForm categories={categories} localities={localities} />
+          ) : (
+            <ListingForm categories={categories} lockedLocalityName={listing.localityName} />
+          )}
         </ListingSection>
 
         {/* ---------------------------------------------------------------- photos and video */}

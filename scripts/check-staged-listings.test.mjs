@@ -125,6 +125,45 @@ test("every section's writes are refused on a published listing, by a filter and
   }
 });
 
+test("a new listing's area can still be chosen, and a published one's cannot", () => {
+  /* A placeholder is created in the area of the owner's first listing, because a row needs one
+     before the owner has said anything. Without a way to change it afterwards, every second
+     business an owner adds would be filed under the first one's area for good. */
+  const endpoints = code(read(api, "Endpoints", "OwnerListingEndpoints.cs"));
+  assert.match(endpoints, /mayChooseArea\s*=\s*neverPublic\s*&&\s*!lockResult\.Value\.Staged/);
+  assert.match(endpoints, /ListingWriter\.MoveToLocality\(/);
+
+  // The lock reads both facts the rule needs, so neither is a second query that could disagree.
+  assert.match(endpoints, /staged_for_listing_id IS NULL THEN 0 ELSE 1/);
+
+  const writer = code(read(api, "Listings", "ListingWriter.cs"));
+  assert.match(writer, /UPDATE dbo\.listings SET locality_id = @locality WHERE id = @id/);
+
+  // And the editor draws the select only for a listing no moderator has seen.
+  const editor = read(mainSrc, "app", "account", "listings", "[id]", "edit", "page.tsx");
+  assert.match(editor, /mayChooseArea = !isCopy && \(listing\.status === "draft" \|\| listing\.status === "rejected"\)/);
+  assert.match(editor, /mayChooseArea && localities \?/);
+  assert.match(editor, /lockedLocalityName=\{listing\.localityName\}/);
+
+  // And the save actually carries it. It used to be stripped out of the request on purpose.
+  const ownerApi = read(mainSrc, 'lib', 'owner-api.ts');
+  assert.ok(!/localitySlug: undefined/.test(ownerApi), 'the area is stripped out of the save again');
+});
+
+test("a staged copy cannot buy a plan of its own", () => {
+  /* It is deleted when the edit is approved, and its entitlement is read from the listing it stands
+     in for -- so a payment taken for it would be a payment for a row that is about to disappear. */
+  const subscriptions = code(read(api, "Endpoints", "OwnerSubscriptionEndpoints.cs"));
+  assert.match(subscriptions, /RefuseStagedListings\(\)/);
+
+  const guard = code(read(api, "Listings", "StagedWrites.cs"));
+  assert.match(guard, /staged_for_listing_id IS NOT NULL/);
+
+  // And the owner's editor points Promote, Ads and Plan at the listing rather than at the copy.
+  const editor = read(mainSrc, "app", "account", "listings", "[id]", "edit", "page.tsx");
+  assert.match(editor, /listingId=\{listing\.stagedForListingId \?\? listing\.id\}/);
+});
+
 test("approving moves every section, and never changes what a listing is", () => {
   const staged = code(read(api, "Listings", "StagedListings.cs"));
 
