@@ -68,7 +68,33 @@ public static class SuperAdminSubscriptionEndpoints
         /// dashboard. An identifier, not a credential: it authorises nothing and is shown to the
         /// payer too.
         /// </summary>
-        string? LastPaymentReference);
+        string? LastPaymentReference,
+
+        /// <summary>
+        /// How the period in force came about: `payment` or `complimentary` (S0033). Null when
+        /// there is none.
+        ///
+        /// This is the column that keeps a gift from being read as revenue. A complimentary period
+        /// grants exactly what a paid one grants -- the entitlements view does not care how a
+        /// subscription arrived -- so without it the two are indistinguishable in any report.
+        /// </summary>
+        string? Source = null,
+
+        /// <summary>Why it was granted, for a complimentary period. Required when one is granted.</summary>
+        string? GrantReason = null,
+
+        /// <summary>Who granted it. Null when the admin account has since been removed.</summary>
+        string? GrantedBy = null,
+
+        /// <summary>
+        /// The listing's public page, or null when it has no primary category yet.
+        ///
+        /// Sent because granting or ending a period changes what that page may show -- the badge,
+        /// the photos, the named links -- so the screen's actions refresh it. Composed here with
+        /// PublicUrl rather than built from an id on the website, which is how dead paths were
+        /// produced everywhere else it was tried.
+        /// </summary>
+        string? Url = null);
 
     /// <param name="Verified">Listings whose paid period is in force right now.</param>
     /// <param name="Expiring">Of those, how many run out within <see cref="ExpiringWithinDays"/> days.</param>
@@ -85,7 +111,14 @@ public static class SuperAdminSubscriptionEndpoints
         long PaidPaiseAllTime,
         long PaidPaiseLast30Days,
         int RefundedPayments,
-        int FailedPayments);
+        int FailedPayments,
+
+        /// <summary>
+        /// Periods in force that nobody paid for (S0033). Counted separately from `Verified`,
+        /// because "how many listings are Verified" and "how many of those are paying" are
+        /// different questions and the second one is the one that pays for the platform.
+        /// </summary>
+        int Complimentary = 0);
 
     /// <param name="PricePaise">In paise, as the table stores it, so nothing rounds in transit.</param>
     public sealed record PlanRowDto(
@@ -113,8 +146,12 @@ public static class SuperAdminSubscriptionEndpoints
         SubscriptionSummaryDto Summary,
         IReadOnlyList<PlanRowDto> Plans,
         /// <summary>
-        /// False, always. Sent so the screen can say in one place that nothing here writes, rather
-        /// than each button having to decide for itself whether it exists.
+        /// Whether this caller may grant, extend, move or end a period by hand (S0033).
+        ///
+        /// It was always false when this screen only read. It is now the one answer the screen asks
+        /// for, rather than each form deciding for itself: the API checks the permission on every
+        /// write regardless, so this only decides whether a control that would be refused is drawn
+        /// at all.
         /// </summary>
         bool CanWrite);
 
@@ -164,8 +201,12 @@ public static class SuperAdminSubscriptionEndpoints
         var (items, total) = await ReadPage(conn, wanted, currentPage, size, ct);
 
         var totalPages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)size);
+        /* The same permission the write endpoints check. Reading and writing are behind one
+           permission here on purpose: anyone who may see every business's plan is the platform
+           owner, and the alternative -- a read-only subscription role -- is a role nobody asked
+           for and another thing to keep right. */
         return Results.Ok(new SubscriptionsPageDto(
-            items, currentPage, size, total, totalPages, wanted, summary, plans, CanWrite: false));
+            items, currentPage, size, total, totalPages, wanted, summary, plans, CanWrite: true));
     }
 
     /// <summary>
@@ -201,11 +242,29 @@ public static class SuperAdminSubscriptionEndpoints
                          pay.created_at AS last_payment_at, pay.status AS last_payment_status,
                          pay.amount_paise AS last_payment_paise,
                          COALESCE(pay.provider_payment_id, pay.provider_order_id) AS last_payment_reference,
+                         live.source, live.grant_reason, ga.display_name AS granted_by,
+                         li.slug, pc.slug AS category_slug, pcparent.slug AS parent_category_slug,
                          last.bought_at
                   FROM dbo.listings li
                   JOIN dbo.listing_entitlements e ON e.listing_id = li.id
                   JOIN dbo.localities lo ON lo.id = li.locality_id
                   LEFT JOIN dbo.users u ON u.id = li.created_by_user_id
+                  /* The period in force, for how it came about. The entitlement view says what the
+                     listing may do; it does not say who paid, which is the question a report about
+                     revenue has to be able to answer. */
+                  OUTER APPLY (
+                      SELECT TOP (1) s.source, s.grant_reason, s.granted_by_admin_id
+                      FROM dbo.subscriptions s
+                      WHERE s.listing_id = li.id
+                        AND s.status = 'active'
+                        AND s.starts_at <= SYSDATETIMEOFFSET()
+                        AND s.expires_at > SYSDATETIMEOFFSET()
+                      ORDER BY s.expires_at DESC
+                  ) live
+                  LEFT JOIN dbo.admin_users ga ON ga.id = live.granted_by_admin_id
+                  LEFT JOIN dbo.listing_categories lc ON lc.listing_id = li.id AND lc.is_primary = 1
+                  LEFT JOIN dbo.categories pc ON pc.id = lc.category_id
+                  LEFT JOIN dbo.categories pcparent ON pcparent.id = pc.parent_id
                   -- Has this listing ever bought a period? That is what separates 'lapsed' from
                   -- 'never paid', and the entitlement view cannot say: both read as free.
                   OUTER APPLY (
@@ -234,7 +293,8 @@ public static class SuperAdminSubscriptionEndpoints
                      p.effective_plan_slug, p.effective_plan_name, p.is_verified,
                      p.paid_until, p.days_remaining, p.subscribed_plan_slug,
                      p.last_payment_at, p.last_payment_status, p.last_payment_paise,
-                     p.last_payment_reference
+                     p.last_payment_reference, p.source, p.grant_reason, p.granted_by,
+                     p.slug, p.category_slug, p.parent_category_slug
               FROM (SELECT 1 AS one) AS always_one_row
               LEFT JOIN page p ON 1 = 1
               ORDER BY CASE WHEN p.paid_until IS NULL THEN 1 ELSE 0 END, p.paid_until ASC, p.id ASC";
@@ -269,7 +329,14 @@ public static class SuperAdminSubscriptionEndpoints
                 reader.IsDBNull(12) ? null : reader.GetFieldValue<DateTimeOffset>(12),
                 reader.IsDBNull(13) ? null : reader.GetString(13),
                 reader.IsDBNull(14) ? null : reader.GetInt64(14),
-                reader.IsDBNull(15) ? null : reader.GetString(15)));
+                reader.IsDBNull(15) ? null : reader.GetString(15),
+                reader.IsDBNull(16) ? null : reader.GetString(16),
+                reader.IsDBNull(17) ? null : reader.GetString(17),
+                reader.IsDBNull(18) ? null : reader.GetString(18),
+                Listings.PublicUrl.ForListing(
+                    reader.IsDBNull(21) ? null : reader.GetString(21),
+                    reader.IsDBNull(20) ? null : reader.GetString(20),
+                    reader.GetString(19))));
         }
 
         return (items, total);
@@ -299,14 +366,19 @@ public static class SuperAdminSubscriptionEndpoints
                    WHERE status = 'paid'
                      AND COALESCE(paid_at, created_at) > DATEADD(day, -30, SYSDATETIMEOFFSET())) AS paid_30,
                   (SELECT COUNT_BIG(*) FROM dbo.subscription_payments WHERE status = 'refunded') AS refunded,
-                  (SELECT COUNT_BIG(*) FROM dbo.subscription_payments WHERE status = 'failed') AS failed",
+                  (SELECT COUNT_BIG(*) FROM dbo.subscription_payments WHERE status = 'failed') AS failed,
+                  (SELECT COUNT_BIG(*) FROM dbo.subscriptions s
+                   WHERE s.source = 'complimentary'
+                     AND s.status = 'active'
+                     AND s.starts_at <= SYSDATETIMEOFFSET()
+                     AND s.expires_at > SYSDATETIMEOFFSET()) AS complimentary",
             conn);
         command.Parameters.AddWithValue("window", ExpiringWithinDays);
 
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
         {
-            return new SubscriptionSummaryDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            return new SubscriptionSummaryDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         return new SubscriptionSummaryDto(
@@ -319,7 +391,8 @@ public static class SuperAdminSubscriptionEndpoints
             reader.GetInt64(6),
             reader.GetInt64(7),
             (int)reader.GetInt64(8),
-            (int)reader.GetInt64(9));
+            (int)reader.GetInt64(9),
+            (int)reader.GetInt64(10));
     }
 
     /// <summary>

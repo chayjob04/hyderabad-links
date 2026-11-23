@@ -72,11 +72,11 @@ public class SuperAdminAccessTests(WebApplicationFactory<Program> factory) : ICl
     }
 
     [Fact]
-    public async Task Nothing_on_the_subscription_route_writes()
+    public async Task The_subscription_collection_itself_is_read_only()
     {
-        /* The one assertion that keeps this feature honest: there is no way to grant a plan,
-           extend a period or refund a payment, because each of those is money. If one is ever
-           added it will fail here, which is the point at which somebody should be asked. */
+        /* Granting, extending, moving and ending a period are all per-listing routes (S0033). The
+           collection takes no writes at all, so a POST to it is a mistake rather than a dangerous
+           shortcut -- and this is what notices if one is ever added here instead. */
         foreach (var method in new[] { "POST", "PUT", "PATCH", "DELETE" })
         {
             using var request = new HttpRequestMessage(new HttpMethod(method), "/api/v1/super-admin/subscriptions");
@@ -88,6 +88,41 @@ public class SuperAdminAccessTests(WebApplicationFactory<Program> factory) : ICl
                 response.StatusCode,
                 new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
         }
+    }
+
+    public static TheoryData<string> SubscriptionWriteRoutes() =>
+    [
+        "/api/v1/super-admin/subscriptions/1/grant",
+        "/api/v1/super-admin/subscriptions/1/extend",
+        "/api/v1/super-admin/subscriptions/1/plan",
+        "/api/v1/super-admin/subscriptions/1/revoke",
+    ];
+
+    [Theory]
+    [MemberData(nameof(SubscriptionWriteRoutes))]
+    public async Task Granting_or_ending_a_subscription_refuses_an_anonymous_caller(string route)
+    {
+        /* These give away a paid plan or take one back, so they are behind the super-admin audience
+           and plans.manage. The refusal has to come before the handler: a 404 here would mean the
+           route is missing, and anything else would mean it ran. */
+        var response = await _client.PostAsJsonAsync(
+            route, new { planSlug = "verified", months = 12, reason = "testing" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [MemberData(nameof(SubscriptionWriteRoutes))]
+    public async Task Granting_or_ending_a_subscription_is_not_on_the_admin_surface(string route)
+    {
+        // The same path under /api/v1/admin must not exist: 404 or 405, never 401.
+        var response = await _client.PostAsJsonAsync(
+            route.Replace("super-admin", "admin", StringComparison.Ordinal),
+            new { planSlug = "verified", months = 12, reason = "testing" });
+
+        Assert.Contains(
+            response.StatusCode,
+            new[] { HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed });
     }
 
     // ---------------------------------------------------------------- writing listings

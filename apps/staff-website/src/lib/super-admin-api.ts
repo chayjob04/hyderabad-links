@@ -753,6 +753,22 @@ export type SubscriptionRow = {
   lastPaymentPaise: number | null;
   /** The provider's reference, for reconciliation. An identifier, not a credential. */
   lastPaymentReference: string | null;
+
+  /**
+   * How the period in force came about: `payment` or `complimentary` (S0033). Null when there is
+   * none.
+   *
+   * This is what keeps a gift from being read as revenue. A complimentary period grants exactly
+   * what a paid one grants -- the entitlements view does not care how a subscription arrived -- so
+   * without this the two are indistinguishable in any report.
+   */
+  source: "payment" | "complimentary" | null;
+  /** Why it was granted, for a complimentary period. */
+  grantReason: string | null;
+  /** Who granted it. Null when that admin account has since been removed. */
+  grantedBy: string | null;
+  /** The listing's public page, so an action can refresh what it may show. Null without a category. */
+  url: string | null;
 };
 
 export type SubscriptionSummary = {
@@ -766,6 +782,8 @@ export type SubscriptionSummary = {
   paidPaiseLast30Days: number;
   refundedPayments: number;
   failedPayments: number;
+  /** Periods in force that nobody paid for. Counted apart from `verified` deliberately. */
+  complimentary: number;
 };
 
 export type PlanRow = {
@@ -802,6 +820,44 @@ export const listSubscriptions = (input: { state?: string; page?: number }) => {
   const suffix = query.toString();
   return authed<SubscriptionsPage>("/api/v1/super-admin/subscriptions" + (suffix ? "?" + suffix : ""));
 };
+
+/**
+ * Granting, extending, moving and ending a period by hand (S0033).
+ *
+ * Every one of these needs a reason, which is stored on the subscription and read months later.
+ * None of them writes a payment record: a complimentary period is a subscription with no payment
+ * behind it, and `source` says so. Ending a *paid* period is refused by the API -- that would be a
+ * refund, which is a Razorpay operation this project does not perform.
+ */
+export const grantSubscription = (
+  listingId: number,
+  input: { planSlug: string; months: number; reason: string },
+) =>
+  authed<void>("/api/v1/super-admin/subscriptions/" + listingId + "/grant", {
+    method: "POST",
+    body: json(input),
+  });
+
+export const extendSubscription = (listingId: number, input: { months: number; reason: string }) =>
+  authed<void>("/api/v1/super-admin/subscriptions/" + listingId + "/extend", {
+    method: "POST",
+    body: json(input),
+  });
+
+export const changeSubscriptionPlan = (
+  listingId: number,
+  input: { planSlug: string; reason: string },
+) =>
+  authed<void>("/api/v1/super-admin/subscriptions/" + listingId + "/plan", {
+    method: "POST",
+    body: json(input),
+  });
+
+export const revokeSubscription = (listingId: number, input: { reason: string }) =>
+  authed<void>("/api/v1/super-admin/subscriptions/" + listingId + "/revoke", {
+    method: "POST",
+    body: json(input),
+  });
 
 /** Paise to rupees, the way the pricing page does it: no paise are ever shown. */
 export const rupees = (paise: number) => "₹" + Math.round(paise / 100).toLocaleString("en-IN");

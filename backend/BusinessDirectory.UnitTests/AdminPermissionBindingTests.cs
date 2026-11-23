@@ -253,12 +253,19 @@ public class AdminPermissionBindingTests
     }
 
     [Fact]
-    public void Plans_manage_gates_subscription_reading_and_only_that()
+    public void Plans_manage_gates_the_subscription_screens_and_only_those()
     {
-        /* What every business pays is platform-owner work, so it goes through the super gate and
-           lives in one file. Two things would make this fail, and both are worth a conversation
-           before they happen: using the permission somewhere else, or putting it behind the
-           ordinary admin gate, which the admin role would then be one grant away from holding. */
+        /* What every business pays, and who may give a plan away, is platform-owner work. Two
+           files hold it: the read-only report, and the grant/extend/move/end actions added by
+           S0033. Two things would make this fail, and both are worth a conversation before they
+           happen -- using the permission somewhere else, or putting it behind the ordinary admin
+           gate, which the admin role would then be one grant away from holding. */
+        string[] expected =
+        [
+            "SuperAdminSubscriptionEndpoints.cs",
+            "SuperAdminSubscriptionWriteEndpoints.cs",
+        ];
+
         var bindings = ReadBindings()
             .Where(b => CodeFor(b.Permission) == AdminPermissions.PlansManage)
             .ToArray();
@@ -266,8 +273,11 @@ public class AdminPermissionBindingTests
         Assert.NotEmpty(bindings);
         Assert.All(bindings, binding =>
         {
-            Assert.Equal("SuperAdminSubscriptionEndpoints.cs", binding.File);
+            Assert.Contains(binding.File, expected);
             Assert.Equal("AuthorizeSuper", binding.Gate);
         });
+
+        // Both are reached, so neither has quietly stopped checking it.
+        Assert.Equal(expected.Length, bindings.Select(b => b.File).Distinct().Count());
     }
 }

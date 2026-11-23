@@ -93,6 +93,9 @@ public static class SuperAdminEndpoints
         /* Who is paying and until when. Read-only on purpose: granting a plan or refunding a
            payment is money, and there is no endpoint here that does either. */
         group.MapSuperAdminSubscriptionEndpoints();
+        /* And granting, extending, moving or ending one by hand (S0033). No payment record is ever
+           written by these, and a paid period cannot be ended here -- that would be a refund. */
+        group.MapSuperAdminSubscriptionWriteEndpoints();
         return group;
     }
 
