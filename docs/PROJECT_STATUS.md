@@ -457,7 +457,7 @@ them until the migrations are reviewed; `main` is unchanged at `f000dad`.
 
 **No migration in this set has been executed.** There is no SQL Server available outside production
 in this environment — `npm run db:check` and `db:migrate` both need one — so every script here has
-been written, read and checked by `npm run check:migrations`, and none has been run. The five
+been written, read and checked by `npm run check:migrations`, and none has been run. The four
 `database/sqlserver/checks/*.sql` files written alongside them are the first thing to run once they
 are applied somewhere safe. Said plainly because it is the one risk in this work that no amount of
 testing above the API boundary reduces.
@@ -502,7 +502,7 @@ screen counts granted periods apart from paid ones so a gift is never read as re
 
 **Verification.** `npm run verify` exit 0: 105 script tests, 843 unit, 357 integration, three
 production builds, 0 warnings. Browser: 40 assertions across the four new staff screens against the
-stub API, plus 259 re-run on the existing staff suites with no regressions. That proves the screens
+stub API, plus 260 re-run on the existing staff suites with no regressions. That proves the screens
 and the requests they send, and nothing about the SQL.
 
 ## Verification
