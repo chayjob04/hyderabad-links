@@ -1,7 +1,8 @@
 # Project status and handoff
 
-**Updated:** 2026-11-23, at commit `aa5a3e0`. Read this first, then `CLAUDE.md`. It replaces
-re-auditing the repository.
+**Updated:** 2026-11-23. `main` is at `f000dad`; four schema-dependent features wait on the branch
+`feature/schema-dependent-features` (see the last entry under "What changed"). Read this first, then
+`CLAUDE.md`. It replaces re-auditing the repository.
 
 ## How to read this file
 
@@ -447,6 +448,62 @@ this project a scan has read a comment as code.
 listing need not re-enter review (it does today, deliberately — `OwnerSaveStatusTests` pins it);
 somewhere to keep a requested area or category instead of an email; and Segments, which is
 DECISION 1 in `docs/original-ui-parity-plan.md` and needs the taxonomy's two-level CHECK relaxed.
+
+### 2026-11-23 — four features waiting on four migrations (branch `feature/schema-dependent-features`)
+
+**Not on `main`, and not deployed.** Each of these needs a migration that has not been applied, and
+code that reads a table or a column which does not exist yet would fail at runtime. The branch holds
+them until the migrations are reviewed; `main` is unchanged at `f000dad`.
+
+**No migration in this set has been executed.** There is no SQL Server available outside production
+in this environment — `npm run db:check` and `db:migrate` both need one — so every script here has
+been written, read and checked by `npm run check:migrations`, and none has been run. The five
+`database/sqlserver/checks/*.sql` files written alongside them are the first thing to run once they
+are applied somewhere safe. Said plainly because it is the one risk in this work that no amount of
+testing above the API boundary reduces.
+
+| Migration | What it does | Rollback |
+|---|---|---|
+| `S0030__category_segments.sql` | Segments: a third tier above categories, seven rows, and the parent assignment for the seventeen existing categories | `manual/S0030_down.sql`, fully reversible |
+| `S0031__listing_pending_changes.sql` | One table: an edit to a published listing, held until a moderator decides | `manual/S0031_down.sql`, loses unapproved edits only |
+| `S0032__taxonomy_suggestions.sql` | One table: an owner's request for an area or a category | `manual/S0032_down.sql`, loses the queue only |
+| `S0033__complimentary_subscriptions.sql` | Three columns on `subscriptions`: how a period came about, who granted it, why | `manual/S0033_down.sql`, loses the record of which were granted |
+
+They are independent of each other and can be applied in order with no interdependency.
+
+**Segments (S0030).** The taxonomy is Segment > Category > Subcategory. The new tier is numbered 0
+rather than renumbering the existing two to 1/2/3, and the migration's header argues it at length:
+renumbering rewrites the level of every row and the fifteen queries that read one, on a database
+nobody can test it against. `CategoryTree` names the tiers so the numbers are not literals.
+
+Three queries decided a row's tier from whether it had a parent, and a category acquiring a segment
+broke each one in a way that renders perfectly — the public tree returned seven empty segments and
+no categories (which empties every menu, both staff pickers and the owner's), the homepage's
+popular-category cards linked to `/food/restaurants-and-food`, and the sitemap dropped every segment
+page. All three read `level` now, and `scripts/check-taxonomy-tiers.test.mjs` pins each one.
+
+**Staged edits (S0031).** Saving a published listing no longer takes it off the site: the edit goes
+to `listing_pending_changes`, the public page keeps serving the approved version, and
+`/admin/listing-changes` shows published beside proposed with the changed rows marked. Approving
+copies it onto the listing; rejecting writes only to the staged row, so a refusal cannot touch the
+live page — asserted rather than trusted. **It stages the Business details form and nothing else**:
+photos, hours, questions and links have always published immediately and still do.
+
+**Suggestions (S0032).** "My area is not listed" is a row in a queue now rather than a prefilled
+email nobody sent. Approving one creates the area or the category through the same INSERT the
+taxonomy screens use, asking for what only a person knows (a point on the map; the category a new
+subcategory belongs under). "Already there" is its own answer, not a rejection.
+
+**Granted subscriptions (S0033).** A super admin can grant, extend, move or end a period, each with
+a reason stored on the subscription and an audit entry carrying the state before and after. Nothing
+writes a payment record, nothing is marked as paid, and ending a period that was *paid for* is
+refused — that is a refund, and refunds are a Razorpay operation this project does not perform. The
+screen counts granted periods apart from paid ones so a gift is never read as revenue.
+
+**Verification.** `npm run verify` exit 0: 105 script tests, 843 unit, 357 integration, three
+production builds, 0 warnings. Browser: 40 assertions across the four new staff screens against the
+stub API, plus 259 re-run on the existing staff suites with no regressions. That proves the screens
+and the requests they send, and nothing about the SQL.
 
 ## Verification
 
